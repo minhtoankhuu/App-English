@@ -1,0 +1,23 @@
+# Tool working directories
+.agents/
+.analysis/
+.claude/
+.superpowers/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node (frontend sau này)
+node_modules/
+dist/
+
+# Env & secrets
+.env
+.env.*
+
+# OS
+Thumbs.db
+.DS_Store

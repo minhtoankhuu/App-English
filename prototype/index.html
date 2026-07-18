@@ -1,0 +1,1401 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ExamCraft AI — Prototype tạo đề</title>
+  <meta name="description" content="Prototype giao diện giáo viên tạo đề tiếng Anh bằng AI.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></symbol>
+      <symbol id="i-bank" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l4-1L20 7l-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l2.2 4.8L19 10l-4.8 2.2L12 17l-2.2-4.8L5 10l4.8-2.2L12 3z"/><path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></symbol>
+      <symbol id="i-grip" viewBox="0 0 24 24"><g fill="currentColor" stroke="none"><circle cx="9" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="15" cy="18" r="1.6"/></g></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M5 18l4-4 4 4 3-3 3 3"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.6c2.6.5 4.5 2.7 4.5 5.4"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="ExamCraft AI">
+        <span class="brand-mark">E</span>
+        <span class="brand-name">ExamCraft <em>AI</em></span>
+      </a>
+
+      <div class="role-switch" role="group" aria-label="Chuyển vai trò xem thử">
+        <button type="button" class="active" data-role="teacher">Giáo viên</button>
+        <button type="button" data-role="admin">Admin</button>
+      </div>
+
+      <nav class="main-nav" id="nav-teacher" aria-label="Điều hướng giáo viên">
+        <a class="nav-item active" href="#builder" id="nav-create"><svg class="icon"><use href="#i-plus"/></svg><span>Tạo đề</span></a>
+        <a class="nav-item" href="#" id="nav-myexams"><svg class="icon"><use href="#i-doc"/></svg><span>Đề của tôi</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-bank"/></svg><span>Ngân hàng câu hỏi</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-layers"/></svg><span>Template cá nhân</span></a>
+      </nav>
+
+      <nav class="main-nav is-hidden" id="nav-admin" aria-label="Điều hướng quản trị">
+        <a class="nav-item active" href="#admin"><svg class="icon"><use href="#i-layers"/></svg><span>Tổng quan</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-bank"/></svg><span>Kho kiến thức</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-doc"/></svg><span>Dạng bài &amp; template</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-image"/></svg><span>Thư viện hình ảnh</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-gear"/></svg><span>Cấu hình AI</span></a>
+        <a class="nav-item" href="#"><svg class="icon"><use href="#i-users"/></svg><span>Tài khoản</span></a>
+      </nav>
+
+      <div class="user-card">
+        <span class="avatar" id="user-avatar">A</span>
+        <span class="user-meta"><strong id="user-name">Nguyễn An</strong><small id="user-role">Giáo viên</small></span>
+      </div>
+    </aside>
+
+    <main class="main-content" id="builder">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Tạo đề mới</h1>
+          <span class="autosave"><span class="dot" aria-hidden="true"></span>Bản nháp được tự động lưu</span>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <ol class="steps" aria-label="Tiến trình tạo đề">
+          <li class="step completed"><span class="step-dot"><svg class="icon"><use href="#i-check"/></svg></span><span class="step-label">Nguồn kiến thức</span></li>
+          <li class="step active"><span class="step-dot">2</span><span class="step-label">Cấu trúc đề</span></li>
+          <li class="step"><span class="step-dot">3</span><span class="step-label">Duyệt câu hỏi</span></li>
+          <li class="step"><span class="step-dot">4</span><span class="step-label">Xuất DOCX</span></li>
+        </ol>
+
+        <div class="builder-grid">
+          <section class="configuration">
+            <div class="section-heading">
+              <div><h2>Cấu hình chung</h2><p>Chọn phạm vi kiến thức và template trước khi sinh nội dung.</p></div>
+            </div>
+
+            <div class="form-grid">
+              <label>Khối lớp
+                <select id="grade-select">
+                  <optgroup label="Primary — Tiểu học">
+                    <option value="1">Lớp 1</option>
+                    <option value="2">Lớp 2</option>
+                    <option value="3">Lớp 3</option>
+                    <option value="4">Lớp 4</option>
+                    <option value="5">Lớp 5</option>
+                  </optgroup>
+                  <optgroup label="Secondary — THCS">
+                    <option value="6">Lớp 6</option>
+                    <option value="7" selected>Lớp 7</option>
+                    <option value="8">Lớp 8</option>
+                    <option value="9">Lớp 9</option>
+                  </optgroup>
+                  <optgroup label="High school — THPT">
+                    <option value="10">Lớp 10</option>
+                    <option value="11">Lớp 11</option>
+                    <option value="12">Lớp 12</option>
+                  </optgroup>
+                </select>
+              </label>
+              <label>Nguồn kiến thức
+                <select id="book-select">
+                  <option>Global Success</option>
+                  <option>Kiến thức chung</option>
+                  <option>Cambridge</option>
+                </select>
+              </label>
+              <label><span id="unit-label">Unit</span>
+                <select id="unit-select">
+                  <option>Unit 3 — Community Service</option>
+                  <option>Unit 2 — Healthy Living</option>
+                </select>
+              </label>
+              <label>Trình độ
+                <select id="level-select">
+                  <option value="A1">A1</option>
+                  <option value="A2" selected>A2</option>
+                  <option value="B1">B1</option>
+                  <option value="B2">B2</option>
+                  <option value="C1">C1</option>
+                </select>
+                <small class="field-hint" id="level-hint">Gợi ý A2 theo Lớp 7 — có thể chỉnh</small>
+              </label>
+              <label>Template<select><option>Ôn tập Unit — 45 phút</option><option>Kiểm tra giữa kỳ</option></select></label>
+            </div>
+
+            <div id="tense-picker" class="is-hidden">
+              <div class="section-heading block-heading">
+                <div><h2 id="picker-title">Chọn thì</h2><p id="picker-desc">Câu hỏi chỉ xoay quanh các thì đã tick. Mục vượt trình độ của đề được đánh dấu — vẫn chọn được.</p></div>
+              </div>
+              <div id="tense-groups"></div>
+            </div>
+
+            <div class="section-heading block-heading">
+              <div><h2>Dạng bài tập</h2><p>Đề chỉ sinh những dạng đã tick; bỏ tick sẽ loại block tương ứng.</p></div>
+            </div>
+
+            <div class="type-grid" id="type-grid" role="group" aria-label="Chọn dạng bài tập">
+              <label class="type-option"><input type="checkbox" value="pron" checked>Phát âm</label>
+              <label class="type-option"><input type="checkbox" value="stress">Trọng âm</label>
+              <label class="type-option"><input type="checkbox" value="mcq" checked>Trắc nghiệm</label>
+              <label class="type-option"><input type="checkbox" value="matching">Matching</label>
+              <label class="type-option"><input type="checkbox" value="gapfill">Điền vào chỗ trống</label>
+              <label class="type-option"><input type="checkbox" value="cloze">Cloze test</label>
+              <label class="type-option"><input type="checkbox" value="reading" checked>Đọc hiểu True/False</label>
+              <label class="type-option"><input type="checkbox" value="sign">Đọc biển báo có hình</label>
+              <label class="type-option"><input type="checkbox" value="wordform">Word form</label>
+              <label class="type-option"><input type="checkbox" value="rewrite" checked>Viết lại câu</label>
+            </div>
+
+            <div class="section-heading block-heading">
+              <div><h2>Các phần của đề</h2><p>Kéo thả, thay dạng bài hoặc tạo lại riêng từng khối.</p></div>
+              <button class="button secondary compact" type="button"><svg class="icon"><use href="#i-plus"/></svg>Thêm phần</button>
+            </div>
+
+            <div class="block-list">
+              <article class="exam-block" draggable="true" data-type="pron" data-questions="5" data-points="1" data-kind="Phát âm" data-difficulty="Nhận biết">
+                <span class="drag" aria-hidden="true"><svg class="icon"><use href="#i-grip"/></svg></span>
+                <span class="block-badge t-pron" aria-hidden="true">I</span>
+                <div class="block-body">
+                  <h3>Pronunciation</h3>
+                  <p class="chips"><span class="chip">Phát âm</span><span class="chip">5 câu</span><span class="chip">Nhận biết</span><span class="chip score">1 điểm</span></p>
+                </div>
+                <div class="item-actions">
+                  <button type="button" aria-label="Chỉnh sửa phần I"><svg class="icon"><use href="#i-pencil"/></svg></button>
+                  <button type="button" aria-label="Xóa phần I"><svg class="icon"><use href="#i-trash"/></svg></button>
+                </div>
+              </article>
+              <article class="exam-block" draggable="true" data-type="mcq" data-questions="15" data-points="3" data-kind="Trắc nghiệm" data-difficulty="Hỗn hợp">
+                <span class="drag" aria-hidden="true"><svg class="icon"><use href="#i-grip"/></svg></span>
+                <span class="block-badge t-vocab" aria-hidden="true">II</span>
+                <div class="block-body">
+                  <h3>Vocabulary &amp; Grammar</h3>
+                  <p class="chips"><span class="chip">Trắc nghiệm</span><span class="chip">15 câu</span><span class="chip">Hỗn hợp</span><span class="chip score">3 điểm</span></p>
+                </div>
+                <div class="item-actions">
+                  <button type="button" aria-label="Chỉnh sửa phần II"><svg class="icon"><use href="#i-pencil"/></svg></button>
+                  <button type="button" aria-label="Xóa phần II"><svg class="icon"><use href="#i-trash"/></svg></button>
+                </div>
+              </article>
+              <article class="exam-block" draggable="true" data-type="reading" data-questions="6" data-points="3" data-kind="Đọc hiểu True/False" data-difficulty="Thông hiểu">
+                <span class="drag" aria-hidden="true"><svg class="icon"><use href="#i-grip"/></svg></span>
+                <span class="block-badge t-read" aria-hidden="true">III</span>
+                <div class="block-body">
+                  <h3>Reading</h3>
+                  <p class="chips"><span class="chip">Đọc hiểu True/False</span><span class="chip">6 câu</span><span class="chip">Thông hiểu</span><span class="chip score">3 điểm</span></p>
+                </div>
+                <div class="item-actions">
+                  <button type="button" aria-label="Chỉnh sửa phần III"><svg class="icon"><use href="#i-pencil"/></svg></button>
+                  <button type="button" aria-label="Xóa phần III"><svg class="icon"><use href="#i-trash"/></svg></button>
+                </div>
+              </article>
+              <article class="exam-block" draggable="true" data-type="rewrite" data-questions="4" data-points="3" data-kind="Viết lại câu" data-difficulty="Vận dụng">
+                <span class="drag" aria-hidden="true"><svg class="icon"><use href="#i-grip"/></svg></span>
+                <span class="block-badge t-write" aria-hidden="true">IV</span>
+                <div class="block-body">
+                  <h3>Sentence transformation</h3>
+                  <p class="chips"><span class="chip">Viết lại câu</span><span class="chip">4 câu</span><span class="chip">Vận dụng</span><span class="chip score">3 điểm</span></p>
+                </div>
+                <div class="item-actions">
+                  <button type="button" aria-label="Chỉnh sửa phần IV"><svg class="icon"><use href="#i-pencil"/></svg></button>
+                  <button type="button" aria-label="Xóa phần IV"><svg class="icon"><use href="#i-trash"/></svg></button>
+                </div>
+              </article>
+            </div>
+
+            <label class="prompt-field">Yêu cầu bổ sung
+              <textarea rows="3" placeholder="Ví dụ: Dùng ngữ cảnh gần gũi với học sinh lớp 7, tránh từ vựng ngoài Unit 3."></textarea>
+            </label>
+
+            <div class="notice"><strong>Ma trận đề:</strong> chưa thiết lập — hệ thống sẽ dùng phân bố mặc định của template.</div>
+
+            <div class="config-footer">
+              <button class="button secondary" type="button">Lưu nháp</button>
+              <button class="button primary large" type="button" id="btn-generate"><svg class="icon"><use href="#i-sparkle"/></svg>Sinh đề bằng AI</button>
+            </div>
+          </section>
+
+          <aside class="preview-panel">
+            <div class="section-heading preview-heading">
+              <div><h2>Xem trước A4</h2><p id="page-estimate">Ước tính 4 trang</p></div>
+              <button class="icon-button" type="button" aria-label="Mở rộng bản xem trước"><svg class="icon"><use href="#i-expand"/></svg></button>
+            </div>
+
+            <div class="paper" role="img" aria-label="Bản xem trước đề A4">
+              <header class="paper-header"><strong id="paper-title">UNIT 3 — REVISION TEST</strong><small id="paper-meta">English 7 · Level A2 · Time: 45 minutes</small></header>
+              <div id="paper-body"></div>
+            </div>
+
+            <dl class="metrics">
+              <div><dt>Câu hỏi</dt><dd id="m-questions">30</dd></div>
+              <div><dt>Tổng điểm</dt><dd id="m-points">10</dd></div>
+              <div><dt>Khối</dt><dd id="m-blocks">4</dd></div>
+            </dl>
+          </aside>
+        </div>
+
+        <div id="review-view" class="is-hidden">
+          <div class="review-head">
+            <button class="button secondary compact" type="button" id="btn-back-config">← Sửa cấu trúc</button>
+            <p class="review-progress"><strong id="approved-count">0</strong>/<span id="review-total">6</span> câu đã duyệt (bản mẫu hiển thị 6/30 câu)</p>
+          </div>
+
+          <section class="review-block">
+            <h3 class="review-block-title">I. Pronunciation · 5 câu — hiển thị 2 câu mẫu</h3>
+            <article class="q-card">
+              <header class="q-head">
+                <span class="q-no">Câu 1</span>
+                <span class="chip">Nguyên âm /iː/ – /e/</span><span class="chip">A2</span><span class="chip">Nguồn: GS7-U3 §3</span>
+                <span class="q-status">Chờ duyệt</span>
+              </header>
+              <p class="q-text">Choose the word whose underlined part is pronounced differently.</p>
+              <ul class="q-options">
+                <li>A. cl<u>ea</u>n</li>
+                <li class="correct">B. br<u>ea</u>d</li>
+                <li>C. t<u>ea</u>ch</li>
+                <li>D. t<u>ea</u>m</li>
+              </ul>
+              <p class="q-answer"><strong>Đáp án: B.</strong> "bread" phát âm /e/, ba từ còn lại phát âm /iː/. Đã kiểm chứng bằng từ điển phát âm.</p>
+              <footer class="q-actions">
+                <button type="button" data-act="approve">Duyệt</button>
+                <button type="button" data-act="regen">Sinh lại</button>
+                <button type="button" data-act="lock">Khóa</button>
+              </footer>
+            </article>
+            <article class="q-card">
+              <header class="q-head">
+                <span class="q-no">Câu 2</span>
+                <span class="chip">Đuôi -ed</span><span class="chip">A2</span><span class="chip">Nguồn: GS7-U3 §3</span>
+                <span class="q-status">Chờ duyệt</span>
+              </header>
+              <p class="q-text">Choose the word whose underlined part is pronounced differently.</p>
+              <ul class="q-options">
+                <li>A. help<u>ed</u></li>
+                <li class="correct">B. donat<u>ed</u></li>
+                <li>C. cook<u>ed</u></li>
+                <li>D. wash<u>ed</u></li>
+              </ul>
+              <p class="q-answer"><strong>Đáp án: B.</strong> "donated" phát âm /ɪd/, ba từ còn lại phát âm /t/.</p>
+              <footer class="q-actions">
+                <button type="button" data-act="approve">Duyệt</button>
+                <button type="button" data-act="regen">Sinh lại</button>
+                <button type="button" data-act="lock">Khóa</button>
+              </footer>
+            </article>
+          </section>
+
+          <section class="review-block">
+            <h3 class="review-block-title">II. Vocabulary &amp; Grammar · 15 câu — hiển thị 2 câu mẫu</h3>
+            <article class="q-card" data-variant='{"text":"Last week, our class ______ food to homeless people in the city.","options":["A. give","B. gave","C. will give","D. giving"],"correct":1,"answer":"Đáp án: B. \"last week\" là dấu hiệu thì quá khứ đơn."}'>
+              <header class="q-head">
+                <span class="q-no">Câu 6</span>
+                <span class="chip">Past Simple</span><span class="chip">A2</span><span class="chip">Nguồn: GS7-U3 §5</span>
+                <span class="q-status">Chờ duyệt</span>
+              </header>
+              <p class="q-text">We ______ old books and clothes to the children in the village last month.</p>
+              <ul class="q-options">
+                <li>A. donate</li>
+                <li class="correct">B. donated</li>
+                <li>C. will donate</li>
+                <li>D. are donating</li>
+              </ul>
+              <p class="q-answer"><strong>Đáp án: B.</strong> "last month" là dấu hiệu thì quá khứ đơn.</p>
+              <footer class="q-actions">
+                <button type="button" data-act="approve">Duyệt</button>
+                <button type="button" data-act="regen">Sinh lại</button>
+                <button type="button" data-act="lock">Khóa</button>
+              </footer>
+            </article>
+            <article class="q-card">
+              <header class="q-head">
+                <span class="q-no">Câu 7</span>
+                <span class="chip">Từ vựng Unit 3</span><span class="chip">A2</span><span class="chip">Nguồn: GS7-U3 §2</span>
+                <span class="q-status">Chờ duyệt</span>
+              </header>
+              <p class="q-text">Volunteers often ______ elderly people with their housework.</p>
+              <ul class="q-options">
+                <li class="correct">A. help</li>
+                <li>B. helps</li>
+                <li>C. helping</li>
+                <li>D. helped</li>
+              </ul>
+              <p class="q-answer"><strong>Đáp án: A.</strong> Chủ ngữ số nhiều "Volunteers" + thì hiện tại đơn.</p>
+              <div class="q-warning">Cảnh báo: gần giống câu #124 trong ngân hàng (tương đồng 0.93) — cân nhắc sinh lại.</div>
+              <footer class="q-actions">
+                <button type="button" data-act="approve">Duyệt</button>
+                <button type="button" data-act="regen">Sinh lại</button>
+                <button type="button" data-act="lock">Khóa</button>
+              </footer>
+            </article>
+          </section>
+
+          <section class="review-block">
+            <h3 class="review-block-title">III. Reading · 6 câu — hiển thị 1 câu mẫu</h3>
+            <article class="q-card">
+              <header class="q-head">
+                <span class="q-no">Câu 21</span>
+                <span class="chip">True/False</span><span class="chip">A2</span><span class="chip">Nguồn: GS7-U3 §8</span>
+                <span class="q-status">Chờ duyệt</span>
+              </header>
+              <p class="q-passage">Last summer, students at Le Loi Secondary School joined a community project. They cleaned the lake, planted trees and taught English to primary pupils at the weekend.</p>
+              <p class="q-text">The students taught English on weekdays. (True/False)</p>
+              <p class="q-answer"><strong>Đáp án: False.</strong> Đoạn văn ghi "at the weekend".</p>
+              <footer class="q-actions">
+                <button type="button" data-act="approve">Duyệt</button>
+                <button type="button" data-act="regen">Sinh lại</button>
+                <button type="button" data-act="lock">Khóa</button>
+              </footer>
+            </article>
+          </section>
+
+          <section class="review-block">
+            <h3 class="review-block-title">IV. Sentence transformation · 4 câu — hiển thị 1 câu mẫu</h3>
+            <article class="q-card">
+              <header class="q-head">
+                <span class="q-no">Câu 27</span>
+                <span class="chip">Câu bị động</span><span class="chip">B1</span><span class="chip">Nguồn: GS7-U3 §11</span>
+                <span class="q-status">Chờ duyệt</span>
+              </header>
+              <p class="q-text">They will build a new library next year. → A new library ______ next year.</p>
+              <p class="q-answer"><strong>Đáp án:</strong> will be built.</p>
+              <div class="q-warning">Cảnh báo: cấu trúc bị động (B1) vượt trình độ của đề (A2) — xác nhận trước khi duyệt.</div>
+              <footer class="q-actions">
+                <button type="button" data-act="approve">Duyệt</button>
+                <button type="button" data-act="regen">Sinh lại</button>
+                <button type="button" data-act="lock">Khóa</button>
+              </footer>
+            </article>
+          </section>
+
+          <div class="review-footer">
+            <p>100% câu phải được giáo viên duyệt trước khi xuất. Câu đã khóa không bị thay đổi khi sinh lại.</p>
+            <button class="button primary" type="button" id="btn-finish" disabled>Hoàn tất kiểm duyệt → Xuất DOCX</button>
+          </div>
+        </div>
+
+        <div id="export-view" class="is-hidden">
+          <section class="configuration export-card">
+            <div>
+              <h2>Xuất DOCX</h2>
+              <p class="export-meta">UNIT 3 — REVISION TEST · 30 câu · 10 điểm · Đã kiểm duyệt</p>
+            </div>
+            <div class="export-options" role="radiogroup" aria-label="Kiểu xuất">
+              <label class="radio-row"><input type="radio" name="export-mode" checked>Chỉ đề (không kèm đáp án) — bản phát cho học sinh</label>
+              <label class="radio-row"><input type="radio" name="export-mode">Đề có đáp án <span class="answer-red">tô đỏ</span> — bản dành cho giáo viên</label>
+            </div>
+
+            <div class="export-preview is-hidden" id="export-preview">
+              <p class="export-preview-title">Xem trước kiểu tô đỏ — đáp án đúng in đỏ ngay trong đề:</p>
+              <div class="key-preview">
+                <div class="key-row">
+                  <span><strong>1.</strong> <strong>A.</strong> puzzle<u>s</u></span>
+                  <span class="key-correct"><strong>B.</strong> message<u>s</u></span>
+                  <span><strong>C.</strong> pudding<u>s</u></span>
+                  <span><strong>D.</strong> flower<u>s</u></span>
+                </div>
+                <div class="key-row">
+                  <span><strong>2.</strong> <strong>A.</strong> resort<u>s</u></span>
+                  <span><strong>B.</strong> look<u>s</u></span>
+                  <span class="key-correct"><strong>C.</strong> dresse<u>s</u></span>
+                  <span><strong>D.</strong> project<u>s</u></span>
+                </div>
+                <div class="key-row">
+                  <span class="key-correct"><strong>3.</strong> <strong>A.</strong> help<u>s</u></span>
+                  <span><strong>B.</strong> live<u>s</u></span>
+                  <span><strong>C.</strong> improve<u>s</u></span>
+                  <span><strong>D.</strong> fold<u>s</u></span>
+                </div>
+              </div>
+            </div>
+            <label>Số mã đề
+              <select>
+                <option>1 mã</option>
+                <option>2 mã (A/B)</option>
+                <option selected>4 mã (A/B/C/D)</option>
+              </select>
+              <small class="field-hint">Các mã đảo thứ tự câu và đáp án; cụm đọc hiểu giữ nguyên nhóm.</small>
+            </label>
+            <div class="export-actions">
+              <button class="button secondary" type="button" id="btn-back-review">← Quay lại duyệt</button>
+              <button class="button primary" type="button" id="btn-save-exam">Lưu vào Đề của tôi</button>
+            </div>
+            <p class="field-hint">Đề được lưu kèm cấu hình xuất; tải file DOCX từ mục "Đề của tôi".</p>
+          </section>
+        </div>
+
+        <div id="myexams-view" class="is-hidden">
+          <div class="exam-list">
+            <article class="exam-row">
+              <div class="exam-info">
+                <h3>UNIT 3 — REVISION TEST</h3>
+                <p class="exam-meta">English 7 · Level A2 · 30 câu · 10 điểm · cập nhật hôm nay · <span id="current-exam-mode">chưa chọn kiểu xuất</span></p>
+              </div>
+              <span class="q-status" id="current-exam-status">Nháp</span>
+              <div class="exam-actions">
+                <button class="button secondary compact" type="button" data-open="config">Chỉnh sửa</button>
+                <button class="button secondary compact" type="button" data-open="review">Duyệt câu</button>
+                <button class="button primary compact" type="button" id="row-download" disabled>Tải DOCX</button>
+              </div>
+            </article>
+            <article class="exam-row">
+              <div class="exam-info">
+                <h3>UNIT 2 — HEALTHY LIVING TEST</h3>
+                <p class="exam-meta">English 7 · Level A2 · 25 câu · 10 điểm · cập nhật 12/07</p>
+              </div>
+              <span class="q-status">Nháp</span>
+              <div class="exam-actions">
+                <button class="button secondary compact" type="button" disabled>Chỉnh sửa</button>
+                <button class="button primary compact" type="button" disabled>Tải DOCX</button>
+              </div>
+            </article>
+          </div>
+          <p class="field-hint">Đề lưu snapshot: file đã tải không thay đổi khi bạn chỉnh đề sau đó. Câu sửa tay cần được duyệt lại trước khi xuất bản mới. Chỉ đề "Sẵn sàng xuất" mới tải được DOCX.</p>
+        </div>
+      </div>
+    </main>
+
+    <main class="main-content is-hidden" id="admin">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Quản trị hệ thống</h1>
+          <span class="autosave"><span class="dot" aria-hidden="true"></span>Mọi thay đổi được ghi audit log</span>
+        </div>
+        <div class="top-actions">
+          <button class="button secondary" type="button">Xem audit log</button>
+          <button class="button primary" type="button"><svg class="icon"><use href="#i-plus"/></svg>Nhập tài liệu</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <div class="admin-grid">
+          <article class="admin-card">
+            <span class="icon-wrap"><svg class="icon"><use href="#i-bank"/></svg></span>
+            <h3>Kho kiến thức &amp; RAG</h3>
+            <p>Nhập PDF/DOCX, kiểm tra, xuất bản và lập phiên bản tài liệu.</p>
+            <span class="chip">12 đã xuất bản · 2 chờ duyệt</span>
+          </article>
+          <article class="admin-card">
+            <span class="icon-wrap"><svg class="icon"><use href="#i-layers"/></svg></span>
+            <h3>Danh mục học thuật</h3>
+            <p>Khối lớp, cấp học, bộ sách, Unit và bảng ánh xạ trình độ.</p>
+            <span class="chip">2 mục: Tense · Global Success</span>
+          </article>
+          <article class="admin-card">
+            <span class="icon-wrap"><svg class="icon"><use href="#i-doc"/></svg></span>
+            <h3>Dạng bài &amp; template chuẩn</h3>
+            <p>Schema, prompt, validation rule và renderer của từng dạng.</p>
+            <span class="chip">12 dạng bài · 3 template</span>
+          </article>
+          <article class="admin-card">
+            <span class="icon-wrap"><svg class="icon"><use href="#i-image"/></svg></span>
+            <h3>Thư viện hình ảnh</h3>
+            <p>Biển báo, thông báo và minh họa cho dạng bài có hình.</p>
+            <span class="chip">28 hình đã gắn metadata</span>
+          </article>
+          <article class="admin-card">
+            <span class="icon-wrap"><svg class="icon"><use href="#i-gear"/></svg></span>
+            <h3>Cấu hình AI</h3>
+            <p>Provider, model, API key, embedding và reranker.</p>
+            <span class="chip">API · rerank đang bật</span>
+          </article>
+          <article class="admin-card">
+            <span class="icon-wrap"><svg class="icon"><use href="#i-users"/></svg></span>
+            <h3>Tài khoản &amp; phân quyền</h3>
+            <p>Tài khoản giáo viên, trạng thái và quyền truy cập.</p>
+            <span class="chip">3 giáo viên hoạt động</span>
+          </article>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="block-editor" id="block-editor" aria-labelledby="be-heading">
+    <form id="block-editor-form">
+      <header class="editor-header">
+        <div>
+          <h2 id="be-heading">Chỉnh sửa phần</h2>
+          <p><span class="chip" id="be-kind-chip">Trắc nghiệm</span> — dạng bài chọn ở checklist bên ngoài. Câu đã khóa không bị sinh lại.</p>
+        </div>
+        <button class="icon-button" type="button" id="be-close" aria-label="Đóng">✕</button>
+      </header>
+
+      <label>Tiêu đề phần
+        <input type="text" id="be-title" required>
+      </label>
+
+      <label>Hướng dẫn làm bài
+        <input type="text" id="be-instruction" placeholder="Ví dụ: Choose the best answer A, B, C or D.">
+      </label>
+
+      <div class="editor-grid">
+        <label>Độ khó
+          <select id="be-difficulty">
+            <option>Nhận biết</option>
+            <option>Thông hiểu</option>
+            <option>Vận dụng</option>
+            <option>Hỗn hợp</option>
+          </select>
+        </label>
+        <label>Số câu
+          <input type="number" id="be-questions" min="1" max="50" required>
+        </label>
+        <label>Điểm
+          <input type="number" id="be-points" min="0" max="10" step="0.5" required>
+        </label>
+      </div>
+
+      <label id="be-passage-field" class="is-hidden">Số từ bài đọc (≈)
+        <input type="number" id="be-passage" min="10" max="500" step="10">
+        <small class="field-hint" id="be-passage-hint">Gợi ý 80–150 từ cho Lớp 7 — theo bảng độ dài bài đọc.</small>
+      </label>
+
+      <label>Trình độ của phần này
+        <select id="be-level">
+          <option value="">Theo trình độ của đề</option>
+          <option value="A1">A1</option>
+          <option value="A2">A2</option>
+          <option value="B1">B1</option>
+          <option value="B2">B2</option>
+          <option value="C1">C1</option>
+        </select>
+        <small class="field-hint">Chỉ ghi đè khi phần này cần khác với trình độ chung.</small>
+      </label>
+
+      <div class="editor-checks">
+        <label class="type-option"><input type="checkbox" id="be-shuffle-q" checked>Cho phép đảo thứ tự câu</label>
+        <label class="type-option"><input type="checkbox" id="be-shuffle-a" checked>Cho phép đảo đáp án</label>
+      </div>
+
+      <label>Prompt bổ sung cho phần này
+        <textarea id="be-prompt" rows="2" placeholder="Ví dụ: Ưu tiên từ vựng về hoạt động tình nguyện trong Unit 3."></textarea>
+      </label>
+
+      <footer class="editor-footer">
+        <button class="button secondary" type="button" id="be-cancel">Hủy</button>
+        <button class="button primary" type="submit">Lưu thay đổi</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script>
+    (function () {
+      const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+      const blockList = document.querySelector(".block-list");
+      const boxes = Array.from(document.querySelectorAll("#type-grid .type-option input"));
+
+      function makeGhost(type, name) {
+        const el = document.createElement("article");
+        el.className = "exam-block ghost";
+        el.dataset.type = type;
+        el.dataset.questions = "0";
+        el.dataset.points = "0";
+        el.dataset.kind = name;
+        el.dataset.difficulty = "Hỗn hợp";
+        el.draggable = true;
+        el.innerHTML =
+          '<span class="drag" aria-hidden="true"><svg class="icon"><use href="#i-grip"/></svg></span>' +
+          '<span class="block-badge ghost-badge" aria-hidden="true">+</span>' +
+          '<div class="block-body"><h3></h3>' +
+          '<p class="chips"><span class="chip">Block mới</span><span class="chip">Cấu hình mặc định</span><span class="chip">Chưa đặt số câu/điểm</span></p></div>' +
+          '<div class="item-actions"><button type="button"><svg class="icon"><use href="#i-pencil"/></svg></button></div>';
+        el.querySelector("h3").textContent = name;
+        el.querySelector("button").setAttribute("aria-label", "Chỉnh sửa " + name);
+        return el;
+      }
+
+      function update() {
+        boxes.forEach(function (cb) {
+          const type = cb.value;
+          const real = blockList.querySelector('.exam-block[data-type="' + type + '"]:not(.ghost)');
+          let ghost = blockList.querySelector('.exam-block.ghost[data-type="' + type + '"]');
+          if (real) {
+            real.classList.toggle("hidden", !cb.checked);
+          } else if (cb.checked && !ghost) {
+            blockList.appendChild(makeGhost(type, cb.parentElement.textContent.trim()));
+          } else if (!cb.checked && ghost) {
+            ghost.remove();
+          }
+        });
+
+        let questions = 0, points = 0, count = 0;
+        blockList.querySelectorAll(".exam-block:not(.hidden)").forEach(function (block) {
+          block.querySelector(".block-badge").textContent =
+            block.classList.contains("ghost") ? "+" : (ROMAN[count] || count + 1);
+          count += 1;
+          questions += Number(block.dataset.questions) || 0;
+          points += Number(block.dataset.points) || 0;
+        });
+        document.getElementById("m-questions").textContent = questions;
+        document.getElementById("m-points").textContent = points;
+        document.getElementById("m-blocks").textContent = count;
+        renderPaper();
+      }
+
+      // Bản xem trước A4 dựng động theo danh sách block
+      const KIND_INSTRUCTIONS = {
+        "Phát âm": "Choose the word whose underlined part is pronounced differently.",
+        "Trọng âm": "Choose the word that has a different stress pattern.",
+        "Trắc nghiệm": "Choose the best answer A, B, C or D.",
+        "Matching": "Match the items in column A with the ones in column B.",
+        "Điền vào chỗ trống": "Fill in each blank with a suitable word.",
+        "Cloze test": "Choose the best option to complete the passage.",
+        "Đọc hiểu True/False": "Read the passage and decide whether the statements are True or False.",
+        "Đọc biển báo có hình": "Look at each sign and choose the best answer.",
+        "Word form": "Give the correct form of the words in brackets.",
+        "Viết lại câu": "Rewrite the sentences using the given words."
+      };
+
+      function renderPaper() {
+        const paperBody = document.getElementById("paper-body");
+        paperBody.textContent = "";
+        let questionNo = 1;
+        let index = 0;
+        blockList.querySelectorAll(".exam-block:not(.hidden)").forEach(function (block) {
+          const q = Number(block.dataset.questions) || 0;
+          const p = Number(block.dataset.points) || 0;
+          const section = document.createElement("section");
+          const heading = document.createElement("h3");
+          heading.textContent = (ROMAN[index] || index + 1) + ". " +
+            block.querySelector("h3").textContent.toUpperCase() +
+            " (" + p.toFixed(1) + (p === 1 ? " point)" : " points)");
+          section.appendChild(heading);
+          const instruction = block.dataset.instruction || KIND_INSTRUCTIONS[block.dataset.kind];
+          if (q > 0 && instruction) {
+            const pEl = document.createElement("p");
+            pEl.textContent = questionNo + ". " + instruction;
+            section.appendChild(pEl);
+          }
+          const lineCount = Math.min(5, Math.max(2, Math.ceil(q / 3)));
+          for (let i = 0; i < lineCount; i++) {
+            section.appendChild(Object.assign(document.createElement("span"), { className: "line" }));
+          }
+          section.appendChild(Object.assign(document.createElement("span"), { className: "line short" }));
+          paperBody.appendChild(section);
+          questionNo += q;
+          index += 1;
+        });
+        document.getElementById("page-estimate").textContent =
+          "Ước tính " + Math.max(1, Math.ceil((questionNo - 1) / 8)) + " trang";
+      }
+
+      // Kéo thả sắp xếp các phần
+      let draggingBlock = null;
+      blockList.addEventListener("dragstart", function (e) {
+        const block = e.target.closest(".exam-block");
+        if (!block) return;
+        draggingBlock = block;
+        block.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      blockList.addEventListener("dragend", function () {
+        if (!draggingBlock) return;
+        draggingBlock.classList.remove("dragging");
+        draggingBlock = null;
+        update();
+      });
+      blockList.addEventListener("dragover", function (e) {
+        if (!draggingBlock) return;
+        e.preventDefault();
+        const siblings = Array.from(blockList.querySelectorAll(".exam-block:not(.dragging):not(.hidden)"));
+        const after = siblings.find(function (el) {
+          const box = el.getBoundingClientRect();
+          return e.clientY < box.top + box.height / 2;
+        });
+        if (after) blockList.insertBefore(draggingBlock, after);
+        else blockList.appendChild(draggingBlock);
+      });
+
+      boxes.forEach(function (cb) { cb.addEventListener("change", update); });
+      update();
+
+      const gradeSelect = document.getElementById("grade-select");
+      const levelSelect = document.getElementById("level-select");
+      const levelHint = document.getElementById("level-hint");
+      const paperMeta = document.getElementById("paper-meta");
+
+      // Ánh xạ lớp -> trình độ gợi ý (theo giáo viên xác nhận, xem đặc tả 7.4)
+      const SUGGEST = { 1: "A1", 2: "A1", 3: "A1", 4: "A1", 5: "A2", 6: "A2", 7: "A2", 8: "B1", 9: "B1", 10: "B2", 11: "B2", 12: "B2" };
+
+      function syncLevel() {
+        const label = levelSelect.options[levelSelect.selectedIndex].text.split(" —")[0];
+        const grade = gradeSelect.value;
+        paperMeta.textContent = "English " + grade + " · Level " + label + " · Time: 45 minutes";
+        refreshTenseLevels();
+      }
+      function applyGradeSuggestion() {
+        const grade = gradeSelect.value;
+        levelSelect.value = SUGGEST[grade];
+        levelHint.textContent = "Gợi ý " + SUGGEST[grade] + " theo Lớp " + grade + " — có thể chỉnh";
+        syncLevel();
+      }
+      gradeSelect.addEventListener("change", function () {
+        applyGradeSuggestion();
+        syncBook();
+        syncTensePicker();
+      });
+      levelSelect.addEventListener("change", syncLevel);
+
+      // Nguồn kiến thức: bộ sách theo Unit (khác nhau theo lớp) hoặc Kiến thức chung theo chuyên đề
+      const GS_UNIT_TITLES = {
+        6: ["My New School", "My House", "My Friends", "My Neighbourhood", "Natural Wonders of Viet Nam", "Our Tet Holiday", "Television", "Sports and Games", "Cities of the World", "Our Houses in the Future", "Our Greener World", "Robots"],
+        7: ["Hobbies", "Healthy Living", "Community Service", "Music and Arts", "Food and Drink", "A Visit to a School", "Traffic", "Films", "Festivals Around the World", "Energy Sources", "Travelling in the Future", "English-speaking Countries"],
+        8: ["Leisure Time", "Life in the Countryside", "Teenagers", "Ethnic Groups of Viet Nam", "Our Customs and Traditions", "Lifestyles", "Environmental Protection", "Shopping", "Natural Disasters", "Communication in the Future", "Science and Technology", "Life on Other Planets"],
+        9: ["Local Community", "City Life", "Healthy Living for Teens", "Remembering the Past", "Our Experiences", "Vietnamese Lifestyle: Then and Now", "Natural Wonders of the World", "Tourism", "World Englishes", "Planet Earth", "Electronic Devices", "Career Choices"],
+        10: ["Family Life", "Humans and the Environment", "Music", "For a Better Community", "Inventions", "Gender Equality", "Viet Nam and International Organisations", "New Ways to Learn", "Protecting the Environment", "Ecotourism"],
+        11: ["A Long and Healthy Life", "The Generation Gap", "Cities of the Future", "ASEAN and Viet Nam", "Global Warming", "Preserving Our Heritage", "Education Options for School-leavers", "Becoming Independent", "Social Issues", "The Ecosystem"],
+        12: ["Life Stories We Admire", "A Multicultural World", "Green Living", "Urbanisation", "The World of Work", "Artificial Intelligence", "The World of Mass Media", "Wildlife Conservation", "Career Paths", "Lifelong Learning"]
+      };
+      const COMMON_TOPICS = ["Tense — 12 thì tiếng Anh", "Các dạng cấu trúc câu"];
+      const CAMBRIDGE_CERTS = ["Starters", "Movers", "Flyers", "KET", "PET"];
+
+      function gsUnits(grade) {
+        const titles = GS_UNIT_TITLES[grade];
+        if (titles) {
+          return titles.map(function (title, i) { return "Unit " + (i + 1) + " — " + title; });
+        }
+        // Lớp 1-5: danh mục Unit do Admin nhập, tạm hiển thị theo số
+        const count = grade <= 2 ? 16 : 20;
+        return Array.from({ length: count }, function (_, i) { return "Unit " + (i + 1); });
+      }
+
+      const bookSelect = document.getElementById("book-select");
+      const unitSelect = document.getElementById("unit-select");
+      const unitLabel = document.getElementById("unit-label");
+      const paperTitle = document.getElementById("paper-title");
+
+      function syncPaperTitle() {
+        paperTitle.textContent = unitSelect.value.split(" — ")[0].toUpperCase() + " — REVISION TEST";
+      }
+      function syncBook() {
+        const source = bookSelect.value;
+        let label = "Unit";
+        let options = gsUnits(Number(gradeSelect.value));
+        if (source === "Kiến thức chung") {
+          label = "Chuyên đề";
+          options = COMMON_TOPICS;
+        } else if (source === "Cambridge") {
+          label = "Chứng chỉ";
+          options = CAMBRIDGE_CERTS;
+        }
+        unitLabel.textContent = label;
+        unitSelect.textContent = "";
+        options.forEach(function (name) {
+          const opt = document.createElement("option");
+          opt.textContent = name;
+          unitSelect.appendChild(opt);
+        });
+        applyCertSuggestion();
+        syncPaperTitle();
+      }
+
+      // Chọn chứng chỉ Cambridge sẽ gợi ý trình độ CEFR theo bảng quy đổi
+      function applyCertSuggestion() {
+        if (bookSelect.value !== "Cambridge") return;
+        const cert = unitSelect.value;
+        const cefr = CAMBRIDGE_TO_CEFR[cert];
+        if (!cefr) return;
+        levelSelect.value = cefr;
+        levelHint.textContent = "Gợi ý " + cefr + " theo " + cert + " — có thể chỉnh";
+        syncLevel();
+      }
+      bookSelect.addEventListener("change", function () { syncBook(); syncTensePicker(); });
+      unitSelect.addEventListener("change", function () { applyCertSuggestion(); syncPaperTitle(); syncTensePicker(); });
+
+      // Chọn từng thì: nhóm theo mốc thời gian, cảnh báo theo trình độ
+      const LEVEL_ORDER = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 };
+      const CAMBRIDGE_TO_CEFR = { Starters: "A1", Movers: "A1", Flyers: "A2", KET: "B1", PET: "B2" };
+      const TENSE_GROUPS = [
+        { label: "Hiện tại", items: [
+          ["Present Simple", "A1", true],
+          ["Present Continuous", "A1", true],
+          ["Present Perfect", "A2", false],
+          ["Present Perfect Continuous", "B1", false]
+        ] },
+        { label: "Quá khứ", items: [
+          ["Past Simple", "A1", true],
+          ["Past Continuous", "A2", false],
+          ["Past Perfect", "B1", false],
+          ["Past Perfect Continuous", "B2", false]
+        ] },
+        { label: "Tương lai", items: [
+          ["Future Simple", "A1", false],
+          ["Future Continuous", "B1", false],
+          ["Future Perfect", "B2", false],
+          ["Future Perfect Continuous", "B2", false]
+        ] }
+      ];
+
+      const tensePicker = document.getElementById("tense-picker");
+      const tenseGroups = document.getElementById("tense-groups");
+
+      function renderTopicGroups(groups) {
+        tenseGroups.textContent = "";
+        groups.forEach(function (group) {
+        const wrap = document.createElement("div");
+        wrap.className = "tense-group";
+        const head = document.createElement("div");
+        head.className = "tense-group-head";
+        const title = document.createElement("h4");
+        title.textContent = group.label;
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "group-toggle";
+        toggle.textContent = "Chọn cả nhóm";
+        head.appendChild(title);
+        head.appendChild(toggle);
+        wrap.appendChild(head);
+
+        const grid = document.createElement("div");
+        grid.className = "type-grid";
+        group.items.forEach(function (t) {
+          const label = document.createElement("label");
+          label.className = "type-option tense-option";
+          label.dataset.min = t[1];
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = t[2];
+          label.appendChild(input);
+          label.appendChild(document.createTextNode(t[0]));
+          const note = document.createElement("small");
+          note.className = "over-note";
+          label.appendChild(note);
+          grid.appendChild(label);
+        });
+        wrap.appendChild(grid);
+        tenseGroups.appendChild(wrap);
+
+        function syncToggleText() {
+          const inputs = Array.from(grid.querySelectorAll("input"));
+          toggle.textContent = inputs.every(function (i) { return i.checked; }) ? "Bỏ cả nhóm" : "Chọn cả nhóm";
+        }
+        toggle.addEventListener("click", function () {
+          const inputs = Array.from(grid.querySelectorAll("input"));
+          const allChecked = inputs.every(function (i) { return i.checked; });
+          inputs.forEach(function (i) { i.checked = !allChecked; });
+          syncToggleText();
+        });
+        grid.addEventListener("change", syncToggleText);
+        syncToggleText();
+        });
+      }
+
+      const STRUCTURE_GROUPS = [
+        { label: "Cấu trúc nền tảng (Primary)", items: [
+          ["Khẳng định / phủ định / nghi vấn", "A1", true],
+          ["There is / There are", "A1", true],
+          ["Câu mệnh lệnh (imperatives)", "A1", false],
+          ["Câu cảm thán (What a...! / How...!)", "A2", false],
+          ["So sánh hơn / nhất / bằng", "A2", true],
+          ["Câu hỏi đuôi (tag questions)", "A2", false]
+        ] },
+        { label: "Trọng tâm THCS (Secondary)", items: [
+          ["Câu điều kiện loại 0, 1, 2", "A2", false],
+          ["Câu bị động (passive voice)", "B1", false],
+          ["Câu tường thuật (reported speech)", "B1", false],
+          ["Mệnh đề quan hệ (relative clauses)", "B1", false],
+          ["Câu ước (wish clauses)", "B1", false],
+          ["Used to / be used to", "B1", false],
+          ["too...to / enough / so...that / such...that", "B1", false],
+          ["V + to-V / V-ing (gerund & infinitive)", "B1", false]
+        ] },
+        { label: "Nâng cao THPT (High school)", items: [
+          ["Câu điều kiện loại 3 và hỗn hợp", "B2", false],
+          ["Đảo ngữ (inversion)", "B2", false],
+          ["Câu chẻ (cleft: It is... that...)", "B2", false],
+          ["Câu truyền khiến (causative)", "B2", false],
+          ["Rút gọn mệnh đề (participle clauses)", "B2", false],
+          ["Câu giả định (subjunctive)", "C1", false]
+        ] }
+      ];
+
+      function currentCefr() {
+        const v = levelSelect.value;
+        return LEVEL_ORDER[v] ? v : (CAMBRIDGE_TO_CEFR[v] || "A2");
+      }
+      function refreshTenseLevels() {
+        const current = LEVEL_ORDER[currentCefr()];
+        document.querySelectorAll(".tense-option").forEach(function (option) {
+          const over = LEVEL_ORDER[option.dataset.min] > current;
+          option.classList.toggle("over-level", over);
+          option.querySelector(".over-note").textContent = over ? "vượt " + currentCefr() : "";
+        });
+      }
+      const pickerTitle = document.getElementById("picker-title");
+      const pickerDesc = document.getElementById("picker-desc");
+      function syncTensePicker() {
+        const isCommon = bookSelect.value === "Kiến thức chung";
+        const isTense = isCommon && unitSelect.value.indexOf("Tense") === 0;
+        const isStructure = isCommon && unitSelect.value.indexOf("Các dạng cấu trúc câu") === 0;
+        tensePicker.classList.toggle("is-hidden", !(isTense || isStructure));
+        if (!isTense && !isStructure) return;
+        const mode = isTense ? "tense" : "structure";
+        if (tensePicker.dataset.mode !== mode) {
+          tensePicker.dataset.mode = mode;
+          renderTopicGroups(isTense ? TENSE_GROUPS : STRUCTURE_GROUPS);
+          pickerTitle.textContent = isTense ? "Chọn thì" : "Chọn cấu trúc câu";
+          pickerDesc.textContent = "Câu hỏi chỉ xoay quanh các " + (isTense ? "thì" : "cấu trúc") + " đã tick. Mục vượt trình độ của đề được đánh dấu — vẫn chọn được.";
+          refreshTenseLevels();
+        }
+      }
+      syncLevel();
+      syncBook();
+      unitSelect.value = "Unit 3 — Community Service";
+      syncPaperTitle();
+      syncTensePicker();
+
+      // Chuyển vai trò Giáo viên / Admin
+      const ROLE_INFO = {
+        teacher: { name: "Nguyễn An", role: "Giáo viên", avatar: "A" },
+        admin: { name: "Minh Toàn", role: "Quản trị viên", avatar: "M" }
+      };
+      const roleButtons = Array.from(document.querySelectorAll(".role-switch button"));
+      const views = { teacher: document.getElementById("builder"), admin: document.getElementById("admin") };
+      const navs = { teacher: document.getElementById("nav-teacher"), admin: document.getElementById("nav-admin") };
+
+      function setRole(role) {
+        roleButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.role === role); });
+        Object.keys(views).forEach(function (key) {
+          views[key].classList.toggle("is-hidden", key !== role);
+          navs[key].classList.toggle("is-hidden", key !== role);
+        });
+        document.getElementById("user-name").textContent = ROLE_INFO[role].name;
+        document.getElementById("user-role").textContent = ROLE_INFO[role].role;
+        document.getElementById("user-avatar").textContent = ROLE_INFO[role].avatar;
+      }
+      roleButtons.forEach(function (b) {
+        b.addEventListener("click", function () { setRole(b.dataset.role); });
+      });
+
+      // Chỉnh sửa từng phần của đề
+      const editor = document.getElementById("block-editor");
+      const editorForm = document.getElementById("block-editor-form");
+      const F = function (id) { return document.getElementById(id); };
+      let editingBlock = null;
+
+      function renderChips(block) {
+        const chips = block.querySelector(".chips");
+        chips.textContent = "";
+        function addChip(text, extraClass) {
+          const span = document.createElement("span");
+          span.className = "chip" + (extraClass ? " " + extraClass : "");
+          span.textContent = text;
+          chips.appendChild(span);
+        }
+        addChip(block.dataset.kind);
+        addChip(block.dataset.questions + " câu");
+        addChip(block.dataset.difficulty);
+        addChip(block.dataset.points + " điểm", "score");
+        if (block.dataset.level) addChip("Level " + block.dataset.level, "score");
+        if (block.dataset.passage) addChip("≈" + block.dataset.passage + " từ");
+      }
+
+      // Độ dài bài đọc gợi ý theo khối lớp (xem đặc tả 7.6)
+      const PASSAGE_KINDS = ["Đọc hiểu True/False", "Cloze test"];
+      function passageRange(grade) {
+        const g = Number(grade);
+        if (g <= 2) return [20, 40];
+        if (g <= 5) return [40, 80];
+        if (g <= 7) return [80, 150];
+        if (g <= 9) return [150, 250];
+        return [250, 350];
+      }
+
+      blockList.addEventListener("click", function (e) {
+        const delBtn = e.target.closest('button[aria-label^="Xóa"]');
+        if (delBtn) {
+          const block = delBtn.closest(".exam-block");
+          const cb = boxes.find(function (x) { return x.value === block.dataset.type; });
+          if (cb) cb.checked = false;
+          block.remove();
+          update();
+          return;
+        }
+        const btn = e.target.closest('button[aria-label^="Chỉnh sửa"]');
+        if (!btn) return;
+        editingBlock = btn.closest(".exam-block");
+        F("be-title").value = editingBlock.querySelector("h3").textContent;
+        F("be-instruction").value = editingBlock.dataset.instruction || "";
+        F("be-kind-chip").textContent = editingBlock.dataset.kind || "Trắc nghiệm";
+        F("be-difficulty").value = editingBlock.dataset.difficulty || "Hỗn hợp";
+        F("be-questions").value = Number(editingBlock.dataset.questions) || 1;
+        F("be-points").value = Number(editingBlock.dataset.points) || 0;
+        F("be-level").value = editingBlock.dataset.level || "";
+        F("be-shuffle-q").checked = editingBlock.dataset.shuffleQ !== "0";
+        F("be-shuffle-a").checked = editingBlock.dataset.shuffleA !== "0";
+        F("be-prompt").value = editingBlock.dataset.prompt || "";
+        const isPassage = PASSAGE_KINDS.indexOf(editingBlock.dataset.kind) !== -1;
+        F("be-passage-field").classList.toggle("is-hidden", !isPassage);
+        if (isPassage) {
+          const range = passageRange(gradeSelect.value);
+          F("be-passage").value = editingBlock.dataset.passage || Math.round((range[0] + range[1]) / 2 / 10) * 10;
+          F("be-passage-hint").textContent = "Gợi ý " + range[0] + "–" + range[1] + " từ cho Lớp " + gradeSelect.value + " — theo bảng độ dài bài đọc.";
+        }
+        editor.showModal();
+      });
+
+      F("be-cancel").addEventListener("click", function () { editor.close(); });
+      F("be-close").addEventListener("click", function () { editor.close(); });
+
+      editorForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (!editingBlock) return;
+        editingBlock.querySelector("h3").textContent = F("be-title").value.trim();
+        editingBlock.dataset.instruction = F("be-instruction").value.trim();
+        editingBlock.dataset.difficulty = F("be-difficulty").value;
+        editingBlock.dataset.questions = F("be-questions").value;
+        editingBlock.dataset.points = F("be-points").value;
+        editingBlock.dataset.level = F("be-level").value;
+        editingBlock.dataset.shuffleQ = F("be-shuffle-q").checked ? "1" : "0";
+        editingBlock.dataset.shuffleA = F("be-shuffle-a").checked ? "1" : "0";
+        editingBlock.dataset.prompt = F("be-prompt").value.trim();
+        if (PASSAGE_KINDS.indexOf(editingBlock.dataset.kind) !== -1) {
+          editingBlock.dataset.passage = F("be-passage").value;
+        } else {
+          delete editingBlock.dataset.passage;
+        }
+        renderChips(editingBlock);
+        editingBlock.classList.remove("ghost");
+        const badge = editingBlock.querySelector(".block-badge");
+        if (badge.classList.contains("ghost-badge")) {
+          badge.classList.remove("ghost-badge");
+          badge.classList.add("t-vocab");
+        }
+        update();
+        editor.close();
+      });
+
+      // Bước 3 (duyệt câu hỏi) và bước 4 (xuất DOCX)
+      const btnGenerate = document.getElementById("btn-generate");
+      const builderGrid = document.querySelector(".builder-grid");
+      const reviewView = document.getElementById("review-view");
+      const exportView = document.getElementById("export-view");
+      const stepItems = document.querySelectorAll(".steps .step");
+      const finishBtn = document.getElementById("btn-finish");
+
+      function setStep(index) {
+        stepItems.forEach(function (step, i) {
+          step.classList.toggle("completed", i < index);
+          step.classList.toggle("active", i === index);
+        });
+      }
+      const myexamsView = document.getElementById("myexams-view");
+      const stepsEl = document.querySelector(".steps");
+      const builderTitle = document.querySelector("#builder .topbar h1");
+      const autosaveEl = document.querySelector("#builder .autosave");
+      const navCreate = document.getElementById("nav-create");
+      const navMyexams = document.getElementById("nav-myexams");
+      let lastCreateView = "config";
+
+      function showView(view) {
+        const isMyexams = view === "myexams";
+        if (!isMyexams) lastCreateView = view;
+        builderGrid.classList.toggle("is-hidden", view !== "config");
+        reviewView.classList.toggle("is-hidden", view !== "review");
+        exportView.classList.toggle("is-hidden", view !== "export");
+        myexamsView.classList.toggle("is-hidden", !isMyexams);
+        stepsEl.classList.toggle("is-hidden", isMyexams);
+        builderTitle.textContent = isMyexams ? "Đề của tôi" : "Tạo đề mới";
+        autosaveEl.classList.toggle("is-hidden", isMyexams);
+        navCreate.classList.toggle("active", !isMyexams);
+        navMyexams.classList.toggle("active", isMyexams);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      navMyexams.addEventListener("click", function (e) { e.preventDefault(); showView("myexams"); });
+      navCreate.addEventListener("click", function (e) { e.preventDefault(); showView(lastCreateView); });
+      myexamsView.addEventListener("click", function (e) {
+        const btn = e.target.closest("button[data-open]");
+        if (!btn) return;
+        const target = btn.dataset.open;
+        setStep(target === "review" ? 2 : 1);
+        showView(target);
+      });
+
+      btnGenerate.addEventListener("click", function () {
+        btnGenerate.disabled = true;
+        btnGenerate.textContent = "Đang sinh đề từ nguồn RAG...";
+        setTimeout(function () {
+          btnGenerate.disabled = false;
+          btnGenerate.innerHTML = '<svg class="icon"><use href="#i-sparkle"/></svg>Sinh đề bằng AI';
+          setStep(2);
+          showView("review");
+        }, 900);
+      });
+      document.getElementById("btn-back-config").addEventListener("click", function () { setStep(1); showView("config"); });
+      document.getElementById("btn-back-review").addEventListener("click", function () { setStep(2); showView("review"); });
+      finishBtn.addEventListener("click", function () {
+        // Đề đã kiểm duyệt 100% -> lưu vào "Đề của tôi" ở trạng thái Sẵn sàng xuất
+        const status = document.getElementById("current-exam-status");
+        status.textContent = "Sẵn sàng xuất";
+        status.classList.add("ready");
+        setStep(3);
+        showView("export");
+      });
+      const exportModes = Array.from(document.querySelectorAll('input[name="export-mode"]'));
+      function syncExportPreview() {
+        document.getElementById("export-preview").classList.toggle("is-hidden", !exportModes[1].checked);
+      }
+      exportModes.forEach(function (radio) { radio.addEventListener("change", syncExportPreview); });
+
+      // Xuất DOCX thật ngay trên trình duyệt: .docx = ZIP chứa XML, đóng gói thủ công không cần thư viện
+      function crc32(data) {
+        if (!crc32.table) {
+          crc32.table = [];
+          for (let n = 0; n < 256; n++) {
+            let c = n;
+            for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+            crc32.table[n] = c >>> 0;
+          }
+        }
+        let crc = 0 ^ -1;
+        for (let i = 0; i < data.length; i++) crc = (crc >>> 8) ^ crc32.table[(crc ^ data[i]) & 0xFF];
+        return (crc ^ -1) >>> 0;
+      }
+
+      function buildZip(files) {
+        const enc = new TextEncoder();
+        const parts = [], central = [];
+        let offset = 0;
+        files.forEach(function (f) {
+          const nameBytes = enc.encode(f.name);
+          const crc = crc32(f.data);
+          const h = new DataView(new ArrayBuffer(30));
+          h.setUint32(0, 0x04034b50, true);
+          h.setUint16(4, 20, true);
+          h.setUint32(14, crc, true);
+          h.setUint32(18, f.data.length, true);
+          h.setUint32(22, f.data.length, true);
+          h.setUint16(26, nameBytes.length, true);
+          parts.push(new Uint8Array(h.buffer), nameBytes, f.data);
+          const c = new DataView(new ArrayBuffer(46));
+          c.setUint32(0, 0x02014b50, true);
+          c.setUint16(4, 20, true);
+          c.setUint16(6, 20, true);
+          c.setUint32(16, crc, true);
+          c.setUint32(20, f.data.length, true);
+          c.setUint32(24, f.data.length, true);
+          c.setUint16(28, nameBytes.length, true);
+          c.setUint32(42, offset, true);
+          central.push(new Uint8Array(c.buffer), nameBytes);
+          offset += 30 + nameBytes.length + f.data.length;
+        });
+        const cdSize = central.reduce(function (s, a) { return s + a.length; }, 0);
+        const e = new DataView(new ArrayBuffer(22));
+        e.setUint32(0, 0x06054b50, true);
+        e.setUint16(8, files.length, true);
+        e.setUint16(10, files.length, true);
+        e.setUint32(12, cdSize, true);
+        e.setUint32(16, offset, true);
+        const all = parts.concat(central, [new Uint8Array(e.buffer)]);
+        const out = new Uint8Array(all.reduce(function (s, a) { return s + a.length; }, 0));
+        let p = 0;
+        all.forEach(function (a) { out.set(a, p); p += a.length; });
+        return out;
+      }
+
+      function xmlEscape(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      // Định dạng chuẩn do giáo viên chốt: Times New Roman, tiêu đề 14, nội dung 11.5,
+      // lề Narrow 1.27cm, giãn dòng 1.15, không space trước/sau đoạn.
+      function docxRun(text, fmt) {
+        fmt = fmt || {};
+        let pr = '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/>';
+        if (fmt.bold) pr += "<w:b/>";
+        if (fmt.red) pr += '<w:color w:val="C00000"/>';
+        if (fmt.underline) pr += '<w:u w:val="single"/>';
+        const size = fmt.size || "23"; // 23 half-points = 11.5pt
+        pr += '<w:sz w:val="' + size + '"/><w:szCs w:val="' + size + '"/>';
+        pr += "</w:rPr>";
+        return "<w:r>" + pr + '<w:t xml:space="preserve">' + xmlEscape(text) + "</w:t></w:r>";
+      }
+      function docxPara(runsXml, opts) {
+        opts = opts || {};
+        let pr = "<w:pPr>";
+        if (opts.tabs) {
+          pr += "<w:tabs>" + opts.tabs.map(function (t) {
+            return '<w:tab w:val="left" w:pos="' + t + '"/>';
+          }).join("") + "</w:tabs>";
+        }
+        pr += '<w:spacing w:before="0" w:after="0" w:line="276" w:lineRule="auto"/>'; // 1.15, no space
+        if (opts.center) pr += '<w:jc w:val="center"/>';
+        if (opts.justify) pr += '<w:jc w:val="both"/>';
+        pr += "</w:pPr>";
+        return "<w:p>" + pr + runsXml + "</w:p>";
+      }
+
+      function optionRuns(li, fmt) {
+        let xml = "";
+        let first = true;
+        li.childNodes.forEach(function (node) {
+          let text = node.textContent;
+          if (!text) return;
+          const base = node.nodeName === "U" ? Object.assign({ underline: true }, fmt) : fmt;
+          if (first) {
+            first = false;
+            const m = text.match(/^[A-D]\./);
+            if (m) {
+              xml += docxRun(m[0], Object.assign({}, base, { bold: true }));
+              text = text.slice(m[0].length);
+            }
+          }
+          if (text) xml += docxRun(text, base);
+        });
+        return xml;
+      }
+
+      function buildDocumentXml(withKey) {
+        const TAB = "<w:r><w:tab/></w:r>";
+        // Bề rộng dùng được với lề Narrow: 11906 - 720*2 = 10466 twips; tab dàn đều 4 cột hoặc 2 cột
+        const TABS_4 = [2616, 5233, 7850];
+        const TABS_2 = [5233];
+        let body = "";
+        body += docxPara(docxRun(paperTitle.textContent.toUpperCase(), { bold: true, size: "28" }), { center: true }); // 14pt
+        body += docxPara(docxRun(paperMeta.textContent, {}), { center: true });
+        reviewView.querySelectorAll(".review-block").forEach(function (blockEl) {
+          const title = blockEl.querySelector(".review-block-title").textContent.split(" — ")[0];
+          body += docxPara(""); // dòng trống ngăn cách section
+          body += docxPara(docxRun(title, { bold: true }));
+          blockEl.querySelectorAll(".q-card").forEach(function (card) {
+            const passage = card.querySelector(".q-passage");
+            if (passage) body += docxPara(docxRun(passage.textContent, {}), { justify: true });
+            body += docxPara(
+              docxRun(card.querySelector(".q-no").textContent + ". ", { bold: true }) +
+              docxRun(card.querySelector(".q-text").textContent, {})
+            );
+            const options = Array.from(card.querySelectorAll(".q-options li"));
+            if (options.length) {
+              const maxLen = Math.max.apply(null, options.map(function (li) { return li.textContent.length; }));
+              const perLine = maxLen > 24 ? 2 : 4; // đáp án dài: A./B. dòng trên, C./D. dòng dưới
+              for (let i = 0; i < options.length; i += perLine) {
+                let runs = "";
+                for (let j = i; j < Math.min(i + perLine, options.length); j++) {
+                  if (j > i) runs += TAB;
+                  const highlight = withKey && options[j].classList.contains("correct");
+                  runs += optionRuns(options[j], highlight ? { red: true, bold: true } : {});
+                }
+                body += docxPara(runs, { tabs: perLine === 2 ? TABS_2 : TABS_4 });
+              }
+            } else if (withKey) {
+              body += docxPara(docxRun(card.querySelector(".q-answer").textContent, { red: true, bold: true }));
+            }
+          });
+        });
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + body +
+          '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/></w:sectPr>' +
+          "</w:body></w:document>";
+      }
+
+      const CONTENT_TYPES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+        "</Types>";
+      const RELS_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+        "</Relationships>";
+
+      function downloadDocx(withKey) {
+        const enc = new TextEncoder();
+        const zip = buildZip([
+          { name: "[Content_Types].xml", data: enc.encode(CONTENT_TYPES_XML) },
+          { name: "_rels/.rels", data: enc.encode(RELS_XML) },
+          { name: "word/document.xml", data: enc.encode(buildDocumentXml(withKey)) }
+        ]);
+        const blob = new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = (withKey ? "unit3-de-dap-an-do" : "unit3-de-hoc-sinh") + ".docx";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(link.href); }, 5000);
+      }
+
+      let savedWithKey = false;
+      document.getElementById("btn-save-exam").addEventListener("click", function () {
+        savedWithKey = exportModes[1].checked;
+        document.getElementById("current-exam-mode").textContent =
+          "kiểu xuất: " + (savedWithKey ? "đáp án tô đỏ" : "chỉ đề");
+        document.getElementById("row-download").disabled = false;
+        const row = document.querySelector("#myexams-view .exam-row");
+        row.classList.add("flash");
+        setTimeout(function () { row.classList.remove("flash"); }, 1600);
+        showView("myexams");
+      });
+      document.getElementById("row-download").addEventListener("click", function () {
+        downloadDocx(savedWithKey);
+      });
+
+      function refreshApproval() {
+        const cards = reviewView.querySelectorAll(".q-card");
+        const approved = reviewView.querySelectorAll(".q-card.approved").length;
+        document.getElementById("approved-count").textContent = approved;
+        document.getElementById("review-total").textContent = cards.length;
+        finishBtn.disabled = approved !== cards.length;
+      }
+
+      function flashNote(card, message) {
+        let note = card.querySelector(".q-note");
+        if (!note) {
+          note = document.createElement("p");
+          note.className = "q-note";
+          card.appendChild(note);
+        }
+        note.textContent = message;
+        clearTimeout(note._timer);
+        note._timer = setTimeout(function () { note.remove(); }, 2600);
+      }
+
+      reviewView.addEventListener("click", function (e) {
+        const btn = e.target.closest("button[data-act]");
+        if (!btn) return;
+        const card = btn.closest(".q-card");
+        const act = btn.dataset.act;
+        if (act === "approve") {
+          card.classList.toggle("approved");
+          const approved = card.classList.contains("approved");
+          card.querySelector(".q-status").textContent = approved ? "Đã duyệt" : "Chờ duyệt";
+          btn.textContent = approved ? "Bỏ duyệt" : "Duyệt";
+          refreshApproval();
+        } else if (act === "lock") {
+          card.classList.toggle("locked");
+          btn.textContent = card.classList.contains("locked") ? "Đã khóa" : "Khóa";
+        } else if (act === "regen") {
+          if (card.classList.contains("locked")) { flashNote(card, "Câu đã khóa — không sinh lại."); return; }
+          if (card.classList.contains("approved")) { flashNote(card, "Bỏ duyệt trước khi sinh lại."); return; }
+          card.classList.add("regenerating");
+          setTimeout(function () {
+            card.classList.remove("regenerating");
+            const variant = card.dataset.variant ? JSON.parse(card.dataset.variant) : null;
+            if (variant) {
+              card.querySelector(".q-text").textContent = variant.text;
+              card.querySelectorAll(".q-options li").forEach(function (li, i) {
+                li.textContent = variant.options[i];
+                li.classList.toggle("correct", i === variant.correct);
+              });
+              card.querySelector(".q-answer").innerHTML = "<strong>" + variant.answer + "</strong>";
+              delete card.dataset.variant;
+              flashNote(card, "Đã sinh phiên bản mới từ cùng nguồn RAG.");
+            } else {
+              flashNote(card, "Mô phỏng: sản phẩm thật sẽ sinh nội dung mới từ nguồn RAG tại đây.");
+            }
+          }, 700);
+        }
+      });
+      refreshApproval();
+    })();
+  </script>
+</body>
+</html>
