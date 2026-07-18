@@ -29,8 +29,21 @@ Cấu trúc repo đề xuất: `backend/` (FastAPI), `frontend/` (Vite React TS)
 
 ## 2.1 Quy ước Git
 
-- **Branch:** `<loại>/<mô-tả-ngắn-gạch-ngang>` — ví dụ `feat/1a-skeleton`, `bug/docx-margin`, `doc/update-roadmap`.
-- **Commit message:** `<loại>: <mô tả ngắn gọn>` — `feat: ...`, `bug: ...`, `doc: ...`. Không kèm trailer `Co-Authored-By`; lịch sử commit chỉ đứng tên chủ dự án (minhtoankhuu).
+Theo chuẩn Conventional Commits, dùng chung tiền tố cho cả branch và commit:
+
+| Tiền tố | Khi dùng |
+|---|---|
+| `feat` | Tính năng mới |
+| `fix` | Sửa lỗi |
+| `chore` | Việc lặt vặt không ảnh hưởng logic (cấu hình, dependency, tool build...) |
+| `doc` | Chỉ thay đổi tài liệu |
+| `refactor` | Tái cấu trúc code, không đổi hành vi |
+| `test` | Thêm/sửa test |
+| `style` | Format/style code, không đổi logic |
+| `perf` | Cải thiện hiệu năng |
+
+- **Branch:** `<tiền tố>/<mô-tả-ngắn-gạch-ngang>` — ví dụ `feat/1a-skeleton`, `fix/docx-margin`, `chore/update-deps`.
+- **Commit message:** `<tiền tố>: <mô tả ngắn gọn>` — ví dụ `feat: thêm màn hình duyệt câu hỏi`. Không kèm trailer `Co-Authored-By`; lịch sử commit chỉ đứng tên chủ dự án (minhtoankhuu).
 
 ## 3. Lộ trình (đã điều chỉnh: LLM tích hợp sau cùng)
 
