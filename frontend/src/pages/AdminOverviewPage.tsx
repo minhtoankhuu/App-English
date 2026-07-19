@@ -65,6 +65,13 @@ export function AdminOverviewPage() {
       implemented: false,
     },
     {
+      title: "Audit log",
+      description: "Lịch sử thao tác quản trị tài khoản giáo viên.",
+      chip: "Lịch sử thao tác quản trị",
+      to: "/admin/audit-logs",
+      implemented: true,
+    },
+    {
       title: "Tài khoản & phân quyền",
       description: "Tài khoản giáo viên, trạng thái và quyền truy cập.",
       chip: teacherChip,
@@ -77,7 +84,7 @@ export function AdminOverviewPage() {
     <div style={{ display: "grid", gap: 18 }}>
       <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
         <h2 style={{ marginTop: 0 }}>Quản trị hệ thống</h2>
-        <p style={{ color: "var(--muted)", fontSize: 13 }}>Chỉ 1 khối bên dưới đã có chức năng thật.</p>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>2 khối bên dưới đã có chức năng thật.</p>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
           {cards.map((card) => {
