@@ -27,7 +27,7 @@ Tài liệu liên quan: [PRD](../product/ENGLISH_EXAM_AI_PRODUCT_REQUIREMENTS.vi
 
 Cấu trúc repo đề xuất: `backend/` (FastAPI), `frontend/` (Vite React TS), giữ `prototype/` và `docs/` như hiện tại.
 
-## 2.1 Quy ước Git
+### 2.1 Quy ước Git
 
 Theo chuẩn Conventional Commits, dùng chung tiền tố cho cả branch và commit:
 
@@ -45,31 +45,57 @@ Theo chuẩn Conventional Commits, dùng chung tiền tố cho cả branch và c
 - **Branch:** `<tiền tố>/<mô-tả-ngắn-gạch-ngang>` — ví dụ `feat/1a-skeleton`, `fix/docx-margin`, `chore/update-deps`.
 - **Commit message:** `<tiền tố>: <mô tả ngắn gọn>` — ví dụ `feat: thêm màn hình duyệt câu hỏi`. Không kèm trailer `Co-Authored-By`; lịch sử commit chỉ đứng tên chủ dự án (minhtoankhuu).
 
+### 2.2 Chạy thử skeleton 1A + lõi tạo đề 1B
+
+```bash
+cp .env.example .env        # chỉnh nếu cần, mặc định đã dùng được ngay
+docker compose up --build
+```
+
+- Backend: http://localhost:8000 (docs tự sinh tại `/docs`), frontend: http://localhost:5173, Postgres: `localhost:5432`.
+- Container `backend` tự chạy `alembic upgrade head` rồi seed dữ liệu danh mục trước khi khởi động API — idempotent, chạy lại không tạo trùng.
+- Tài khoản Admin mặc định: `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` trong `.env` (mặc định `admin@examcraft.dev` / `ChangeMe123!`) — **đổi ngay ở môi trường thật**.
+- Chạy test backend (cần một Postgres khác cho `TEST_DATABASE_URL`, ví dụ tạo thêm database `examcraft_test` trong cùng container `db`):
+  ```bash
+  cd backend && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt
+  TEST_DATABASE_URL=postgresql+psycopg://examcraft:examcraft@localhost:5432/examcraft_test python -m pytest tests/ -v
+  ```
+- Frontend build/lint: `cd frontend && npm run build && npm run lint`.
+
 ## 3. Lộ trình (đã điều chỉnh: LLM tích hợp sau cùng)
 
-### Giai đoạn 1A — Nền móng (tuần 1–3) ⟵ BẮT ĐẦU TẠI ĐÂY
+### Giai đoạn 1A — Nền móng (tuần 1–3)
 
-- Skeleton backend/frontend, Docker Compose, CI chạy test.
-- Auth + vai trò Admin/Giáo viên.
-- Danh mục học thuật + **seed toàn bộ dữ liệu đã duyệt** (trình độ, ánh xạ lớp, 12 thì, 20 cấu trúc, Unit lớp 6–9, 10 dạng bài, bảng độ dài).
-- Nhập tài liệu PDF/DOCX/text → trích xuất → chunk + metadata → full-text search trước (hybrid/vector bổ sung ở giai đoạn tích hợp AI vì embedding cũng cần API).
-- **Fixture bank:** số hóa đề Global Success 7 – Unit 3 thành JSON đúng schema — vừa là dữ liệu cho `MockAIProvider`, vừa là golden test sau này.
-- **Nghiệm thu:** Admin nhập và xuất bản tài liệu Unit 3; tra cứu trả đúng đoạn theo filter lớp/Unit.
+- [x] Skeleton backend (FastAPI + SQLAlchemy + Alembic) và frontend (Vite + React + TypeScript strict), Docker Compose (Postgres/pgvector + backend + frontend), chạy được bằng `docker compose up` — nhánh `feat/1a-skeleton`.
+- [x] Auth session cookie + bcrypt, phân quyền Admin/Giáo viên (`require_admin`/`require_any_role`).
+- [x] Danh mục học thuật + **seed toàn bộ dữ liệu đã duyệt**: 5 trình độ CEFR, 5 chứng chỉ Cambridge quy đổi, 3 cấp học, 12 khối lớp + gợi ý trình độ, 78 Unit Global Success (lớp 6–12), 12 thì + 20 cấu trúc câu (32 `GrammarPoint`), 10 dạng bài, quy tắc độ dài câu/bài đọc. Idempotent, đã kiểm chứng qua pytest (16 test) và chạy thật trong container.
+- [ ] Nhập tài liệu PDF/DOCX/text → trích xuất → chunk + metadata → full-text search.
+- [ ] **Fixture bank:** số hóa đề Global Success 7 – Unit 3 thành JSON đúng schema — vừa là dữ liệu cho `MockAIProvider`, vừa là golden test sau này.
+- **Nghiệm thu còn lại:** Admin nhập và xuất bản tài liệu Unit 3; tra cứu trả đúng đoạn theo filter lớp/Unit.
 
 ### Giai đoạn 1B — Lõi tạo đề trên MockAIProvider (tuần 4–7)
 
-- JSON schema (Pydantic + Zod) cho 5 dạng cấp 2: trắc nghiệm, phát âm, word form, đọc hiểu T/F, viết lại câu.
-- Interface `AIProvider` + `MockAIProvider` trả câu hỏi từ fixture bank (có chế độ trộn/nhiễu để test validation).
-- Port UI builder từ prototype: cấu hình → checklist dạng bài → chọn thì/cấu trúc → block editor → kéo thả → xem trước A4.
-- Pipeline sinh: validate cấu hình → retrieval → AIProvider theo block → Validation Engine (schema, đáp án, từ điển phát âm CMU, đếm từ 12–14, trùng lặp cosine 0.90, ma trận ±10%, marker heuristic).
-- Màn duyệt (Duyệt/Sinh lại/Khóa), ngân hàng câu hỏi, "Đề của tôi" + snapshot.
-- DOCX renderer python-docx theo đúng bảng thông số; hai kiểu xuất (chỉ đề / đáp án tô đỏ).
-- **Nghiệm thu:** tạo trọn một đề Unit 3 từ đầu đến file DOCX in được **hoàn toàn bằng mock**, đối chiếu golden test.
+- [x] Model + migration: `Exam`, `ExamBlock`, `ExamGrammarSelection`, `Question`, `ExamVariant` (nhánh `feat/1b-exam-core`).
+- [x] `AIProvider` interface + `MockAIProvider`: fixture bank viết tay cho cả 10 dạng bài (không chỉ 5), ưu tiên bộ câu "vàng" khớp golden test Global Success 7 – Unit 3 khi ngữ cảnh khớp, template chung cho các trường hợp khác.
+- [x] Validation Engine: schema (qua Pydantic), đếm từ câu hỏi 12–14 (trắc nghiệm/word form) và bài đọc theo bảng khối lớp, cảnh báo vượt trình độ, trùng lặp — **dùng fuzzy text-match (difflib) thay cho cosine embedding** vì RAG chưa code (embedding để dành Giai đoạn 1D). Từ điển phát âm CMU và marker-heuristic theo thì **chưa làm** — cần khi tích hợp LLM thật.
+- [x] API đầy đủ: tạo/sửa đề, CRUD + reorder block, chọn thì/cấu trúc (`grammar-selection`), sinh câu (`/generate`), duyệt/khóa qua **PATCH tường minh** `is_approved`/`is_locked` (không dùng toggle — xem ghi chú thiết kế bên dưới), sinh lại từng câu, hoàn tất kiểm duyệt (đưa câu vào ngân hàng), cấu hình xuất + tạo mã đề A/B/C/D (kéo từ 1C lên vì không cần AI), tải DOCX.
+- [x] DOCX renderer bằng `python-docx` theo đúng bảng thông số Implementation Notes mục 2 (Times New Roman, lề Narrow, tab 4 cột, đáp án tô đỏ...).
+- [x] Test pytest: 25 test (auth, catalog, exam flow đầy đủ kể cả golden path Unit 3, regenerate/lock/approve, mã đề, export DOCX kiểm tra bằng python-docx).
+- [x] Frontend: `ExamListPage` (Đề của tôi + tạo đề), `ExamBuilderPage` (block CRUD, sắp xếp bằng nút lên/xuống thay vì kéo-thả, chọn thì/cấu trúc), `ExamReviewPage` (duyệt/khóa/sinh lại), `ExamExportPage` (cấu hình xuất + tải). Nối API thật, không còn mock ở tầng UI. **Không port pixel-perfect giao diện prototype** — ưu tiên đủ chức năng, style tối giản; kéo-thả và xem trước A4 động chưa làm.
+- [x] **Nghiệm thu đạt được:** tạo trọn đề Unit 3 (4 block, 6 câu) từ đầu đến file DOCX qua Docker Compose thật — kiểm chứng bằng curl + mở lại bằng `python-docx`, không phải chỉ chạy `pytest`.
+
+**Quyết định thiết kế phát sinh khi code (không có trong bản kế hoạch gốc):**
+- Endpoint duyệt/khóa đổi từ toggle (`POST .../approve`) sang PATCH tường minh (`PATCH /questions/{id}` với body `{is_approved, is_locked}`) sau khi phát hiện qua kiểm thử rằng toggle không an toàn với mất gói tin/double-click (client retry sẽ âm thầm đảo trạng thái ngược).
+- `update_exam` (PATCH đề) phải kiểm tra nhất quán nguồn kiến thức bất cứ khi nào một trong 4 trường liên quan (`source_type`/`unit_id`/`grammar_topic_id`/`cambridge_certificate_id`) xuất hiện trong payload, không chỉ khi `source_type` có mặt — bug tìm thấy qua test, đã có test hồi quy.
 
 ### Giai đoạn 1C — Hoàn thiện không-AI (tuần 8–9)
 
-- Mã đề A/B/C/D (seed + ánh xạ đáp án), audit log, hạn mức.
-- Golden test tự động; đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
+- [x] Mã đề A/B/C/D — đã làm trong 1B (xem trên).
+- [x] Admin quản lý tài khoản giáo viên (nhánh `feat/1c-admin-teacher-accounts`): API `/admin/teachers` (tạo, khóa/mở lại, đặt lại mật khẩu — không xóa cứng), trang frontend riêng, dashboard tổng quan `/admin`, điều hướng phân theo vai trò (Admin thấy mục "Quản trị", Giáo viên không thấy), gate cả server (403) lẫn client (redirect). 8 test pytest kiểm phân quyền + CRUD; frontend có test tự động cho menu, route và trạng thái dashboard.
+- [ ] Audit log, hạn mức.
+- [ ] Màn hình chỉnh sửa Admin còn lại theo prototype: dashboard tổng quan đã có và hiển thị rõ trạng thái; kho kiến thức, dạng bài & template, thư viện hình ảnh, cấu hình AI vẫn chưa có chức năng chỉnh sửa vì các khối này gắn với RAG và chờ cùng Giai đoạn 1D.
+- [ ] Kéo-thả thật cho sắp xếp block, xem trước A4 động ở frontend (hiện dùng nút lên/xuống, chưa có preview).
+- [ ] Golden test tự động hoá (hiện đang là test thủ công trong pytest); đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
 
 ### Giai đoạn 1D — Tích hợp LLM thật (tuần 10–11, khi có API key)
 

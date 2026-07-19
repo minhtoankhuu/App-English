@@ -1,0 +1,38 @@
+:root {
+  --page: #eef2f8;
+  --surface: #ffffff;
+  --ink: #16233b;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --primary: #2f5fe0;
+  --primary-dark: #234bb8;
+  --danger: #c0392b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.center-screen {
+  min-height: calc(100vh - 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}

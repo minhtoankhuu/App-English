@@ -1,6 +1,16 @@
 # ExamCraft AI — Nền tảng AI tạo đề tiếng Anh
 
-Ứng dụng web cho giáo viên tạo bài tập/đề tiếng Anh bằng AI theo kho kiến thức quản trị (RAG), kiểm duyệt từng câu và xuất DOCX A4. Dự án đang ở **giai đoạn ý tưởng + prototype giao diện**.
+Ứng dụng web cho giáo viên tạo bài tập/đề tiếng Anh, kiểm duyệt từng câu và xuất DOCX A4. Lõi tạo đề hiện chạy trên `MockAIProvider`; luồng tạo đề, duyệt câu, mã đề A/B/C/D và xuất DOCX đã được nghiệm thu. Admin đã có dashboard tổng quan và chức năng quản lý tài khoản giáo viên. Kho kiến thức RAG và LLM thật được dành cho giai đoạn tiếp theo.
+
+## Chạy ứng dụng
+
+```bash
+docker compose up --build
+```
+
+- Frontend: <http://localhost:5173>
+- Backend API: <http://localhost:8000>
+- Health check: <http://localhost:8000/health>
 
 ## Bắt đầu từ đâu
 
@@ -11,6 +21,15 @@
 | Bắt tay vào code: seed data, thông số DOCX, hành vi UI | [docs/engineering/IMPLEMENTATION_NOTES.vi.md](docs/engineering/IMPLEMENTATION_NOTES.vi.md) |
 | Hướng đi và lộ trình phát triển đã chốt | [docs/engineering/DEVELOPMENT_PLAN.vi.md](docs/engineering/DEVELOPMENT_PLAN.vi.md) |
 | Xem prototype giao diện | Mở `prototype/index.html` bằng trình duyệt (không cần server) |
+
+## Kiểm tra frontend
+
+```bash
+cd frontend
+npm test -- --run
+npm run lint
+npm run build
+```
 
 ## Build tài liệu DOCX
 
