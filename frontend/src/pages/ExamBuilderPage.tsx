@@ -13,6 +13,7 @@ import { listExerciseTypes, listGrammarTopics } from "../api/catalog";
 import { ApiError } from "../api/client";
 import type { ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
 import type { ExerciseTypeOut, GrammarTopicOut } from "../types/catalog";
+import { useUsage } from "../usage/UsageContext";
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   nhan_biet: "Nhận biết",
@@ -24,6 +25,7 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 export function ExamBuilderPage() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
+  const { refresh: refreshUsage } = useUsage();
   const [exam, setExam] = useState<ExamDetailOut | null>(null);
   const [exerciseTypes, setExerciseTypes] = useState<ExerciseTypeOut[]>([]);
   const [grammarTopics, setGrammarTopics] = useState<GrammarTopicOut[]>([]);
@@ -122,6 +124,7 @@ export function ExamBuilderPage() {
     setError(null);
     try {
       await generateExam(examId);
+      await refreshUsage();
       navigate(`/exams/${examId}/review`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không sinh được đề");

@@ -142,6 +142,12 @@ Model `AuditLog` lưu snapshot actor/target và metadata JSON an toàn. Các act
 
 API `GET /admin/audit-logs?limit=20&offset=0` chỉ dành cho Admin, trả `items`, `total`, `limit`, `offset` và sắp xếp `created_at DESC, id DESC`. Frontend đọc tại `/admin/audit-logs`.
 
+### 4.3 Hạn mức sinh đề hằng ngày
+
+`DailyUsage` lưu bộ đếm duy nhất theo `(user_id, usage_date)`, với ngày tính theo `Asia/Bangkok`. `DAILY_GENERATION_LIMIT` mặc định là 10 và phải là số nguyên dương. API `GET /usage/me` trả `limit`, `used`, `remaining`, `usage_date`, `reset_at`, `is_unlimited`; Admin luôn có `is_unlimited=true` và không tạo dòng usage.
+
+`POST /exams/{id}/generate` giữ một lượt cho mỗi block; `POST /exams/{id}/questions/{qid}/regenerate` giữ một lượt. Dòng usage được khóa `FOR UPDATE` và commit cùng thay đổi câu hỏi. Nếu không đủ lượt, toàn request trả 429 trước khi gọi provider; nếu provider/validation lỗi, transaction rollback cả usage và câu hỏi.
+
 ## 5. Việc cần chốt trước khi code
 
 - Danh mục Unit lớp 1–5 (giáo viên xác nhận).

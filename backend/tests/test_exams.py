@@ -8,6 +8,7 @@ from app.models.exercise import ExerciseType
 from app.models.grammar import GrammarGroup, GrammarPoint, GrammarTopic
 from app.models.user import User, UserRole
 from app.security import hash_password
+from app.services.usage import reserve_usage
 
 
 def _login_as_teacher(client, db):
@@ -122,6 +123,7 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     # sinh câu hỏi
     resp = client.post(f"/exams/{exam_id}/generate")
     assert resp.status_code == 200
+    assert client.get("/usage/me").json()["used"] == 4
     detail = resp.json()
     assert detail["status"] == "draft"
     total_questions = sum(len(b["questions"]) for b in detail["blocks"])
@@ -211,7 +213,29 @@ def test_regenerate_blocked_when_locked_or_approved(client, seeded_db):
     resp = client.post(f"/exams/{exam['id']}/questions/{question_id}/regenerate")
     assert resp.status_code == 200
     assert resp.json()["is_approved"] is False
+    assert client.get("/usage/me").json()["used"] == 2
     _ = block_id
+
+
+def test_generate_rejects_whole_exam_when_remaining_is_insufficient(client, seeded_db):
+    teacher = _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    for code, title in [("pronunciation", "I"), ("multiple_choice", "II")]:
+        exercise_type = _exercise_type(seeded_db, code)
+        response = client.post(
+            f"/exams/{exam['id']}/blocks",
+            json={"exercise_type_id": str(exercise_type.id), "title": title, "question_count": 1, "points": "1.0"},
+        )
+        assert response.status_code == 201
+    reserve_usage(seeded_db, teacher, 9)
+    seeded_db.commit()
+
+    response = client.post(f"/exams/{exam['id']}/generate")
+
+    assert response.status_code == 429
+    assert response.json()["detail"]["remaining"] == 1
+    assert client.get(f"/exams/{exam['id']}").json()["blocks"][0]["questions"] == []
+    assert client.get("/usage/me").json()["used"] == 9
 
 
 def test_reorder_blocks(client, seeded_db):

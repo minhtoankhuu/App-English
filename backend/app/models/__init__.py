@@ -24,12 +24,14 @@ from app.models.exam import (
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
 from app.models.grammar import GrammarGroup, GrammarPoint, GrammarTopic
 from app.models.user import User, UserRole
+from app.models.usage import DailyUsage
 
 __all__ = [
     "Base",
     "AuditLog",
     "User",
     "UserRole",
+    "DailyUsage",
     "SchoolStage",
     "ProficiencyLevel",
     "CambridgeCertificate",
