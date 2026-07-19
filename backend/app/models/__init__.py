@@ -8,6 +8,7 @@ from app.models.academic import (
     SchoolStage,
     Unit,
 )
+from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.exam import (
     Difficulty,
@@ -26,6 +27,7 @@ from app.models.user import User, UserRole
 
 __all__ = [
     "Base",
+    "AuditLog",
     "User",
     "UserRole",
     "SchoolStage",
