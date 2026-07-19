@@ -291,28 +291,6 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
   .login-form-panel { min-height: calc(100vh - 72px); padding: 24px 16px; }
 }
 
-.exam-builder-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.exam-builder-editor,
-.exam-builder-preview {
-  min-width: 0;
-}
-
-@media (min-width: 1000px) {
-  .exam-builder-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
-  }
-
-  .exam-builder-preview {
-    position: sticky;
-    top: 24px;
-  }
-}
 
 /* ---------- Bảng dữ liệu ---------- */
 .data-table {
