@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { logout } from "./api/auth";
 import type { UserOut } from "./types/auth";
 import { UsageProvider, useUsage } from "./usage/UsageContext";
-import { BankIcon, DocIcon, LayersIcon, UsersIcon } from "./icons/Icon";
+import { BankIcon, DocIcon, LayersIcon, PlusIcon, UsersIcon } from "./icons/Icon";
 
 interface LayoutProps {
   user: UserOut;
@@ -16,7 +16,10 @@ interface NavItem {
   Icon: ComponentType;
 }
 
-const TEACHER_NAV: NavItem[] = [{ to: "/exams", label: "Đề của tôi", Icon: DocIcon }];
+const TEACHER_NAV: NavItem[] = [
+  { to: "/exams#tao-de", label: "Tạo đề", Icon: PlusIcon },
+  { to: "/exams", label: "Đề của tôi", Icon: DocIcon },
+];
 
 const ADMIN_NAV: NavItem[] = [
   { to: "/admin", label: "Tổng quan", Icon: LayersIcon },
@@ -24,9 +27,11 @@ const ADMIN_NAV: NavItem[] = [
   { to: "/admin/audit-logs", label: "Audit log", Icon: BankIcon },
 ];
 
-function isNavActive(pathname: string, to: string): boolean {
-  if (to === "/admin") return pathname === "/admin";
-  return pathname.startsWith(to);
+function isNavActive(location: { pathname: string; hash: string }, to: string): boolean {
+  const [toPath = "", toHash] = to.split("#");
+  if (toPath === "/admin") return location.pathname === "/admin";
+  if (toHash) return location.pathname === toPath && location.hash === `#${toHash}`;
+  return location.pathname.startsWith(toPath) && !location.hash;
 }
 
 function LayoutContent({ user, onLogout }: LayoutProps) {
@@ -55,7 +60,7 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
 
         <nav className="main-nav" aria-label={isAdmin ? "Điều hướng quản trị" : "Điều hướng giáo viên"}>
           {navItems.map(({ to, label, Icon }) => (
-            <Link key={to} to={to} className={`nav-item${isNavActive(location.pathname, to) ? " active" : ""}`}>
+            <Link key={to} to={to} className={`nav-item${isNavActive(location, to) ? " active" : ""}`}>
               <Icon />
               <span>{label}</span>
             </Link>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createExam, listExams } from "../api/exams";
 import {
   listCambridgeCertificates,
@@ -26,6 +26,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function ExamListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [exams, setExams] = useState<ExamSummaryOut[] | null>(null);
   const [grades, setGrades] = useState<GradeOut[]>([]);
   const [levels, setLevels] = useState<ProficiencyLevelOut[]>([]);
@@ -76,6 +77,11 @@ export function ExamListPage() {
     });
   }, [sourceType, gradeId]);
 
+  useEffect(() => {
+    if (!location.hash) return;
+    document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash]);
+
   const sourceReady =
     (sourceType === "global_success" && unitId !== "") ||
     (sourceType === "common_knowledge" && grammarTopicId !== "") ||
@@ -105,7 +111,7 @@ export function ExamListPage() {
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      <section className="configuration">
+      <section id="tao-de" className="configuration">
         <div className="section-heading">
           <div>
             <h2>Tạo đề mới</h2>
