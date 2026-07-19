@@ -1,5 +1,7 @@
 import io
+import uuid
 
+import pytest
 from docx import Document
 from sqlalchemy import select
 
@@ -21,6 +23,20 @@ def _login_as_teacher(client, db):
     db.add(user)
     db.commit()
     response = client.post("/auth/login", json={"email": "teacher@examcraft.dev", "password": "Secret123!"})
+    assert response.status_code == 200
+    return user
+
+
+def _login_as_admin(client, db):
+    user = User(
+        email="exam-admin@examcraft.dev",
+        password_hash=hash_password("Secret123!"),
+        full_name="Exam Admin",
+        role=UserRole.ADMIN,
+    )
+    db.add(user)
+    db.commit()
+    response = client.post("/auth/login", json={"email": user.email, "password": "Secret123!"})
     assert response.status_code == 200
     return user
 
@@ -55,6 +71,30 @@ def _create_golden_exam(client, db):
     )
     assert resp.status_code == 201
     return resp.json()
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        ("get", "/exams", None),
+        ("post", "/exams", {}),
+        ("get", f"/exams/{uuid.uuid4()}", None),
+    ],
+)
+def test_admin_cannot_access_exam_workflow(client, db, method, path, payload):
+    _login_as_admin(client, db)
+
+    request = getattr(client, method)
+    response = request(path, json=payload) if payload is not None else request(path)
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Không đủ quyền truy cập"
+
+
+def test_unauthenticated_cannot_access_exam_workflow(client):
+    response = client.get("/exams")
+
+    assert response.status_code == 401
 
 
 def test_create_exam_rejects_mismatched_source_fields(client, seeded_db):
