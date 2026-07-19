@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import type { ExamDetailOut, QuestionOut } from "../types/exam";
 import { useUsage } from "../usage/UsageContext";
 import { useRouteGeneration, type RouteGenerationToken } from "../routing/useRouteGeneration";
+import { StepsIndicator } from "../components/StepsIndicator";
 
 interface ReviewOperation {
   id: number;
@@ -155,153 +156,99 @@ export function ExamReviewPage() {
   const mutationBusy = activeOperationId !== null;
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Link to={`/exams/${examId}/builder`} style={{ fontSize: 13 }}>
-          ← Sửa cấu trúc
-        </Link>
-        <p style={{ margin: 0, fontSize: 13 }}>
-          <strong>{approvedCount}</strong>/{allQuestions.length} câu đã duyệt
-        </p>
-      </div>
+    <>
+      <StepsIndicator current={3} />
+      <div style={{ display: "grid", gap: 14 }}>
+        <div className="review-head">
+          <Link to={`/exams/${examId}/builder`} className="button secondary compact">
+            ← Sửa cấu trúc
+          </Link>
+          <p className="review-progress">
+            <strong>{approvedCount}</strong>/{allQuestions.length} câu đã duyệt
+          </p>
+        </div>
 
-      {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+        {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
 
-      {exam.blocks
-        .slice()
-        .sort((a, b) => a.order_no - b.order_no)
-        .map((block) => (
-          <section key={block.id} style={{ background: "var(--surface)", borderRadius: 14, padding: 18 }}>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>
-              {block.title} · {block.questions.length} câu
-            </h3>
-            <div style={{ display: "grid", gap: 10 }}>
-              {block.questions
-                .slice()
-                .sort((a, b) => a.order_no - b.order_no)
-                .map((q) => (
-                  <article
-                    key={q.id}
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: 10,
-                      padding: 12,
-                      background: q.is_approved ? "#f4fbf8" : "#fff",
-                      opacity: busyQuestionId === q.id ? 0.6 : 1,
-                    }}
-                  >
-                    {q.passage_text && (
-                      <p style={{ fontStyle: "italic", fontSize: 13, color: "var(--muted)" }}>{q.passage_text}</p>
-                    )}
-                    <p style={{ margin: "0 0 6px", fontSize: 14 }}>
-                      <strong>Câu {q.order_no}.</strong> {q.prompt_text}
-                    </p>
-                    {q.options && (
-                      <ul style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, margin: "0 0 8px", paddingLeft: 0, listStyle: "none" }}>
-                        {q.options.map((opt) => (
-                          <li
-                            key={opt.label}
-                            style={{
-                              fontSize: 13,
-                              padding: "4px 8px",
-                              borderRadius: 6,
-                              border: "1px solid var(--border)",
-                              fontWeight: opt.is_correct ? 700 : 400,
-                              background: opt.is_correct ? "#f0faf5" : "transparent",
-                            }}
-                          >
-                            {opt.label}. {opt.text}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <p style={{ margin: "0 0 6px", fontSize: 12, background: "#ecf1fe", padding: "6px 10px", borderRadius: 6 }}>
-                      Đáp án: {q.answer_text} — {q.explanation}
-                    </p>
-                    <p style={{ margin: "0 0 8px", fontSize: 11, color: "var(--muted)" }}>
-                      {q.target_knowledge} · Level {q.level.code} · Nguồn: {q.source_ref}
-                    </p>
-                    {q.warnings.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        {q.warnings.map((w, i) => (
-                          <p
-                            key={i}
-                            style={{
-                              margin: "2px 0",
-                              fontSize: 12,
-                              color: "#8a5a06",
-                              background: "#fdf3e2",
-                              padding: "5px 8px",
-                              borderRadius: 6,
-                            }}
-                          >
+        {exam.blocks
+          .slice()
+          .sort((a, b) => a.order_no - b.order_no)
+          .map((block) => (
+            <section key={block.id} className="review-block">
+              <h3 className="review-block-title">
+                {block.title} · {block.questions.length} câu
+              </h3>
+              <div style={{ display: "grid", gap: 10 }}>
+                {block.questions
+                  .slice()
+                  .sort((a, b) => a.order_no - b.order_no)
+                  .map((q) => (
+                    <article
+                      key={q.id}
+                      className={`q-card${q.is_approved ? " approved" : ""}${q.is_locked ? " locked" : ""}${busyQuestionId === q.id ? " busy" : ""}`}
+                    >
+                      <header className="q-head">
+                        <span className="q-no">Câu {q.order_no}</span>
+                        <span className="chip">{q.target_knowledge}</span>
+                        <span className="chip">{q.level.code}</span>
+                        <span className="chip">Nguồn: {q.source_ref}</span>
+                        <span className="q-status">{q.is_approved ? "Đã duyệt" : "Chờ duyệt"}</span>
+                      </header>
+
+                      {q.passage_text && <p className="q-passage">{q.passage_text}</p>}
+                      <p className="q-text">{q.prompt_text}</p>
+                      {q.options && (
+                        <ul className="q-options">
+                          {q.options.map((opt) => (
+                            <li key={opt.label} className={opt.is_correct ? "correct" : undefined}>
+                              {opt.label}. {opt.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="q-answer">
+                        <strong>Đáp án: {q.answer_text}</strong> — {q.explanation}
+                      </p>
+                      {q.warnings.length > 0 &&
+                        q.warnings.map((w, i) => (
+                          <p key={i} className="q-warning">
                             Cảnh báo: {w}
                           </p>
                         ))}
-                      </div>
-                    )}
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => handleApproveToggle(q)} style={smallButtonStyle} disabled={mutationBusy}>
-                        {q.is_approved ? "Bỏ duyệt" : "Duyệt"}
-                      </button>
-                      <button
-                        onClick={() => handleRegenerate(q)}
-                        style={smallButtonStyle}
-                        disabled={mutationBusy || q.is_locked || q.is_approved}
-                        title={q.is_locked ? "Câu đã khóa" : q.is_approved ? "Bỏ duyệt trước khi sinh lại" : ""}
-                      >
-                        Sinh lại
-                      </button>
-                      <button onClick={() => handleLockToggle(q)} style={smallButtonStyle} disabled={mutationBusy}>
-                        {q.is_locked ? "Đã khóa" : "Khóa"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-            </div>
-          </section>
-        ))}
+                      <footer className="q-actions">
+                        <button type="button" onClick={() => handleApproveToggle(q)} disabled={mutationBusy}>
+                          {q.is_approved ? "Bỏ duyệt" : "Duyệt"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerate(q)}
+                          disabled={mutationBusy || q.is_locked || q.is_approved}
+                          title={q.is_locked ? "Câu đã khóa" : q.is_approved ? "Bỏ duyệt trước khi sinh lại" : ""}
+                        >
+                          Sinh lại
+                        </button>
+                        <button type="button" onClick={() => handleLockToggle(q)} disabled={mutationBusy}>
+                          {q.is_locked ? "Đã khóa" : "Khóa"}
+                        </button>
+                      </footer>
+                    </article>
+                  ))}
+              </div>
+            </section>
+          ))}
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "var(--surface)",
-          borderRadius: 14,
-          padding: 16,
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-          100% câu phải được duyệt trước khi xuất. Câu đã khóa không đổi khi sinh lại.
-        </p>
-        <button
-          onClick={handleFinish}
-          disabled={mutationBusy || finishing || allQuestions.length === 0 || approvedCount !== allQuestions.length}
-          style={primaryButtonStyle}
-        >
-          {finishing ? "Đang lưu..." : "Hoàn tất kiểm duyệt → Xuất"}
-        </button>
+        <div className="review-footer">
+          <p>100% câu phải được duyệt trước khi xuất. Câu đã khóa không đổi khi sinh lại.</p>
+          <button
+            type="button"
+            onClick={handleFinish}
+            disabled={mutationBusy || finishing || allQuestions.length === 0 || approvedCount !== allQuestions.length}
+            className="button primary"
+          >
+            {finishing ? "Đang lưu..." : "Hoàn tất kiểm duyệt → Xuất"}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
-
-const smallButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  height: 40,
-  padding: "0 16px",
-  borderRadius: 8,
-  border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 600,
-};
