@@ -551,4 +551,39 @@ describe("ExamBuilderPage", () => {
     expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", { question_count: 8 });
     expect(examApi.setGrammarSelection).toHaveBeenCalledWith("exam-1", ["point-1"]);
   });
+
+  it("ticking an exercise type without a block adds one with default count and points", async () => {
+    const user = userEvent.setup();
+    const wordFormType: ExerciseTypeOut = {
+      id: "type-2",
+      code: "word_form",
+      name: "Word form",
+      default_instruction: "",
+      has_passage: false,
+      order_no: 2,
+    };
+    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType]);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
+
+    expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
+      exercise_type_id: "type-2",
+      title: "Word form",
+      question_count: 5,
+      points: 1,
+    });
+  });
+
+  it("unticking an exercise type deletes every block of that type", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("checkbox", { name: "Trắc nghiệm" }));
+
+    expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "a");
+    expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "b");
+  });
 });

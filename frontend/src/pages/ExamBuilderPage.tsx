@@ -206,6 +206,35 @@ export function ExamBuilderPage() {
     );
   }
 
+  async function handleToggleType(type: ExerciseTypeOut, existingBlocks: BlockOut[]) {
+    if (mutationSaving) return;
+    const target = beginMutation();
+    if (!target) return;
+    try {
+      if (existingBlocks.length > 0) {
+        await Promise.all(existingBlocks.map((block) => deleteBlock(target.examId, block.id)));
+      } else {
+        await addBlock(target.examId, {
+          exercise_type_id: type.id,
+          title: type.name,
+          question_count: 5,
+          points: 1,
+        });
+      }
+      if (!isActiveOperation(target)) return;
+      await refreshBuilder(target);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không cập nhật được dạng bài",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
+  }
+
   async function handleAddBlock() {
     if (!newTypeId || mutationSaving) return;
     const type = exerciseTypes.find((t) => t.id === newTypeId);
@@ -395,6 +424,29 @@ export function ExamBuilderPage() {
               </button>
             </div>
           )}
+
+          <div className="section-heading block-heading">
+            <div>
+              <h2>Dạng bài tập</h2>
+              <p>Tick để thêm block dạng đó (5 câu/1 điểm mặc định); bỏ tick sẽ xóa block tương ứng.</p>
+            </div>
+          </div>
+          <div className="type-grid">
+            {exerciseTypes.map((type) => {
+              const blocksOfType = exam.blocks.filter((block) => block.exercise_type.id === type.id);
+              return (
+                <label key={type.id} className="type-option">
+                  <input
+                    type="checkbox"
+                    checked={blocksOfType.length > 0}
+                    disabled={mutationSaving}
+                    onChange={() => handleToggleType(type, blocksOfType)}
+                  />
+                  {type.name}
+                </label>
+              );
+            })}
+          </div>
 
           <div className="section-heading block-heading">
             <div>
