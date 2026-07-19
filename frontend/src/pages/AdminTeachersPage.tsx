@@ -18,6 +18,10 @@ export function AdminTeachersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function reload() {
@@ -74,6 +78,25 @@ export function AdminTeachersPage() {
     }
   }
 
+  async function handleEditFullName() {
+    if (!editingId) return;
+    if (!editFullName.trim()) {
+      setError("Họ tên không được để trống");
+      return;
+    }
+    setEditSaving(true);
+    setError(null);
+    try {
+      await updateTeacher(editingId, { full_name: editFullName.trim() });
+      setEditingId(null);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không cập nhật được họ tên");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   async function handleDelete(teacher: TeacherOut) {
     if (!window.confirm(`Xóa vĩnh viễn tài khoản "${teacher.full_name}"? Không thể hoàn tác.`)) return;
     setDeletingId(teacher.id);
@@ -122,6 +145,16 @@ export function AdminTeachersPage() {
                   </span>
                 </td>
                 <td className="actions">
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={() => {
+                      setEditingId(teacher.id);
+                      setEditFullName(teacher.full_name);
+                    }}
+                  >
+                    Chỉnh sửa
+                  </button>
                   <button type="button" className="button secondary compact" onClick={() => handleToggleActive(teacher)}>
                     {teacher.is_active ? "Khóa" : "Mở lại"}
                   </button>
@@ -158,10 +191,10 @@ export function AdminTeachersPage() {
           </label>
           <label>
             Họ tên
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </label>
           <label>
-            Mật khẩu ban đầu
+            Mật khẩu
             <input
               type="password"
               value={password}
@@ -181,6 +214,23 @@ export function AdminTeachersPage() {
             disabled={creating || !email || !fullName || password.length < 8}
           >
             {creating ? "Đang tạo..." : "Tạo tài khoản"}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={editingId !== null} onClose={() => setEditingId(null)} title="Chỉnh sửa giáo viên">
+        <div className="app-modal-body">
+          <label>
+            Họ tên
+            <input type="text" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} />
+          </label>
+        </div>
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setEditingId(null)}>
+            Hủy
+          </button>
+          <button type="button" className="button primary" onClick={handleEditFullName} disabled={editSaving}>
+            {editSaving ? "Đang lưu..." : "Lưu"}
           </button>
         </div>
       </Modal>

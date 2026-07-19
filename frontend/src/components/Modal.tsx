@@ -11,19 +11,27 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
+  // Chỉ mount <dialog> khi mở — tránh nhiều dialog cùng nằm trong DOM lúc đóng
+  // (gây trùng label khi có nhiều modal dùng chung tên trường như "Lưu"/"Họ tên").
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    // jsdom (test) chưa cài đặt showModal/close — fallback về thuộc tính open thuần.
-    if (open && !dialog.open) {
-      if (typeof dialog.showModal === "function") dialog.showModal();
-      else dialog.setAttribute("open", "");
+    if (typeof dialog.showModal === "function") {
+      try {
+        dialog.showModal();
+      } catch {
+        // jsdom (test) chỉ có showModal dạng stub không hoạt động — bỏ qua.
+      }
     }
-    if (!open && dialog.open) {
-      if (typeof dialog.close === "function") dialog.close();
-      else dialog.removeAttribute("open");
-    }
+    // Luôn đặt thuộc tính open: vô hại khi showModal đã set (trình duyệt thật),
+    // và là fallback bắt buộc khi showModal là stub không làm gì (môi trường test).
+    dialog.setAttribute("open", "");
+    // Phụ thuộc `open`: dialog chỉ được mount vào DOM (ref gắn vào) sau khi `open`
+    // chuyển true — deps rỗng sẽ bỏ lỡ lần đó vì effect đã chạy một lần lúc dialog
+    // còn null (render trước đó return null khi open=false).
   }, [open]);
+
+  if (!open) return null;
 
   return (
     <dialog ref={dialogRef} className="app-modal" onClose={onClose} onCancel={onClose}>

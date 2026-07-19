@@ -52,7 +52,7 @@ describe("AdminTeachersPage", () => {
 
     await user.type(screen.getByLabelText("Email"), "new@examcraft.dev");
     await user.type(screen.getByLabelText("Họ tên"), "Người Mới");
-    await user.type(screen.getByLabelText("Mật khẩu ban đầu"), "Secret123!");
+    await user.type(screen.getByLabelText("Mật khẩu"), "Secret123!");
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
     expect(createTeacher).toHaveBeenCalledWith({
@@ -60,6 +60,24 @@ describe("AdminTeachersPage", () => {
       full_name: "Người Mới",
       password: "Secret123!",
     });
+  });
+
+  it("mở popup chỉnh sửa và cập nhật họ tên", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listTeachers).mockResolvedValue([teacher]);
+    vi.mocked(updateTeacher).mockResolvedValue({ ...teacher, full_name: "Tên Mới" });
+
+    render(<AdminTeachersPage />);
+    await screen.findByRole("cell", { name: "Nguyen An" });
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa" }));
+    const nameInput = screen.getByLabelText("Họ tên");
+    expect(nameInput).toHaveValue("Nguyen An");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Tên Mới");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    expect(updateTeacher).toHaveBeenCalledWith("teacher-1", { full_name: "Tên Mới" });
   });
 
   it("xóa tài khoản sau khi xác nhận", async () => {
