@@ -28,6 +28,7 @@ export function SortableBlockList({
   onUpdateField,
 }: SortableBlockListProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function requestReorder(sourceId: string, targetId: string) {
     if (saving || sourceId === targetId) return;
@@ -42,16 +43,20 @@ export function SortableBlockList({
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", blockId);
     }
+    setDropTargetId(null);
     setDraggedId(blockId);
   }
 
-  function handleDragOver(event: DragEvent<HTMLElement>) {
-    if (!saving) event.preventDefault();
+  function handleDragOver(event: DragEvent<HTMLElement>, targetId: string) {
+    if (saving) return;
+    event.preventDefault();
+    setDropTargetId(draggedId && draggedId !== targetId ? targetId : null);
   }
 
   function handleDrop(event: DragEvent<HTMLElement>, targetId: string) {
     event.preventDefault();
     if (draggedId) requestReorder(draggedId, targetId);
+    setDropTargetId(null);
     setDraggedId(null);
   }
 
@@ -61,10 +66,15 @@ export function SortableBlockList({
         <article
           key={block.id}
           data-testid={`block-${block.id}`}
-          onDragOver={handleDragOver}
+          onDragOver={(event) => handleDragOver(event, block.id)}
           onDrop={(event) => handleDrop(event, block.id)}
           style={{
-            border: "1px solid var(--border)",
+            border:
+              dropTargetId === block.id
+                ? "2px solid var(--primary)"
+                : draggedId === block.id
+                  ? "1px solid var(--primary)"
+                  : "1px solid var(--border)",
             borderRadius: 10,
             padding: 12,
             opacity: draggedId === block.id ? 0.6 : 1,
@@ -85,8 +95,14 @@ export function SortableBlockList({
                 disabled={saving}
                 draggable={!saving}
                 onDragStart={(event) => handleDragStart(event, block.id)}
-                onDragEnd={() => setDraggedId(null)}
-                style={iconButtonStyle}
+                onDragEnd={() => {
+                  setDropTargetId(null);
+                  setDraggedId(null);
+                }}
+                style={{
+                  ...iconButtonStyle,
+                  cursor: saving ? "not-allowed" : draggedId === block.id ? "grabbing" : "grab",
+                }}
               >
                 ⠿
               </button>

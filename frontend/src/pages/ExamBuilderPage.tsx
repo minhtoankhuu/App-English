@@ -92,18 +92,19 @@ export function ExamBuilderPage() {
     setMutationLock((current) => (current?.operationId === target.operationId ? null : current));
   }
 
-  async function reload(target: RouteToken) {
+  async function reload(target: RouteToken): Promise<boolean> {
     const requestId = ++examRequestId.current;
-    if (isActiveRoute(target)) setError(null);
     try {
       const detail = await getExam(target.examId);
-      if (!isActiveRoute(target) || requestId !== examRequestId.current || detail.id !== target.examId) return;
+      if (!isActiveRoute(target) || requestId !== examRequestId.current || detail.id !== target.examId) return false;
       setExamState({ generation: target.generation, value: detail });
       setSelectedPoints(new Set(detail.grammar_point_ids));
       setError(null);
+      return true;
     } catch (err) {
-      if (!isActiveRoute(target) || requestId !== examRequestId.current) return;
+      if (!isActiveRoute(target) || requestId !== examRequestId.current) return false;
       setError({ generation: target.generation, value: err instanceof ApiError ? err.message : "Không tải được đề" });
+      return false;
     }
   }
 
@@ -133,9 +134,10 @@ export function ExamBuilderPage() {
     }
   }
 
-  async function refreshBuilder(target: RouteToken) {
-    if (!isActiveRoute(target)) return;
-    await Promise.all([reload(target), loadPreview(target)]);
+  async function refreshBuilder(target: RouteToken): Promise<boolean> {
+    if (!isActiveRoute(target)) return false;
+    const [examReloaded] = await Promise.all([reload(target), loadPreview(target)]);
+    return examReloaded;
   }
 
   useEffect(() => {
@@ -182,8 +184,24 @@ export function ExamBuilderPage() {
   const mutationSaving = mutationLock?.generation === routeGeneration && mutationLock.examId === examId;
   const generating = mutationSaving && mutationLock?.kind === "generate";
 
+  function retryPreview() {
+    const route = routeRef.current;
+    if (route.examId) void loadPreview({ examId: route.examId, generation: route.generation });
+  }
+
   if (!exam) {
-    return <p style={{ color: activeError ? "var(--danger)" : "var(--muted)" }}>{activeError ?? "Đang tải..."}</p>;
+    return (
+      <div className="exam-builder-layout">
+        <section className="exam-builder-editor" style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
+          <p style={{ margin: 0, color: activeError ? "var(--danger)" : "var(--muted)" }}>
+            {activeError ?? "Đang tải..."}
+          </p>
+        </section>
+        <aside className="exam-builder-preview">
+          <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
+        </aside>
+      </div>
+    );
   }
 
   async function handleAddBlock() {
@@ -200,7 +218,6 @@ export function ExamBuilderPage() {
       });
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
-      if (isActiveOperation(target)) setError(null);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({
@@ -221,7 +238,6 @@ export function ExamBuilderPage() {
       await deleteBlock(target.examId, blockId);
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
-      if (isActiveOperation(target)) setError(null);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({ generation: target.generation, value: err instanceof ApiError ? err.message : "Không xóa được phần" });
@@ -267,7 +283,6 @@ export function ExamBuilderPage() {
       await updateBlock(target.examId, block.id, { [field]: value });
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
-      if (isActiveOperation(target)) setError(null);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({
@@ -298,7 +313,6 @@ export function ExamBuilderPage() {
       await setGrammarSelection(target.examId, grammarPointIds);
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
-      if (isActiveOperation(target)) setError(null);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({
@@ -450,10 +464,7 @@ export function ExamBuilderPage() {
           preview={preview}
           loading={previewLoading}
           error={activePreviewError}
-          onRetry={() => {
-            const route = routeRef.current;
-            if (route.examId) void loadPreview({ examId: route.examId, generation: route.generation });
-          }}
+          onRetry={retryPreview}
         />
       </aside>
     </div>

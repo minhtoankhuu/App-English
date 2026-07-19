@@ -129,6 +129,30 @@ def test_actual_questions_are_preserved_and_missing_questions_are_filled(block_w
     assert [question["is_placeholder"] for question in questions] == [False, True, True]
 
 
+def test_actual_questions_beyond_configured_count_are_preserved():
+    block = ExamBlock(
+        order_no=1,
+        title="Stored questions",
+        instruction=None,
+        question_count=1,
+        points=Decimal("1.0"),
+        questions=[
+            Question(order_no=2, prompt_text="Second stored question", passage_text=None),
+            Question(order_no=1, prompt_text="First stored question", passage_text=None),
+        ],
+    )
+
+    preview = build_preview(Exam(blocks=[block]))
+    questions = preview["pages"][0]["blocks"][0]["questions"]
+
+    assert preview["total_questions"] == 2
+    assert [question["prompt_text"] for question in questions] == [
+        "First stored question",
+        "Second stored question",
+    ]
+    assert all(question["is_placeholder"] is False for question in questions)
+
+
 def test_to_roman_supports_more_than_twenty():
     assert to_roman(24) == "XXIV"
 

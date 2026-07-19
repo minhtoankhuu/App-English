@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ExamPreview } from "./ExamPreview";
@@ -97,7 +97,10 @@ describe("ExamPreview", () => {
   it("renders an empty preview", () => {
     render(<ExamPreview preview={emptyPreview} loading={false} error={null} onRetry={retry} />);
 
-    expect(screen.getByText("Thêm phần để xem trước đề")).toBeInTheDocument();
+    const page = screen.getByRole("article", { name: "Trang 1/1" });
+    expect(within(page).getByText("Đề kiểm tra")).toBeInTheDocument();
+    expect(within(page).getByText("Thêm phần để xem trước đề")).toBeInTheDocument();
+    expect(within(page).getByText("Trang 1/1")).toBeInTheDocument();
   });
 
   it("renders numbered A4 pages with placeholders", () => {
@@ -105,8 +108,17 @@ describe("ExamPreview", () => {
 
     expect(screen.getByText("Trang 1/2")).toBeInTheDocument();
     expect(screen.getByText("Trang 2/2")).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: "Trang 1/2" })).toHaveStyle({ aspectRatio: "210 / 297" });
-    expect(screen.getByText("Câu 3. Chưa có nội dung")).toBeInTheDocument();
+    const firstPage = screen.getByRole("article", { name: "Trang 1/2" });
+    expect(firstPage.style.aspectRatio).toBe("210 / 297");
+    expect(firstPage.style.boxShadow).toBe("0 4px 16px rgba(15, 23, 42, 0.12)");
+    expect(screen.getByText("Câu 3. ................................................................")).toBeInTheDocument();
+  });
+
+  it("renders each block question range and points", () => {
+    render(<ExamPreview preview={twoPagePreview} loading={false} error={null} onRetry={retry} />);
+
+    expect(screen.getByText("Câu 1–2 · 1.0 điểm")).toBeInTheDocument();
+    expect(screen.getByText("Câu 3–3 · 1.0 điểm")).toBeInTheDocument();
   });
 
   it("renders actual questions and shows a repeated passage once per block", () => {

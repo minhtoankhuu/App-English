@@ -26,8 +26,6 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
 
   if (!preview) return null;
 
-  const isEmpty = preview.pages.every((page) => page.blocks.length === 0);
-
   return (
     <section aria-label="Bản xem trước đề A4" style={{ display: "grid", gap: 16 }}>
       <header style={toolbarStyle}>
@@ -40,27 +38,27 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
         </p>
       </header>
 
-      {isEmpty ? (
-        <p style={statusStyle}>Thêm phần để xem trước đề</p>
-      ) : (
-        <div style={{ display: "grid", gap: 18 }}>
-          {preview.pages.map((page) => (
-            <article key={page.page_number} aria-label={`Trang ${page.page_number}/${preview.page_count}`} style={pageStyle}>
-              <header style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
-                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", fontWeight: 700 }}>{preview.title}</p>
-              </header>
+      <div style={{ display: "grid", gap: 18 }}>
+        {preview.pages.map((page) => (
+          <article key={page.page_number} aria-label={`Trang ${page.page_number}/${preview.page_count}`} style={pageStyle}>
+            <header style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", fontWeight: 700 }}>{preview.title}</p>
+            </header>
 
-              <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
-                {page.blocks.map((block) => (
+            <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
+              {page.blocks.length === 0 ? (
+                <p style={{ margin: 0, color: "var(--muted)" }}>Thêm phần để xem trước đề</p>
+              ) : (
+                page.blocks.map((block) => (
                   <PreviewBlock key={`${block.block_id}-${block.question_start ?? "empty"}`} block={block} />
-                ))}
-              </div>
+                ))
+              )}
+            </div>
 
-              <footer style={footerStyle}>Trang {page.page_number}/{preview.page_count}</footer>
-            </article>
-          ))}
-        </div>
-      )}
+            <footer style={footerStyle}>Trang {page.page_number}/{preview.page_count}</footer>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
@@ -74,6 +72,9 @@ function PreviewBlock({ block }: { block: PreviewBlockOut }) {
         {block.section_label}. {block.title}
         {block.continuation ? " (tiếp theo)" : ""}
       </h3>
+      <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--muted)" }}>
+        Câu {block.question_start}–{block.question_end} · {block.points} điểm
+      </p>
       {block.instruction && <p style={{ margin: "5px 0 8px", fontSize: 13, fontStyle: "italic" }}>{block.instruction}</p>}
       <div style={{ display: "grid", gap: 8 }}>
         {block.questions.map((question) => {
@@ -84,7 +85,7 @@ function PreviewBlock({ block }: { block: PreviewBlockOut }) {
             <div key={question.question_number} style={{ fontSize: 13 }}>
               {showPassage && <p style={{ margin: "0 0 6px", whiteSpace: "pre-wrap" }}>{question.passage_text}</p>}
               <p style={{ margin: 0 }}>
-                Câu {question.question_number}. {question.is_placeholder ? "Chưa có nội dung" : (question.prompt_text ?? "Chưa có nội dung")}
+                Câu {question.question_number}. {question.is_placeholder ? "................................................................" : (question.prompt_text ?? "Chưa có nội dung")}
               </p>
             </div>
           );
@@ -131,6 +132,7 @@ const pageStyle: CSSProperties = {
   padding: 32,
   background: "#fff",
   border: "1px solid var(--border)",
+  boxShadow: "0 4px 16px rgba(15, 23, 42, 0.12)",
   boxSizing: "border-box",
   display: "flex",
   flexDirection: "column",

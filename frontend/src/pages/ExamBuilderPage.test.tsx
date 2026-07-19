@@ -227,6 +227,15 @@ describe("ExamBuilderPage", () => {
     expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
   });
 
+  it("renders the preview while the initial exam is still loading", async () => {
+    examApi.getExam.mockReturnValueOnce(new Promise<ExamDetailOut>(() => undefined));
+    renderBuilder();
+
+    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
+    expect(screen.getByText("Đang tải...")).toBeInTheDocument();
+    expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
+  });
+
   it("retries preview loading in the Builder and clears the active error", async () => {
     const user = userEvent.setup();
     let resolveRetry!: (value: ExamPreviewOut) => void;
@@ -502,6 +511,19 @@ describe("ExamBuilderPage", () => {
     await act(async () => resolveAdd(blocks[0]!));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
     expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
+  });
+
+  it("keeps the stale editor and shows the reload error after a successful mutation", async () => {
+    const user = userEvent.setup();
+    examApi.getExam.mockResolvedValueOnce(exam).mockRejectedValueOnce(new Error("network down"));
+    renderBuilder();
+    await screen.findByTestId("block-a");
+
+    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+
+    expect(await screen.findByText("Không tải được đề")).toBeInTheDocument();
+    expect(screen.getByTestId("block-a")).toBeInTheDocument();
+    expect(screen.getByText("Trang 1/1")).toBeInTheDocument();
   });
 
   it("refreshes exam and preview after add, delete, update, and grammar mutations", async () => {

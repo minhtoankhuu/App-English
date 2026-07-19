@@ -83,6 +83,18 @@ describe("SortableBlockList", () => {
     expect(onReorder).toHaveBeenCalledWith(["b", "a", "c"]);
   });
 
+  it("shows the active drag cursor and drop target border", () => {
+    render(<SortableBlockList {...defaultProps} />);
+
+    const handle = screen.getByLabelText("Kéo để sắp xếp A");
+    const target = screen.getByTestId("block-c");
+    fireEvent.dragStart(handle);
+    fireEvent.dragOver(target);
+
+    expect(handle).toHaveStyle({ cursor: "grabbing" });
+    expect(screen.getByTestId("block-c").style.border).toBe("2px solid var(--primary)");
+  });
+
   it("keeps arrow controls and disables boundaries", async () => {
     const user = userEvent.setup();
     render(<SortableBlockList {...defaultProps} />);
