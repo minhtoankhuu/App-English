@@ -1,48 +1,89 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { downloadExportUrl, getExam, saveExportConfig } from "../api/exams";
 import { ApiError } from "../api/client";
 import type { ExamDetailOut, ExportMode } from "../types/exam";
+import { useRouteGeneration, type RouteGenerationToken } from "../routing/useRouteGeneration";
 
 const VARIANT_CODES = ["A", "B", "C", "D"];
 
+interface SaveOperation {
+  id: number;
+  route: RouteGenerationToken;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
 export function ExamExportPage() {
   const { examId } = useParams<{ examId: string }>();
+  const routeGeneration = useRouteGeneration(examId);
   const [exam, setExam] = useState<ExamDetailOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>("plain");
   const [variantCount, setVariantCount] = useState(1);
+  const activeSave = useRef<SaveOperation | null>(null);
+  const nextOperationId = useRef(0);
 
-  function reload() {
+  const reload = useCallback(async (targetExamId: string, token: RouteGenerationToken): Promise<boolean> => {
+    try {
+      const detail = await getExam(targetExamId);
+      if (!routeGeneration.isCurrent(token) || detail.id !== targetExamId) return false;
+      setExam(detail);
+      setExportMode(detail.export_mode ?? "plain");
+      setVariantCount(detail.variant_count || 1);
+      setError(null);
+      return true;
+    } catch (err) {
+      if (!routeGeneration.isCurrent(token)) return false;
+      setError(errorMessage(err, "Không tải được đề"));
+      return false;
+    }
+  }, [routeGeneration]);
+
+  useEffect(() => {
+    setExam(null);
+    setError(null);
+    setSaving(false);
+    setExportMode("plain");
+    setVariantCount(1);
+    activeSave.current = null;
     if (!examId) return;
-    getExam(examId)
-      .then((detail) => {
-        setExam(detail);
-        setExportMode(detail.export_mode ?? "plain");
-        setVariantCount(detail.variant_count || 1);
-      })
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được đề"));
-  }
+    const token = routeGeneration.capture();
+    void reload(examId, token);
+  }, [examId, reload, routeGeneration]);
 
-  useEffect(reload, [examId]);
-
-  if (!exam) {
+  if (!exam || exam.id !== examId) {
     return <p style={{ color: error ? "var(--danger)" : "var(--muted)" }}>{error ?? "Đang tải..."}</p>;
   }
 
   async function handleSave() {
-    if (!examId) return;
+    if (!examId || activeSave.current) return;
+    const targetExamId = examId;
+    const targetMode = exportMode;
+    const targetVariantCount = variantCount;
+    const operation = { id: ++nextOperationId.current, route: routeGeneration.capture() };
+    activeSave.current = operation;
     setSaving(true);
     setError(null);
     try {
-      await saveExportConfig(examId, { export_mode: exportMode, variant_count: variantCount });
-      reload();
+      await saveExportConfig(targetExamId, { export_mode: targetMode, variant_count: targetVariantCount });
+      if (!isCurrentSave(operation)) return;
+      await reload(targetExamId, operation.route);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Chưa lưu được cấu hình xuất");
+      if (isCurrentSave(operation)) setError(errorMessage(err, "Chưa lưu được cấu hình xuất"));
     } finally {
-      setSaving(false);
+      if (isCurrentSave(operation)) {
+        activeSave.current = null;
+        setSaving(false);
+      }
     }
+  }
+
+  function isCurrentSave(operation: SaveOperation) {
+    return routeGeneration.isCurrent(operation.route) && activeSave.current?.id === operation.id;
   }
 
   return (
