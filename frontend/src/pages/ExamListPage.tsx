@@ -105,16 +105,21 @@ export function ExamListPage() {
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Tạo đề mới</h2>
-        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-          <label style={fieldStyle}>
+      <section className="configuration">
+        <div className="section-heading">
+          <div>
+            <h2>Tạo đề mới</h2>
+            <p>Chọn phạm vi kiến thức trước khi sang bước cấu trúc đề.</p>
+          </div>
+        </div>
+        <div className="form-grid">
+          <label>
             Tên đề
-            <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
-          <label style={fieldStyle}>
+          <label>
             Khối lớp
-            <select value={gradeId} onChange={(e) => setGradeId(e.target.value)} style={inputStyle}>
+            <select value={gradeId} onChange={(e) => setGradeId(e.target.value)}>
               {grades.map((g) => (
                 <option key={g.id} value={g.id}>
                   Lớp {g.number}
@@ -122,9 +127,9 @@ export function ExamListPage() {
               ))}
             </select>
           </label>
-          <label style={fieldStyle}>
+          <label>
             Trình độ
-            <select value={levelId} onChange={(e) => setLevelId(e.target.value)} style={inputStyle}>
+            <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
               {levels.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.code}
@@ -132,13 +137,9 @@ export function ExamListPage() {
               ))}
             </select>
           </label>
-          <label style={fieldStyle}>
+          <label>
             Nguồn kiến thức
-            <select
-              value={sourceType}
-              onChange={(e) => setSourceType(e.target.value as SourceType)}
-              style={inputStyle}
-            >
+            <select value={sourceType} onChange={(e) => setSourceType(e.target.value as SourceType)}>
               <option value="global_success">Global Success</option>
               <option value="common_knowledge">Kiến thức chung</option>
               <option value="cambridge">Cambridge</option>
@@ -146,9 +147,9 @@ export function ExamListPage() {
           </label>
 
           {sourceType === "global_success" && (
-            <label style={fieldStyle}>
+            <label>
               Unit
-              <select value={unitId} onChange={(e) => setUnitId(e.target.value)} style={inputStyle}>
+              <select value={unitId} onChange={(e) => setUnitId(e.target.value)}>
                 {units.map((u) => (
                   <option key={u.id} value={u.id}>
                     Unit {u.order_no} — {u.title}
@@ -158,9 +159,9 @@ export function ExamListPage() {
             </label>
           )}
           {sourceType === "common_knowledge" && (
-            <label style={fieldStyle}>
+            <label>
               Chuyên đề
-              <select value={grammarTopicId} onChange={(e) => setGrammarTopicId(e.target.value)} style={inputStyle}>
+              <select value={grammarTopicId} onChange={(e) => setGrammarTopicId(e.target.value)}>
                 {grammarTopics.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -170,9 +171,9 @@ export function ExamListPage() {
             </label>
           )}
           {sourceType === "cambridge" && (
-            <label style={fieldStyle}>
+            <label>
               Chứng chỉ
-              <select value={certificateId} onChange={(e) => setCertificateId(e.target.value)} style={inputStyle}>
+              <select value={certificateId} onChange={(e) => setCertificateId(e.target.value)}>
                 {certificates.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.code}
@@ -182,59 +183,43 @@ export function ExamListPage() {
             </label>
           )}
         </div>
-        <div style={{ marginTop: 12 }}>
-          <button onClick={handleCreate} disabled={creating || !sourceReady} style={primaryButtonStyle}>
-            {creating ? "Đang tạo..." : "+ Tạo đề"}
+        <div className="config-footer">
+          <button type="button" onClick={handleCreate} disabled={creating || !sourceReady} className="button primary large">
+            + Tạo đề
           </button>
         </div>
       </section>
 
-      <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Đề của tôi</h2>
+      <section className="configuration">
+        <div className="section-heading">
+          <div>
+            <h2>Đề của tôi</h2>
+          </div>
+        </div>
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
         {!exams && !error && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
         {exams && exams.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có đề nào.</p>}
-        <div style={{ display: "grid", gap: 10 }}>
+        <div className="exam-list" style={{ marginTop: exams && exams.length > 0 ? 14 : 0 }}>
           {exams?.map((exam) => (
-            <article
-              key={exam.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "12px 14px",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
-              <div>
-                <strong>{exam.title}</strong>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--muted)" }}>
+            <article key={exam.id} className="exam-row">
+              <div className="exam-info">
+                <h3>{exam.title}</h3>
+                <p className="exam-meta">
                   Lớp {exam.grade_number} · {exam.level_code} · {exam.total_questions} câu · {exam.total_points} điểm
                 </p>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    padding: "3px 10px",
-                    borderRadius: 999,
-                    background: exam.status === "ready" ? "#e2f6ee" : "#eef1f6",
-                    color: exam.status === "ready" ? "#0f8a62" : "#64748b",
-                  }}
-                >
-                  {STATUS_LABEL[exam.status]}
-                </span>
-                <Link to={`/exams/${exam.id}/builder`} style={linkButtonStyle}>
+              <span className={`status-pill${exam.status === "ready" ? " ready" : exam.status === "reviewed" ? " reviewed" : ""}`}>
+                {STATUS_LABEL[exam.status]}
+              </span>
+              <div className="exam-actions">
+                <Link to={`/exams/${exam.id}/builder`} className="button secondary compact">
                   Chỉnh sửa
                 </Link>
-                <Link to={`/exams/${exam.id}/review`} style={linkButtonStyle}>
+                <Link to={`/exams/${exam.id}/review`} className="button secondary compact">
                   Duyệt câu
                 </Link>
                 {exam.status !== "draft" && (
-                  <Link to={`/exams/${exam.id}/export`} style={linkButtonStyle}>
+                  <Link to={`/exams/${exam.id}/export`} className="button secondary compact">
                     Xuất
                   </Link>
                 )}
@@ -246,32 +231,3 @@ export function ExamListPage() {
     </div>
   );
 }
-
-const fieldStyle: React.CSSProperties = { display: "grid", gap: 4, fontSize: 13, fontWeight: 600 };
-
-const inputStyle: React.CSSProperties = {
-  height: 38,
-  padding: "0 10px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  fontSize: 13,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  height: 38,
-  padding: "0 16px",
-  borderRadius: 8,
-  border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 600,
-};
-
-const linkButtonStyle: React.CSSProperties = {
-  fontSize: 13,
-  padding: "6px 10px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  textDecoration: "none",
-  color: "var(--ink)",
-};
