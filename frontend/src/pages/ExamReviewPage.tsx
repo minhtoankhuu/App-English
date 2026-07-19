@@ -1,29 +1,81 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { completeReview, getExam, regenerateQuestion, updateQuestionFlags } from "../api/exams";
 import { ApiError } from "../api/client";
 import type { ExamDetailOut, QuestionOut } from "../types/exam";
 import { useUsage } from "../usage/UsageContext";
+import { useRouteGeneration, type RouteGenerationToken } from "../routing/useRouteGeneration";
+
+interface ReviewOperation {
+  id: number;
+  route: RouteGenerationToken;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof ApiError ? error.message : fallback;
+}
 
 export function ExamReviewPage() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
   const { refresh: refreshUsage } = useUsage();
+  const routeGeneration = useRouteGeneration(examId);
   const [exam, setExam] = useState<ExamDetailOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [activeOperationId, setActiveOperationId] = useState<number | null>(null);
+  const activeOperation = useRef<ReviewOperation | null>(null);
+  const nextOperationId = useRef(0);
 
-  function reload() {
-    if (!examId) return;
-    getExam(examId)
-      .then(setExam)
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được đề"));
+  const reload = useCallback(async (targetExamId: string, token: RouteGenerationToken): Promise<boolean> => {
+    try {
+      const detail = await getExam(targetExamId);
+      if (!routeGeneration.isCurrent(token) || detail.id !== targetExamId) return false;
+      setExam(detail);
+      setError(null);
+      return true;
+    } catch (err) {
+      if (!routeGeneration.isCurrent(token)) return false;
+      setError(errorMessage(err, "Không tải được đề"));
+      return false;
+    }
+  }, [routeGeneration]);
+
+  function beginOperation(): ReviewOperation | null {
+    if (!examId || activeOperation.current) return null;
+    const operation = { id: ++nextOperationId.current, route: routeGeneration.capture() };
+    activeOperation.current = operation;
+    setActiveOperationId(operation.id);
+    setError(null);
+    return operation;
   }
 
-  useEffect(reload, [examId]);
+  function isCurrentOperation(operation: ReviewOperation) {
+    return routeGeneration.isCurrent(operation.route) && activeOperation.current?.id === operation.id;
+  }
 
-  if (!exam) {
+  function finishOperation(operation: ReviewOperation) {
+    if (!isCurrentOperation(operation)) return;
+    activeOperation.current = null;
+    setActiveOperationId(null);
+    setBusyQuestionId(null);
+    setFinishing(false);
+  }
+
+  useEffect(() => {
+    setExam(null);
+    setError(null);
+    setBusyQuestionId(null);
+    setFinishing(false);
+    setActiveOperationId(null);
+    activeOperation.current = null;
+    if (!examId) return;
+    const token = routeGeneration.capture();
+    void reload(examId, token);
+  }, [examId, reload, routeGeneration]);
+
+  if (!exam || exam.id !== examId) {
     return <p style={{ color: error ? "var(--danger)" : "var(--muted)" }}>{error ?? "Đang tải..."}</p>;
   }
 
@@ -32,54 +84,75 @@ export function ExamReviewPage() {
 
   async function handleApproveToggle(question: QuestionOut) {
     if (!examId) return;
+    const operation = beginOperation();
+    if (!operation) return;
+    const targetExamId = examId;
     setBusyQuestionId(question.id);
     try {
-      await updateQuestionFlags(examId, question.id, { is_approved: !question.is_approved });
-      reload();
+      await updateQuestionFlags(targetExamId, question.id, { is_approved: !question.is_approved });
+      if (!isCurrentOperation(operation)) return;
+      await reload(targetExamId, operation.route);
+    } catch (err) {
+      if (isCurrentOperation(operation)) setError(errorMessage(err, "Không cập nhật được câu hỏi"));
     } finally {
-      setBusyQuestionId(null);
+      finishOperation(operation);
     }
   }
 
   async function handleLockToggle(question: QuestionOut) {
     if (!examId) return;
+    const operation = beginOperation();
+    if (!operation) return;
+    const targetExamId = examId;
     setBusyQuestionId(question.id);
     try {
-      await updateQuestionFlags(examId, question.id, { is_locked: !question.is_locked });
-      reload();
+      await updateQuestionFlags(targetExamId, question.id, { is_locked: !question.is_locked });
+      if (!isCurrentOperation(operation)) return;
+      await reload(targetExamId, operation.route);
+    } catch (err) {
+      if (isCurrentOperation(operation)) setError(errorMessage(err, "Không cập nhật được câu hỏi"));
     } finally {
-      setBusyQuestionId(null);
+      finishOperation(operation);
     }
   }
 
   async function handleRegenerate(question: QuestionOut) {
     if (!examId) return;
+    const operation = beginOperation();
+    if (!operation) return;
+    const targetExamId = examId;
     setBusyQuestionId(question.id);
-    setError(null);
     try {
-      await regenerateQuestion(examId, question.id);
+      await regenerateQuestion(targetExamId, question.id);
+      if (!isCurrentOperation(operation)) return;
       await refreshUsage();
-      reload();
+      if (!isCurrentOperation(operation)) return;
+      await reload(targetExamId, operation.route);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Không sinh lại được câu này");
+      if (isCurrentOperation(operation)) setError(errorMessage(err, "Không sinh lại được câu này"));
     } finally {
-      setBusyQuestionId(null);
+      finishOperation(operation);
     }
   }
 
   async function handleFinish() {
     if (!examId) return;
+    const operation = beginOperation();
+    if (!operation) return;
+    const targetExamId = examId;
     setFinishing(true);
-    setError(null);
     try {
-      await completeReview(examId);
-      navigate(`/exams/${examId}/export`);
+      await completeReview(targetExamId);
+      if (!isCurrentOperation(operation)) return;
+      navigate(`/exams/${targetExamId}/export`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Chưa thể hoàn tất kiểm duyệt");
+      if (isCurrentOperation(operation)) setError(errorMessage(err, "Chưa thể hoàn tất kiểm duyệt"));
     } finally {
-      setFinishing(false);
+      finishOperation(operation);
     }
   }
+
+  const mutationBusy = activeOperationId !== null;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -168,18 +241,18 @@ export function ExamReviewPage() {
                       </div>
                     )}
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => handleApproveToggle(q)} style={smallButtonStyle} disabled={busyQuestionId === q.id}>
+                      <button onClick={() => handleApproveToggle(q)} style={smallButtonStyle} disabled={mutationBusy}>
                         {q.is_approved ? "Bỏ duyệt" : "Duyệt"}
                       </button>
                       <button
                         onClick={() => handleRegenerate(q)}
                         style={smallButtonStyle}
-                        disabled={busyQuestionId === q.id || q.is_locked || q.is_approved}
+                        disabled={mutationBusy || q.is_locked || q.is_approved}
                         title={q.is_locked ? "Câu đã khóa" : q.is_approved ? "Bỏ duyệt trước khi sinh lại" : ""}
                       >
                         Sinh lại
                       </button>
-                      <button onClick={() => handleLockToggle(q)} style={smallButtonStyle} disabled={busyQuestionId === q.id}>
+                      <button onClick={() => handleLockToggle(q)} style={smallButtonStyle} disabled={mutationBusy}>
                         {q.is_locked ? "Đã khóa" : "Khóa"}
                       </button>
                     </div>
@@ -204,7 +277,7 @@ export function ExamReviewPage() {
         </p>
         <button
           onClick={handleFinish}
-          disabled={finishing || allQuestions.length === 0 || approvedCount !== allQuestions.length}
+          disabled={mutationBusy || finishing || allQuestions.length === 0 || approvedCount !== allQuestions.length}
           style={primaryButtonStyle}
         >
           {finishing ? "Đang lưu..." : "Hoàn tất kiểm duyệt → Xuất"}
