@@ -2,9 +2,9 @@
 
 ## Nền tảng AI tạo bài tập và đề tiếng Anh theo kiến thức sách giáo khoa
 
-**Phiên bản:** 1.5  
+**Phiên bản:** 1.6  
 **Ngày:** 19/07/2026  
-**Trạng thái:** Đã bắt đầu triển khai (Giai đoạn 1A + lõi 1B). 1.1: bổ sung tiêu chí định lượng, quản lý hình ảnh, spike khả thi, nguyên tắc hạ tầng tối thiểu. 1.2: bổ sung trình độ mục tiêu (CEFR/Cambridge) và chọn dạng bài bằng checklist. 1.3: bảng ánh xạ lớp → trình độ, phân nhóm theo cấp học và ba mục kho kiến thức (Kiến thức chung: Tense, cấu trúc câu / Global Success / Cambridge theo chứng chỉ) do giáo viên xác nhận. 1.4: skeleton Giai đoạn 1A (backend FastAPI, frontend React/TS, Docker Compose) đã dựng và kiểm chứng chạy được. 1.5: lõi tạo đề Giai đoạn 1B (Exam/Block/Question, MockAIProvider, Validation Engine, API + frontend đầy đủ đến xuất DOCX, mã đề A/B/C/D) chạy trên MockAIProvider, chưa gồm RAG.
+**Trạng thái:** Đã bắt đầu triển khai (Giai đoạn 1A + lõi 1B). 1.1: bổ sung tiêu chí định lượng, quản lý hình ảnh, spike khả thi, nguyên tắc hạ tầng tối thiểu. 1.2: bổ sung trình độ mục tiêu (CEFR/Cambridge) và chọn dạng bài bằng checklist. 1.3: bảng ánh xạ lớp → trình độ, phân nhóm theo cấp học và ba mục kho kiến thức (Kiến thức chung: Tense, cấu trúc câu / Global Success / Cambridge theo chứng chỉ) do giáo viên xác nhận. 1.4: skeleton Giai đoạn 1A (backend FastAPI, frontend React/TS, Docker Compose) đã dựng và kiểm chứng chạy được. 1.5: lõi tạo đề Giai đoạn 1B (Exam/Block/Question, MockAIProvider, Validation Engine, API + frontend đầy đủ đến xuất DOCX, mã đề A/B/C/D) chạy trên MockAIProvider, chưa gồm RAG. 1.6: Admin quản lý tài khoản giáo viên (tạo/khóa/đặt lại mật khẩu) — API + trang thật, có phân quyền theo vai trò ở cả backend và frontend.
 
 ## 1. Tóm tắt điều hành
 
@@ -486,8 +486,8 @@ Dự án đã bắt đầu triển khai: skeleton Giai đoạn 1A xong (nhánh `
 | `docs/engineering/IMPLEMENTATION_NOTES.vi.md` | Ghi chú kỹ thuật cho đội code: dữ liệu seed, thông số DOCX renderer, đặc tả hành vi UI |
 | `docs/engineering/DEVELOPMENT_PLAN.vi.md` | Kế hoạch phát triển đã chốt: stack, lộ trình 1A→1D, rủi ro, việc chờ xác nhận |
 | `prototype/index.html`, `prototype/styles.css` | Prototype giao diện tương tác — reference implementation |
-| `backend/` | FastAPI + SQLAlchemy + Alembic; auth, danh mục học thuật đã seed, `AIProvider`/`MockAIProvider`, Validation Engine, API đề thi đầy đủ (block, sinh câu, duyệt, mã đề, xuất DOCX), 25 test pytest |
-| `frontend/` | Vite + React + TypeScript strict + react-router; đăng nhập, Đề của tôi, Tạo đề, Duyệt câu hỏi, Xuất DOCX — nối API thật |
+| `backend/` | FastAPI + SQLAlchemy + Alembic; auth, danh mục học thuật đã seed, `AIProvider`/`MockAIProvider`, Validation Engine, API đề thi đầy đủ (block, sinh câu, duyệt, mã đề, xuất DOCX), API Admin quản lý tài khoản giáo viên, 33 test pytest |
+| `frontend/` | Vite + React + TypeScript strict + react-router; đăng nhập, Đề của tôi, Tạo đề, Duyệt câu hỏi, Xuất DOCX, Quản lý tài khoản (Admin) — nối API thật, điều hướng theo vai trò |
 | `docker-compose.yml`, `.env.example` | Chạy toàn bộ stack: `docker compose up` (cần Docker + `.env` sao chép từ `.env.example`) |
 | `tools/build_project_idea_docx.py` | Script build DOCX (`python tools/build_project_idea_docx.py`, cần `python-docx`) |
 
@@ -533,6 +533,7 @@ Giới hạn chủ đích: chưa có màn hình bước 1 tách riêng (chọn n
 | 14 | Câu trắc nghiệm/word form cấp 2 dài 12–14 từ; mỗi câu phải đủ ngữ cảnh và dấu hiệu nhận biết đáp án |
 | 15 | Tích hợp LLM/API key làm sau cùng (giai đoạn 1D), sau khi UI + BE + FE hoàn tất; phát triển trên MockAIProvider với fixture từ đề Unit 3 |
 | 16 | Duyệt/khóa câu dùng PATCH tường minh, không dùng toggle (an toàn khi mất mạng/double-click); trùng lặp dùng fuzzy text-match tạm thời, cosine embedding chờ RAG |
+| 17 | Admin quản lý tài khoản giáo viên: tạo, khóa/mở lại (không xóa cứng), đặt lại mật khẩu; chỉ áp dụng cho vai trò teacher, không dùng để quản trị tài khoản admin khác |
 
 ### 23.4 Việc tiếp theo
 
@@ -542,5 +543,7 @@ Giai đoạn 1A xong phần nền: FastAPI + Postgres (pgvector) + Alembic migra
 
 Giai đoạn 1B xong lõi tạo đề chạy trên `MockAIProvider`: model Exam/ExamBlock/Question/ExamVariant, Validation Engine (đếm từ, cảnh báo trình độ, trùng lặp fuzzy-match), API đầy đủ từ tạo đề đến xuất DOCX, mã đề A/B/C/D, và 4 trang frontend (Đề của tôi, Tạo đề, Duyệt câu hỏi, Xuất) nối API thật — không còn dữ liệu giả ở tầng UI. Đã kiểm chứng bằng 25 test pytest và luồng thật qua Docker Compose (tạo đề Unit 3 → sinh câu → duyệt → xuất DOCX, mở lại bằng python-docx). Toàn bộ chạy qua `docker compose up` (migration + seed tự động, idempotent).
 
-Còn thiếu để hoàn tất 1A+1B theo kế hoạch gốc: nhập tài liệu PDF/DOCX/text → trích xuất → full-text search (RAG, cố ý để sau — quyết định #15); số hóa fixture bank từ đề Unit 3 thật thành golden test tự động; kéo-thả thật và xem trước A4 động ở frontend (hiện dùng nút lên/xuống, chưa có preview); từ điển phát âm CMU và marker-heuristic theo thì. Bước kế tiếp: hoàn thiện các phần còn thiếu của 1A/1C hoặc **Giai đoạn 1D — tích hợp LLM thật** khi có API key.
+Admin quản lý tài khoản giáo viên (tạo, khóa/mở lại, đặt lại mật khẩu) đã có API + trang thật, kèm điều hướng phân theo vai trò ở frontend (Admin thấy thêm mục "Quản lý tài khoản", Giáo viên không thấy).
+
+Còn thiếu để hoàn tất 1A+1B+1C theo kế hoạch gốc: nhập tài liệu PDF/DOCX/text → trích xuất → full-text search (RAG, cố ý để sau — quyết định #15); màn hình Admin quản lý kho kiến thức/dạng bài/thư viện hình ảnh/cấu hình AI (mới làm phần tài khoản giáo viên, các khối quản trị khác trong prototype vẫn chỉ là ảnh tĩnh minh họa); số hóa fixture bank từ đề Unit 3 thật thành golden test tự động; kéo-thả thật và xem trước A4 động ở frontend (hiện dùng nút lên/xuống, chưa có preview); từ điển phát âm CMU và marker-heuristic theo thì; audit log. Bước kế tiếp: hoàn thiện các phần còn thiếu của 1A/1C hoặc **Giai đoạn 1D — tích hợp LLM thật** khi có API key.
 

@@ -126,6 +126,16 @@ Toàn bộ dưới prefix `/exams`, yêu cầu đăng nhập, tự lọc theo `t
 
 `MockAIProvider` (`app/services/ai_provider.py` + `fixtures.py`): ưu tiên bộ câu "vàng" khi `grade_number==7` và `unit_order_no==3`, còn lại dùng template chung theo `exercise_type_code`, lặp vòng nếu `question_count` vượt số template có sẵn.
 
+### 4.1 API quản lý tài khoản giáo viên (Admin)
+
+Prefix `/admin/teachers`, yêu cầu vai trò `admin` (403 cho teacher, 401 nếu chưa đăng nhập). Chỉ thao tác trên tài khoản vai trò `teacher` — dùng nhầm để sửa tài khoản admin khác sẽ nhận 404 (có test hồi quy riêng cho việc này).
+
+| Method | Path | Việc gì |
+|---|---|---|
+| GET | `/admin/teachers` | Danh sách tài khoản giáo viên |
+| POST | `/admin/teachers` | Tạo tài khoản (409 nếu email trùng — bắt `IntegrityError`, không pre-check để tránh race condition) |
+| PATCH | `/admin/teachers/{id}` | Sửa `full_name`/`is_active`/`password` (đặt lại mật khẩu); không có endpoint xóa cứng — chỉ `is_active=false` (PRD mục 12: ưu tiên xóa mềm) |
+
 ## 5. Việc cần chốt trước khi code
 
 - Danh mục Unit lớp 1–5 (giáo viên xác nhận).
