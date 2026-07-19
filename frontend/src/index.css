@@ -225,6 +225,26 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
   .workspace { padding: 16px 16px 32px; }
 }
 
+/* ---------- Đăng nhập ---------- */
+.login-card {
+  width: 360px;
+  max-width: 100%;
+  padding: 32px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(15, 27, 51, .12);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.login-mark { margin-bottom: 4px; }
+.login-title { margin: 0; font-size: 22px; }
+.login-subtitle { margin: 0 0 8px; color: var(--muted); }
+.login-error { color: var(--danger); font-size: 13px; margin: 0; }
+.login-card label { width: 100%; }
+.login-card .button { width: 100%; margin-top: 8px; }
+
 .exam-builder-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
