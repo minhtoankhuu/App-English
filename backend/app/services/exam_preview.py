@@ -156,12 +156,15 @@ def build_preview(exam: Exam) -> dict[str, object]:
         total_points += block.points
         blocks.append(
             {
+                "block_id": block.id,
+                "section_number": index,
                 "section_label": to_roman(index),
                 "title": block.title,
                 "instruction": block.instruction,
                 "points": block.points,
                 "question_start": questions[0]["question_number"] if questions else None,
                 "question_end": questions[-1]["question_number"] if questions else None,
+                "question_count": block.question_count,
                 "questions": questions,
             }
         )
