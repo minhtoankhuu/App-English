@@ -1,3 +1,4 @@
+import math
 from decimal import Decimal
 
 from app.models.exam import Exam, ExamBlock
@@ -18,6 +19,11 @@ ROMAN_NUMERALS = (
     (4, "IV"),
     (1, "I"),
 )
+
+PAGE_LINES = 42
+FOOTER_LINES = 2
+FIRST_PAGE_HEADER_LINES = 5
+CONTINUED_PAGE_HEADER_LINES = 2
 
 
 def to_roman(value: int) -> str:
@@ -52,6 +58,94 @@ def _preview_questions(block: ExamBlock, next_number: int) -> tuple[list[dict[st
     return items, next_number
 
 
+def _question_lines(question: dict[str, object], previous_passage: str | None) -> int:
+    if question["is_placeholder"]:
+        return 2
+
+    prompt = str(question["prompt_text"] or "")
+    passage = question["passage_text"]
+    lines = 2 + math.ceil(len(prompt) / 90)
+    if passage and passage != previous_passage:
+        lines += math.ceil(len(str(passage)) / 90)
+    return lines
+
+
+def _block_header_lines(block: dict[str, object]) -> int:
+    return 2 + int(bool(block["instruction"]))
+
+
+def _paginate(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
+    content_capacity = PAGE_LINES - FOOTER_LINES
+    pages: list[dict[str, object]] = [{"page_number": 1, "blocks": []}]
+    used_lines = FIRST_PAGE_HEADER_LINES
+
+    def start_page() -> dict[str, object]:
+        nonlocal used_lines
+        page = {"page_number": len(pages) + 1, "blocks": []}
+        pages.append(page)
+        used_lines = CONTINUED_PAGE_HEADER_LINES
+        return page
+
+    page = pages[0]
+    for block in blocks:
+        questions = list(block["questions"])
+        block_header = _block_header_lines(block)
+
+        if not questions:
+            if page["blocks"] and used_lines + block_header > content_capacity:
+                page = start_page()
+            page["blocks"].append(
+                {
+                    **block,
+                    "continuation": False,
+                    "question_start": None,
+                    "question_end": None,
+                    "questions": [],
+                }
+            )
+            used_lines += block_header
+            continue
+
+        question_index = 0
+        continuation = False
+        while question_index < len(questions):
+            first_question = questions[question_index]
+            first_question_lines = _question_lines(first_question, previous_passage=None)
+            if page["blocks"] and used_lines + block_header + first_question_lines > content_capacity:
+                page = start_page()
+
+            piece: dict[str, object] = {
+                **block,
+                "continuation": continuation,
+                "question_start": None,
+                "question_end": None,
+                "questions": [],
+            }
+            page["blocks"].append(piece)
+            used_lines += block_header
+            previous_passage: str | None = None
+
+            while question_index < len(questions):
+                question = questions[question_index]
+                question_lines = _question_lines(question, previous_passage)
+                piece_questions = piece["questions"]
+                if used_lines + question_lines > content_capacity and piece_questions:
+                    page = start_page()
+                    continuation = True
+                    break
+
+                piece_questions.append(question)
+                question_number = question["question_number"]
+                if piece["question_start"] is None:
+                    piece["question_start"] = question_number
+                piece["question_end"] = question_number
+                used_lines += question_lines
+                previous_passage = question["passage_text"]
+                question_index += 1
+
+    return pages
+
+
 def build_preview(exam: Exam) -> dict[str, object]:
     blocks: list[dict[str, object]] = []
     next_number = 1
@@ -72,9 +166,10 @@ def build_preview(exam: Exam) -> dict[str, object]:
             }
         )
 
+    pages = _paginate(blocks)
     return {
         "total_questions": next_number - 1,
         "total_points": total_points,
-        "page_count": 1,
-        "pages": [{"page_number": 1, "blocks": blocks}],
+        "page_count": len(pages),
+        "pages": pages,
     }
