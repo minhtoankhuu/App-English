@@ -12,7 +12,7 @@ KB_ROOT = Path(__file__).resolve().parents[2] / "Knowledge_Base" / "Global Succe
 
 
 def _copy_unit3_grade7(tmp_path: Path) -> Path:
-    dest_dir = tmp_path / "G7"
+    dest_dir = tmp_path / "Global Success" / "G7"
     dest_dir.mkdir(parents=True)
     shutil.copyfile(KB_ROOT / "G7" / "GS7 - UNIT 3 - LESSON.docx", dest_dir / "GS7 - UNIT 3 - LESSON.docx")
     return tmp_path
@@ -63,7 +63,7 @@ def test_import_is_idempotent_on_rerun(seeded_db, tmp_path):
 
 def test_import_replaces_chunks_when_file_content_changes(seeded_db, tmp_path):
     base_path = _copy_unit3_grade7(tmp_path)
-    dest_file = base_path / "G7" / "GS7 - UNIT 3 - LESSON.docx"
+    dest_file = base_path / "Global Success" / "G7" / "GS7 - UNIT 3 - LESSON.docx"
 
     import_global_success(seeded_db, base_path)
     seeded_db.commit()

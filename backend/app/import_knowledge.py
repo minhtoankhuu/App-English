@@ -45,12 +45,14 @@ def _unit_number(file_name: str) -> int | None:
 
 
 def import_global_success(db: Session, base_path: Path) -> ImportStats:
+    """`base_path` là gốc Knowledge_Base/ — file thật nằm dưới `Global Success/G{6,7,8}/`."""
     stats = ImportStats()
     grades = {g.number: g for g in db.scalars(select(Grade).where(Grade.number.in_(GRADES)))}
+    global_success_dir = base_path / "Global Success"
 
     for grade_number in GRADES:
         grade = grades.get(grade_number)
-        folder = base_path / f"G{grade_number}"
+        folder = global_success_dir / f"G{grade_number}"
         if grade is None or not folder.is_dir():
             continue
 

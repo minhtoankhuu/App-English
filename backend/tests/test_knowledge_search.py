@@ -21,7 +21,7 @@ def _login_as(client, db, email, role):
 
 
 def _import_unit3_grade7(db, tmp_path):
-    dest_dir = tmp_path / "G7"
+    dest_dir = tmp_path / "Global Success" / "G7"
     dest_dir.mkdir(parents=True)
     shutil.copyfile(KB_ROOT / "G7" / "GS7 - UNIT 3 - LESSON.docx", dest_dir / "GS7 - UNIT 3 - LESSON.docx")
 

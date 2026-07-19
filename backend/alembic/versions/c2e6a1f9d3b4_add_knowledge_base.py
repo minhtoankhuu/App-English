@@ -17,7 +17,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 knowledge_chunk_type = postgresql.ENUM(
-    "vocabulary", "word_form", "phrase", "grammar", "other", name="knowledge_chunk_type"
+    "VOCABULARY", "WORD_FORM", "PHRASE", "GRAMMAR", "OTHER", name="knowledge_chunk_type"
 )
 
 
