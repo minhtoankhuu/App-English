@@ -35,6 +35,7 @@ from app.schemas.exam import (
 )
 from app.services.docx_renderer import render_exam_docx
 from app.services.generation import generate_block_questions, regenerate_question, shuffle_variant
+from app.services.usage import UsageLimitExceeded, reserve_usage
 
 router = APIRouter(prefix="/exams", tags=["exams"], dependencies=[Depends(require_any_role)])
 
@@ -287,9 +288,17 @@ def generate_exam(
     exam = _get_owned_exam(db, exam_id, current_user)
     if not exam.blocks:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Đề chưa có phần nào để sinh câu hỏi")
-    for block in exam.blocks:
-        generate_block_questions(db, exam, block)
-    db.commit()
+    try:
+        reserve_usage(db, current_user, len(exam.blocks))
+        for block in exam.blocks:
+            generate_block_questions(db, exam, block)
+        db.commit()
+    except UsageLimitExceeded as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=exc.status.to_error_detail()) from exc
+    except Exception:
+        db.rollback()
+        raise
     return _exam_detail(_get_owned_exam(db, exam_id, current_user))
 
 
@@ -340,8 +349,16 @@ def regenerate(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Câu đã khóa — không sinh lại được")
     if question.is_approved:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bỏ duyệt trước khi sinh lại")
-    regenerate_question(db, exam, owning_block, question)
-    db.commit()
+    try:
+        reserve_usage(db, current_user, 1)
+        regenerate_question(db, exam, owning_block, question)
+        db.commit()
+    except UsageLimitExceeded as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=exc.status.to_error_detail()) from exc
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(question)
     return question
 

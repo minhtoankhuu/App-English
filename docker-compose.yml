@@ -25,6 +25,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-examcraft}:${POSTGRES_PASSWORD:-examcraft}@db:5432/${POSTGRES_DB:-examcraft}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      DAILY_GENERATION_LIMIT: ${DAILY_GENERATION_LIMIT:-10}
       CORS_ORIGINS: '["http://localhost:5173"]'
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@examcraft.dev}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ChangeMe123!}
