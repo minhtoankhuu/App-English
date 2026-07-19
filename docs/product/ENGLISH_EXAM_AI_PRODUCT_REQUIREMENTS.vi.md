@@ -2,9 +2,9 @@
 
 ## Nền tảng AI tạo bài tập và đề tiếng Anh theo kiến thức sách giáo khoa
 
-**Phiên bản:** 1.3  
-**Ngày:** 18/07/2026  
-**Trạng thái:** Bản thiết kế đã thống nhất trước khi lập kế hoạch triển khai. 1.1: bổ sung tiêu chí định lượng, quản lý hình ảnh, spike khả thi, nguyên tắc hạ tầng tối thiểu. 1.2: bổ sung trình độ mục tiêu (CEFR/Cambridge) và chọn dạng bài bằng checklist. 1.3: bảng ánh xạ lớp → trình độ, phân nhóm theo cấp học và ba mục kho kiến thức (Kiến thức chung: Tense, cấu trúc câu / Global Success / Cambridge theo chứng chỉ) do giáo viên xác nhận.
+**Phiên bản:** 1.4  
+**Ngày:** 19/07/2026  
+**Trạng thái:** Đã bắt đầu triển khai (Giai đoạn 1A). 1.1: bổ sung tiêu chí định lượng, quản lý hình ảnh, spike khả thi, nguyên tắc hạ tầng tối thiểu. 1.2: bổ sung trình độ mục tiêu (CEFR/Cambridge) và chọn dạng bài bằng checklist. 1.3: bảng ánh xạ lớp → trình độ, phân nhóm theo cấp học và ba mục kho kiến thức (Kiến thức chung: Tense, cấu trúc câu / Global Success / Cambridge theo chứng chỉ) do giáo viên xác nhận. 1.4: skeleton Giai đoạn 1A (backend FastAPI, frontend React/TS, Docker Compose) đã dựng và kiểm chứng chạy được.
 
 ## 1. Tóm tắt điều hành
 
@@ -462,19 +462,33 @@ Mobile app, local LLM hoàn chỉnh, OCR, quản lý trường/trung tâm và ph
 
 Các lựa chọn công nghệ cụ thể (backend, frontend, database, vector database, queue, provider AI và thư viện DOCX) chưa bị khóa trong tài liệu ý tưởng. Kế hoạch triển khai tiếp theo phải đánh giá chúng theo các tiêu chí: dễ chạy local, dễ đóng gói, phù hợp nhóm người dùng nhỏ, khả năng mở rộng, độ ổn định của DOCX và chi phí vận hành.
 
+### 22.1 Nguyên tắc hạ tầng tối thiểu
+
+Hệ thống phục vụ 1 Admin và 1–3 giáo viên. Kiến trúc mô-đun ở mục 6 mô tả ranh giới trách nhiệm, không phải yêu cầu về hạ tầng. Khi lập kế hoạch, mặc định chọn phương án đơn giản nhất đáp ứng được quy mô này và chỉ nâng cấp khi có nhu cầu thực tế:
+
+- Background job dùng bảng job trong database chính; chưa cần message queue riêng.
+- Vector search ưu tiên tiện ích trong database chính (ví dụ extension vector) trước khi cân nhắc vector database độc lập.
+- Audit log là bảng ghi sự kiện đơn giản; chưa cần hệ thống log tập trung.
+- Một tiến trình ứng dụng duy nhất là đủ; không tách microservice.
+
+Ranh giới mô-đun được giữ ở tầng code (interface, package) để việc nâng cấp hạ tầng sau này không phải viết lại lõi.
+
 ## 23. Hiện trạng dự án, prototype và nhật ký quyết định
 
 ### 23.1 Hiện trạng và cấu trúc repo
 
-Dự án đang ở giai đoạn ý tưởng đã chốt kèm prototype giao diện; chưa có backend, chưa viết code sản phẩm. Tên làm việc: **ExamCraft AI**.
+Dự án đã bắt đầu triển khai: skeleton Giai đoạn 1A (backend + frontend + Docker Compose) đã dựng và kiểm chứng chạy được trên nhánh `feat/1a-skeleton`. Tên làm việc: **ExamCraft AI**.
 
 | Đường dẫn | Nội dung |
 |---|---|
 | `docs/product/ENGLISH_EXAM_AI_PRODUCT_REQUIREMENTS.vi.md` | Đặc tả sản phẩm (tài liệu này) — nguồn chân lý về yêu cầu |
 | `docs/product/ENGLISH_EXAM_AI_PRODUCT_REQUIREMENTS.vi.docx` | Bản DOCX sinh tự động từ file markdown |
 | `docs/engineering/IMPLEMENTATION_NOTES.vi.md` | Ghi chú kỹ thuật cho đội code: dữ liệu seed, thông số DOCX renderer, đặc tả hành vi UI |
-| `docs/engineering/DEVELOPMENT_PLAN.vi.md` | Kế hoạch phát triển đã chốt: stack, lộ trình 0→1C, rủi ro, việc chờ xác nhận |
+| `docs/engineering/DEVELOPMENT_PLAN.vi.md` | Kế hoạch phát triển đã chốt: stack, lộ trình 1A→1D, rủi ro, việc chờ xác nhận |
 | `prototype/index.html`, `prototype/styles.css` | Prototype giao diện tương tác — reference implementation |
+| `backend/` | FastAPI + SQLAlchemy + Alembic; auth (session/bcrypt), danh mục học thuật đã seed, test pytest |
+| `frontend/` | Vite + React + TypeScript strict; luồng đăng nhập và dashboard kết nối backend |
+| `docker-compose.yml`, `.env.example` | Chạy toàn bộ stack: `docker compose up` (cần Docker + `.env` sao chép từ `.env.example`) |
 | `tools/build_project_idea_docx.py` | Script build DOCX (`python tools/build_project_idea_docx.py`, cần `python-docx`) |
 
 Quy trình cập nhật tài liệu: sửa file markdown → chạy script build → DOCX tự đồng bộ. Không sửa tay file DOCX.
@@ -521,16 +535,7 @@ Giới hạn chủ đích: chưa có màn hình bước 1 tách riêng (chọn n
 
 ### 23.4 Việc tiếp theo
 
-Kế hoạch phát triển đầy đủ (stack đã chốt, lộ trình 1A → 1D, rủi ro, việc chờ xác nhận) nằm tại `docs/engineering/DEVELOPMENT_PLAN.vi.md`. Theo quyết định chủ dự án, tích hợp LLM/API key thực hiện **sau cùng** (giai đoạn 1D); toàn bộ UI/BE/FE xây trước trên `MockAIProvider` với fixture từ đề Unit 3 thật. Bước kế tiếp: **Giai đoạn 1A — skeleton + auth + danh mục + seed data**.
+Kế hoạch phát triển đầy đủ (stack đã chốt, lộ trình 1A → 1D, rủi ro, việc chờ xác nhận) nằm tại `docs/engineering/DEVELOPMENT_PLAN.vi.md`. Theo quyết định chủ dự án, tích hợp LLM/API key thực hiện **sau cùng** (giai đoạn 1D); toàn bộ UI/BE/FE xây trước trên `MockAIProvider` với fixture từ đề Unit 3 thật.
 
-### 22.1 Nguyên tắc hạ tầng tối thiểu
-
-Hệ thống phục vụ 1 Admin và 1–3 giáo viên. Kiến trúc mô-đun ở mục 6 mô tả ranh giới trách nhiệm, không phải yêu cầu về hạ tầng. Khi lập kế hoạch, mặc định chọn phương án đơn giản nhất đáp ứng được quy mô này và chỉ nâng cấp khi có nhu cầu thực tế:
-
-- Background job dùng bảng job trong database chính; chưa cần message queue riêng.
-- Vector search ưu tiên tiện ích trong database chính (ví dụ extension vector) trước khi cân nhắc vector database độc lập.
-- Audit log là bảng ghi sự kiện đơn giản; chưa cần hệ thống log tập trung.
-- Một tiến trình ứng dụng duy nhất là đủ; không tách microservice.
-
-Ranh giới mô-đun được giữ ở tầng code (interface, package) để việc nâng cấp hạ tầng sau này không phải viết lại lõi.
+Skeleton Giai đoạn 1A đã xong phần nền: FastAPI + Postgres (pgvector) + Alembic migration + seed toàn bộ danh mục đã chốt (trình độ, ánh xạ lớp, 12 thì, 20 cấu trúc câu, 78 Unit lớp 6–12, 10 dạng bài, quy tắc độ dài), auth session/bcrypt phân quyền Admin/Giáo viên, frontend React/TS strict với luồng đăng nhập + dashboard xác nhận kết nối backend, toàn bộ chạy qua `docker compose up` (migration + seed tự động, idempotent). Còn thiếu để hoàn tất 1A: nhập tài liệu PDF/DOCX/text → trích xuất → full-text search, và số hóa fixture bank từ đề Unit 3 thật. Bước kế tiếp: **Giai đoạn 1B — lõi tạo đề trên MockAIProvider**.
 

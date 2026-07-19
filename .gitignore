@@ -14,9 +14,11 @@ venv/
 node_modules/
 dist/
 
-# Env & secrets
+# Env & secrets (giữ lại các file .env.example làm mẫu)
 .env
-.env.*
+.env.local
+backend/.env
+frontend/.env
 
 # OS
 Thumbs.db

@@ -27,7 +27,7 @@ Tài liệu liên quan: [PRD](../product/ENGLISH_EXAM_AI_PRODUCT_REQUIREMENTS.vi
 
 Cấu trúc repo đề xuất: `backend/` (FastAPI), `frontend/` (Vite React TS), giữ `prototype/` và `docs/` như hiện tại.
 
-## 2.1 Quy ước Git
+### 2.1 Quy ước Git
 
 Theo chuẩn Conventional Commits, dùng chung tiền tố cho cả branch và commit:
 
@@ -45,16 +45,33 @@ Theo chuẩn Conventional Commits, dùng chung tiền tố cho cả branch và c
 - **Branch:** `<tiền tố>/<mô-tả-ngắn-gạch-ngang>` — ví dụ `feat/1a-skeleton`, `fix/docx-margin`, `chore/update-deps`.
 - **Commit message:** `<tiền tố>: <mô tả ngắn gọn>` — ví dụ `feat: thêm màn hình duyệt câu hỏi`. Không kèm trailer `Co-Authored-By`; lịch sử commit chỉ đứng tên chủ dự án (minhtoankhuu).
 
+### 2.2 Chạy thử skeleton 1A
+
+```bash
+cp .env.example .env        # chỉnh nếu cần, mặc định đã dùng được ngay
+docker compose up --build
+```
+
+- Backend: http://localhost:8000 (docs tự sinh tại `/docs`), frontend: http://localhost:5173, Postgres: `localhost:5432`.
+- Container `backend` tự chạy `alembic upgrade head` rồi seed dữ liệu danh mục trước khi khởi động API — idempotent, chạy lại không tạo trùng.
+- Tài khoản Admin mặc định: `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` trong `.env` (mặc định `admin@examcraft.dev` / `ChangeMe123!`) — **đổi ngay ở môi trường thật**.
+- Chạy test backend (cần một Postgres khác cho `TEST_DATABASE_URL`, ví dụ tạo thêm database `examcraft_test` trong cùng container `db`):
+  ```bash
+  cd backend && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt
+  TEST_DATABASE_URL=postgresql+psycopg://examcraft:examcraft@localhost:5432/examcraft_test python -m pytest tests/ -v
+  ```
+- Frontend build/lint: `cd frontend && npm run build && npm run lint`.
+
 ## 3. Lộ trình (đã điều chỉnh: LLM tích hợp sau cùng)
 
-### Giai đoạn 1A — Nền móng (tuần 1–3) ⟵ BẮT ĐẦU TẠI ĐÂY
+### Giai đoạn 1A — Nền móng (tuần 1–3)
 
-- Skeleton backend/frontend, Docker Compose, CI chạy test.
-- Auth + vai trò Admin/Giáo viên.
-- Danh mục học thuật + **seed toàn bộ dữ liệu đã duyệt** (trình độ, ánh xạ lớp, 12 thì, 20 cấu trúc, Unit lớp 6–9, 10 dạng bài, bảng độ dài).
-- Nhập tài liệu PDF/DOCX/text → trích xuất → chunk + metadata → full-text search trước (hybrid/vector bổ sung ở giai đoạn tích hợp AI vì embedding cũng cần API).
-- **Fixture bank:** số hóa đề Global Success 7 – Unit 3 thành JSON đúng schema — vừa là dữ liệu cho `MockAIProvider`, vừa là golden test sau này.
-- **Nghiệm thu:** Admin nhập và xuất bản tài liệu Unit 3; tra cứu trả đúng đoạn theo filter lớp/Unit.
+- [x] Skeleton backend (FastAPI + SQLAlchemy + Alembic) và frontend (Vite + React + TypeScript strict), Docker Compose (Postgres/pgvector + backend + frontend), chạy được bằng `docker compose up` — nhánh `feat/1a-skeleton`.
+- [x] Auth session cookie + bcrypt, phân quyền Admin/Giáo viên (`require_admin`/`require_any_role`).
+- [x] Danh mục học thuật + **seed toàn bộ dữ liệu đã duyệt**: 5 trình độ CEFR, 5 chứng chỉ Cambridge quy đổi, 3 cấp học, 12 khối lớp + gợi ý trình độ, 78 Unit Global Success (lớp 6–12), 12 thì + 20 cấu trúc câu (32 `GrammarPoint`), 10 dạng bài, quy tắc độ dài câu/bài đọc. Idempotent, đã kiểm chứng qua pytest (16 test) và chạy thật trong container.
+- [ ] Nhập tài liệu PDF/DOCX/text → trích xuất → chunk + metadata → full-text search.
+- [ ] **Fixture bank:** số hóa đề Global Success 7 – Unit 3 thành JSON đúng schema — vừa là dữ liệu cho `MockAIProvider`, vừa là golden test sau này.
+- **Nghiệm thu còn lại:** Admin nhập và xuất bản tài liệu Unit 3; tra cứu trả đúng đoạn theo filter lớp/Unit.
 
 ### Giai đoạn 1B — Lõi tạo đề trên MockAIProvider (tuần 4–7)
 
