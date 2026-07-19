@@ -69,9 +69,9 @@ docker compose up --build
 - [x] Skeleton backend (FastAPI + SQLAlchemy + Alembic) và frontend (Vite + React + TypeScript strict), Docker Compose (Postgres/pgvector + backend + frontend), chạy được bằng `docker compose up` — nhánh `feat/1a-skeleton`.
 - [x] Auth session cookie + bcrypt, phân quyền Admin/Giáo viên: `require_admin` khóa API quản trị, `require_teacher` khóa toàn bộ `/exams/*`, còn `require_any_role` chỉ dùng cho tài nguyên chung như catalog/usage.
 - [x] Danh mục học thuật + **seed toàn bộ dữ liệu đã duyệt**: 5 trình độ CEFR, 5 chứng chỉ Cambridge quy đổi, 3 cấp học, 12 khối lớp + gợi ý trình độ, 78 Unit Global Success (lớp 6–12), 12 thì + 20 cấu trúc câu (32 `GrammarPoint`), 10 dạng bài, quy tắc độ dài câu/bài đọc. Idempotent, đã kiểm chứng qua pytest (16 test) và chạy thật trong container.
-- [ ] Nhập tài liệu PDF/DOCX/text → trích xuất → chunk + metadata → full-text search.
+- [x] Nhập tài liệu Global Success lớp 6-8 (36 file `.docx`, nhánh `feat/1a-knowledge-base-global-success`): parser tách section theo từ khoá (VOCABULARY/WORD FORM/PREPOSITIONS AND PHRASES/GRAMMAR), best-effort trích trường có cấu trúc (word/ipa/pos/meaning cho từ vựng — tỉ lệ khớp ~98% trên 2814 mục), đọc cả bảng ngữ pháp lồng trong section GRAMMAR. Bảng `knowledge_documents`/`knowledge_chunks` (`search_vector` tsvector sinh tự động + GIN index). Script `python -m app.import_knowledge` idempotent theo checksum SHA-256 (idempotent + tự thay chunk khi file đổi nội dung). API `GET /knowledge/search` (filter unit/khối lớp/loại chunk, full-text qua `plainto_tsquery` + `ts_rank`) dùng chung `require_any_role` như catalog. Đã chạy thật qua Docker Compose: 36/36 file, 8150 chunk, chạy lại không tạo trùng. **Còn lại:** Cambridge, Tense, và `Global Success/G9` (cấu trúc tài liệu khác, không tách theo Unit) — để task riêng sau.
 - [ ] **Fixture bank:** số hóa đề Global Success 7 – Unit 3 thành JSON đúng schema — vừa là dữ liệu cho `MockAIProvider`, vừa là golden test sau này.
-- **Nghiệm thu còn lại:** Admin nhập và xuất bản tài liệu Unit 3; tra cứu trả đúng đoạn theo filter lớp/Unit.
+- **Nghiệm thu còn lại:** Admin nhập và xuất bản tài liệu Unit 3 (chưa có UI — dời sang 1D theo mục 1C bên dưới); tra cứu trả đúng đoạn theo filter lớp/Unit (đã đạt qua API, xem trên).
 
 ### Giai đoạn 1B — Lõi tạo đề trên MockAIProvider (tuần 4–7)
 

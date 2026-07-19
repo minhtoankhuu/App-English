@@ -29,6 +29,9 @@ services:
       CORS_ORIGINS: '["http://localhost:5173"]'
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@examcraft.dev}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ChangeMe123!}
+      KNOWLEDGE_BASE_DIR: /knowledge_base
+    volumes:
+      - ./Knowledge_Base:/knowledge_base:ro
     ports:
       - "8000:8000"
     healthcheck:

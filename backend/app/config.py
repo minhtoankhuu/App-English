@@ -1,13 +1,20 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Mặc định trỏ ra Knowledge_Base/ ở gốc repo khi chạy bằng Python host (không qua
+# container). Trong container, biến môi trường KNOWLEDGE_BASE_DIR trỏ vào volume
+# mount riêng (xem docker-compose.yml) vì cấu trúc thư mục khác nhau.
+_DEFAULT_KNOWLEDGE_BASE_DIR = str(Path(__file__).resolve().parents[2] / "Knowledge_Base")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://examcraft:examcraft@localhost:5432/examcraft"
+    knowledge_base_dir: str = _DEFAULT_KNOWLEDGE_BASE_DIR
     session_secret: str = "dev-secret-change-me"
     session_cookie_name: str = "examcraft_session"
     session_max_age_seconds: int = 60 * 60 * 24 * 7  # 7 ngày

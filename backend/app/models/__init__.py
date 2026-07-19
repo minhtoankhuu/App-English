@@ -23,6 +23,7 @@ from app.models.exam import (
 )
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
 from app.models.grammar import GrammarGroup, GrammarPoint, GrammarTopic
+from app.models.knowledge import DocumentChunkType, KnowledgeChunk, KnowledgeDocument
 from app.models.user import User, UserRole
 from app.models.usage import DailyUsage
 
@@ -32,6 +33,9 @@ __all__ = [
     "User",
     "UserRole",
     "DailyUsage",
+    "KnowledgeDocument",
+    "KnowledgeChunk",
+    "DocumentChunkType",
     "SchoolStage",
     "ProficiencyLevel",
     "CambridgeCertificate",
