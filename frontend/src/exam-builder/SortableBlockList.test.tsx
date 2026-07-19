@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SortableBlockList } from "./SortableBlockList";
+import * as blockOrder from "./blockOrder";
 import type { BlockOut } from "../types/exam";
 
 const blocks: BlockOut[] = [
@@ -90,6 +91,17 @@ describe("SortableBlockList", () => {
     expect(screen.getByRole("button", { name: "Xuống C" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Xuống A" }));
 
+    expect(onReorder).toHaveBeenCalledWith(["b", "a", "c"]);
+  });
+
+  it("delegates a downward arrow move to the shared block ordering helper", async () => {
+    const user = userEvent.setup();
+    const moveBlock = vi.spyOn(blockOrder, "moveBlock");
+    render(<SortableBlockList {...defaultProps} />);
+
+    await user.click(screen.getByRole("button", { name: "Xuống A" }));
+
+    expect(moveBlock).toHaveBeenCalledWith(blocks, "b", "a");
     expect(onReorder).toHaveBeenCalledWith(["b", "a", "c"]);
   });
 

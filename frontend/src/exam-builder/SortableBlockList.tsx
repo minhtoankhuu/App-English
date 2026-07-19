@@ -36,16 +36,6 @@ export function SortableBlockList({
     onReorder(reordered.map((block) => block.id));
   }
 
-  function requestSwap(index: number, direction: -1 | 1) {
-    if (saving) return;
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= blocks.length) return;
-
-    const reordered = [...blocks];
-    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex]!, reordered[index]!];
-    onReorder(reordered.map((block) => block.id));
-  }
-
   function handleDragStart(event: DragEvent<HTMLButtonElement>, blockId: string) {
     if (saving) return;
     if (event.dataTransfer) {
@@ -103,7 +93,7 @@ export function SortableBlockList({
               <button
                 aria-label={`Lên ${block.title}`}
                 disabled={saving || index === 0}
-                onClick={() => requestSwap(index, -1)}
+                onClick={() => requestReorder(block.id, blocks[index - 1]!.id)}
                 style={iconButtonStyle}
               >
                 ↑
@@ -111,7 +101,7 @@ export function SortableBlockList({
               <button
                 aria-label={`Xuống ${block.title}`}
                 disabled={saving || index === blocks.length - 1}
-                onClick={() => requestSwap(index, 1)}
+                onClick={() => requestReorder(blocks[index + 1]!.id, block.id)}
                 style={iconButtonStyle}
               >
                 ↓
