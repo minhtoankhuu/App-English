@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as examApi from "../api/exams";
 import type { ExamDetailOut, QuestionOut } from "../types/exam";
+import { ApiError } from "../api/client";
 import { ExamReviewPage } from "./ExamReviewPage";
 
 vi.mock("../api/exams", () => ({
@@ -120,5 +121,18 @@ describe("ExamReviewPage route isolation", () => {
     await act(async () => oldComplete.resolve(makeExam("exam-1", "Old prompt", true)));
 
     await waitFor(() => expect(screen.queryByText("Trang xuất đề")).not.toBeInTheDocument());
+  });
+
+  it("keeps current questions and shows a reload error after mutation", async () => {
+    vi.mocked(examApi.getExam)
+      .mockResolvedValueOnce(makeExam("exam-1", "Current prompt"))
+      .mockRejectedValueOnce(new ApiError(500, "Không tải lại được đề"));
+    const user = userEvent.setup();
+    renderReview();
+
+    await user.click(await screen.findByRole("button", { name: "Duyệt" }));
+
+    expect(await screen.findByText("Không tải lại được đề")).toBeInTheDocument();
+    expect(screen.getByText("Current prompt")).toBeInTheDocument();
   });
 });
