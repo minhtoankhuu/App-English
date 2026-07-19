@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { fetchCurrentUser } from "./api/auth";
 import { LoginForm } from "./LoginForm";
@@ -40,16 +41,18 @@ function App() {
   }
 
   const isAdmin = user.role === "admin";
+  const homePath = isAdmin ? "/admin" : "/exams";
+  const teacherOnly = (element: ReactNode) => (isAdmin ? <Navigate to="/admin" replace /> : element);
 
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<Layout user={user} onLogout={() => setUser(null)} />}>
-          <Route path="/" element={<Navigate to="/exams" replace />} />
-          <Route path="/exams" element={<ExamListPage />} />
-          <Route path="/exams/:examId/builder" element={<ExamBuilderPage />} />
-          <Route path="/exams/:examId/review" element={<ExamReviewPage />} />
-          <Route path="/exams/:examId/export" element={<ExamExportPage />} />
+          <Route path="/" element={<Navigate to={homePath} replace />} />
+          <Route path="/exams" element={teacherOnly(<ExamListPage />)} />
+          <Route path="/exams/:examId/builder" element={teacherOnly(<ExamBuilderPage />)} />
+          <Route path="/exams/:examId/review" element={teacherOnly(<ExamReviewPage />)} />
+          <Route path="/exams/:examId/export" element={teacherOnly(<ExamExportPage />)} />
           <Route path="/admin" element={isAdmin ? <AdminOverviewPage /> : <Navigate to="/exams" replace />} />
           <Route
             path="/admin/audit-logs"
@@ -59,7 +62,7 @@ function App() {
             path="/admin/teachers"
             element={isAdmin ? <AdminTeachersPage /> : <Navigate to="/exams" replace />}
           />
-          <Route path="*" element={<Navigate to="/exams" replace />} />
+          <Route path="*" element={<Navigate to={homePath} replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
