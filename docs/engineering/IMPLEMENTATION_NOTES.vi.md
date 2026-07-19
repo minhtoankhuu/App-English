@@ -136,6 +136,12 @@ Prefix `/admin/teachers`, yêu cầu vai trò `admin` (403 cho teacher, 401 nế
 | POST | `/admin/teachers` | Tạo tài khoản (409 nếu email trùng — bắt `IntegrityError`, không pre-check để tránh race condition) |
 | PATCH | `/admin/teachers/{id}` | Sửa `full_name`/`is_active`/`password` (đặt lại mật khẩu); không có endpoint xóa cứng — chỉ `is_active=false` (PRD mục 12: ưu tiên xóa mềm) |
 
+### 4.2 Audit log quản trị tài khoản giáo viên
+
+Model `AuditLog` lưu snapshot actor/target và metadata JSON an toàn. Các action hiện có: `teacher.created`, `teacher.updated`, `teacher.activated`, `teacher.deactivated`, `teacher.password_reset`. Log được thêm trong cùng transaction với thay đổi tài khoản; không lưu mật khẩu, password hash, session hoặc request body.
+
+API `GET /admin/audit-logs?limit=20&offset=0` chỉ dành cho Admin, trả `items`, `total`, `limit`, `offset` và sắp xếp `created_at DESC, id DESC`. Frontend đọc tại `/admin/audit-logs`.
+
 ## 5. Việc cần chốt trước khi code
 
 - Danh mục Unit lớp 1–5 (giáo viên xác nhận).

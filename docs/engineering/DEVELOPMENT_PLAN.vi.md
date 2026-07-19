@@ -92,7 +92,8 @@ docker compose up --build
 
 - [x] Mã đề A/B/C/D — đã làm trong 1B (xem trên).
 - [x] Admin quản lý tài khoản giáo viên (nhánh `feat/1c-admin-teacher-accounts`): API `/admin/teachers` (tạo, khóa/mở lại, đặt lại mật khẩu — không xóa cứng), trang frontend riêng, dashboard tổng quan `/admin`, điều hướng phân theo vai trò (Admin thấy mục "Quản trị", Giáo viên không thấy), gate cả server (403) lẫn client (redirect). 8 test pytest kiểm phân quyền + CRUD; frontend có test tự động cho menu, route và trạng thái dashboard.
-- [ ] Audit log, hạn mức.
+- [x] Audit log quản trị tài khoản giáo viên (nhánh `feat/1c-audit-log`): append-only, cùng transaction với thao tác tạo/cập nhật, không lưu mật khẩu/hash/session; API phân trang và trang Admin riêng.
+- [ ] Hạn mức sử dụng.
 - [ ] Màn hình chỉnh sửa Admin còn lại theo prototype: dashboard tổng quan đã có và hiển thị rõ trạng thái; kho kiến thức, dạng bài & template, thư viện hình ảnh, cấu hình AI vẫn chưa có chức năng chỉnh sửa vì các khối này gắn với RAG và chờ cùng Giai đoạn 1D.
 - [ ] Kéo-thả thật cho sắp xếp block, xem trước A4 động ở frontend (hiện dùng nút lên/xuống, chưa có preview).
 - [ ] Golden test tự động hoá (hiện đang là test thủ công trong pytest); đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
