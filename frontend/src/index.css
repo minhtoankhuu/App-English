@@ -226,24 +226,70 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
 }
 
 /* ---------- Đăng nhập ---------- */
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.login-brand-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  padding: 56px 64px;
+  background:
+    radial-gradient(900px 480px at 12% 10%, rgba(74, 123, 255, .25), transparent 60%),
+    linear-gradient(180deg, #101c30 0%, #0d1626 100%);
+  color: #e8eefc;
+}
+.login-brand-mark { width: 52px; height: 52px; font-size: 24px; }
+.login-brand-title { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.4px; }
+.login-brand-title em { font-style: normal; color: #8fb0ff; }
+.login-tagline { margin: 0; max-width: 380px; color: #b7c4e0; font-size: 15px; line-height: 1.6; }
+
+.login-features { display: grid; gap: 12px; margin: 8px 0 0; padding: 0; list-style: none; }
+.login-feature { display: flex; align-items: center; gap: 11px; color: #cfd9f0; font-size: 13.5px; }
+.login-feature-dot {
+  width: 7px; height: 7px; flex: none;
+  border-radius: 50%;
+  background: #4a7bff;
+  box-shadow: 0 0 0 4px rgba(74, 123, 255, .18);
+}
+
+.login-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--page);
+}
+
 .login-card {
   width: 360px;
   max-width: 100%;
-  padding: 32px;
+  padding: 36px 32px;
   border-radius: 16px;
   background: var(--surface);
-  box-shadow: 0 12px 32px rgba(15, 27, 51, .12);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 14px;
 }
-.login-mark { margin-bottom: 4px; }
-.login-title { margin: 0; font-size: 22px; }
+.login-card-title { margin: 0; font-size: 22px; }
 .login-subtitle { margin: 0 0 8px; color: var(--muted); }
 .login-error { color: var(--danger); font-size: 13px; margin: 0; }
 .login-card label { width: 100%; }
 .login-card .button { width: 100%; margin-top: 8px; }
+
+@media (max-width: 860px) {
+  .login-shell { display: block; }
+  .login-brand-panel { flex-direction: row; align-items: center; gap: 14px; padding: 20px 24px; }
+  .login-brand-title { font-size: 19px; }
+  .login-tagline, .login-features { display: none; }
+  .login-form-panel { min-height: calc(100vh - 72px); padding: 24px 16px; }
+}
 
 .exam-builder-layout {
   display: grid;

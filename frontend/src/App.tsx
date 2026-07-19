@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { fetchCurrentUser } from "./api/auth";
-import { LoginForm } from "./LoginForm";
+import { LoginScreen } from "./LoginScreen";
 import { Layout } from "./Layout";
 import { ExamListPage } from "./pages/ExamListPage";
 import { ExamBuilderPage } from "./pages/ExamBuilderPage";
@@ -33,11 +33,7 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <div className="center-screen">
-        <LoginForm onSuccess={setUser} />
-      </div>
-    );
+    return <LoginScreen onSuccess={setUser} />;
   }
 
   const isAdmin = user.role === "admin";

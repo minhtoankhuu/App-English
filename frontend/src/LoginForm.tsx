@@ -30,9 +30,8 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="login-card">
-      <span className="brand-mark login-mark">E</span>
-      <h1 className="login-title">ExamCraft AI</h1>
-      <p className="login-subtitle">Đăng nhập để tiếp tục</p>
+      <h2 className="login-card-title">Đăng nhập</h2>
+      <p className="login-subtitle">Nhập email và mật khẩu để tiếp tục</p>
 
       <label>
         Email
