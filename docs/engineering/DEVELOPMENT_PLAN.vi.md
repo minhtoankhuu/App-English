@@ -96,7 +96,8 @@ docker compose up --build
 - [x] Hạn mức sinh đề: mỗi giáo viên 10 lượt gọi AI/ngày theo `Asia/Bangkok`; sinh toàn đề tính theo số block, sinh lại tính 1 lượt, chặn nguyên tử bằng HTTP 429 khi không đủ. Admin không dùng workflow sinh đề. Frontend hiển thị số lượt còn lại cho Giáo viên và làm mới sau thao tác sinh thành công.
 - [ ] Màn hình chỉnh sửa Admin còn lại theo prototype: dashboard tổng quan đã có và hiển thị rõ trạng thái; kho kiến thức, dạng bài & template, thư viện hình ảnh, cấu hình AI vẫn chưa có chức năng chỉnh sửa vì các khối này gắn với RAG và chờ cùng Giai đoạn 1D.
 - [x] Kéo-thả thật cho sắp xếp block, giữ nút Lên/Xuống làm phương án hỗ trợ; xem trước A4 nhiều trang động ở frontend. Preview lấy từ API read-only `GET /exams/{id}/preview`, không dùng quota sinh đề; thứ tự thay đổi được cập nhật lạc quan và rollback khi API reorder lỗi.
-- [ ] Golden test tự động hoá (hiện đang là test thủ công trong pytest); đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
+- [x] Golden test tự động hoá: `.github/workflows/ci.yml` chạy song song 2 job (`backend`: Postgres pgvector service + toàn bộ pytest; `frontend`: lint + test + build) trên mỗi push/PR vào `main`, đã xác nhận chạy xanh thật trên GitHub Actions. **Còn lại:** đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
+- [x] Đồng bộ khung giao diện (sidebar, nav theo vai trò, màn đăng nhập) theo `prototype/` (nhánh `feat/1c-shell-prototype-parity`): port token màu + class CSS phần khung, icon dựng lại bằng component React, vẫn 1 form đăng nhập chung (không tách theo vai trò — đã xác nhận với chủ dự án). **Còn lại:** port style prototype cho các trang bên trong (danh sách đề, builder, review, export, admin dashboard 6 card) — để task riêng.
 
 ### Giai đoạn 1D — Tích hợp LLM thật (tuần 10–11, khi có API key)
 
