@@ -159,4 +159,5 @@ def downgrade() -> None:
     op.drop_table('grammar_topics')
     op.drop_table('exercise_types')
     op.drop_table('book_series')
+    op.execute('DROP TYPE IF EXISTS user_role')
     # ### end Alembic commands ###

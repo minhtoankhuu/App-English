@@ -79,7 +79,16 @@ describe("AdminOverviewPage", () => {
 
     renderPage();
 
-    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getAllByRole("link")).toHaveLength(2);
     expect(screen.queryByRole("link", { name: /Kho kiến thức & RAG/ })).not.toBeInTheDocument();
+  });
+
+  it("mở audit log từ dashboard", () => {
+    vi.mocked(listTeachers).mockReturnValue(new Promise(() => undefined));
+
+    renderPage();
+
+    expect(screen.getByText("2 khối bên dưới đã có chức năng thật.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Audit log/ })).toHaveAttribute("href", "/admin/audit-logs");
   });
 });

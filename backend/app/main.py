@@ -3,7 +3,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.routers import admin, auth, catalog, exams, health
+from app.routers import admin, audit, auth, catalog, exams, health
 
 settings = get_settings()
 
@@ -31,3 +31,4 @@ app.include_router(auth.router)
 app.include_router(catalog.router)
 app.include_router(exams.router)
 app.include_router(admin.router)
+app.include_router(audit.router)

@@ -8,6 +8,7 @@ import { ExamBuilderPage } from "./pages/ExamBuilderPage";
 import { ExamReviewPage } from "./pages/ExamReviewPage";
 import { ExamExportPage } from "./pages/ExamExportPage";
 import { AdminOverviewPage } from "./pages/AdminOverviewPage";
+import { AdminAuditLogsPage } from "./pages/AdminAuditLogsPage";
 import { AdminTeachersPage } from "./pages/AdminTeachersPage";
 import type { UserOut } from "./types/auth";
 
@@ -50,6 +51,10 @@ function App() {
           <Route path="/exams/:examId/review" element={<ExamReviewPage />} />
           <Route path="/exams/:examId/export" element={<ExamExportPage />} />
           <Route path="/admin" element={isAdmin ? <AdminOverviewPage /> : <Navigate to="/exams" replace />} />
+          <Route
+            path="/admin/audit-logs"
+            element={isAdmin ? <AdminAuditLogsPage /> : <Navigate to="/exams" replace />}
+          />
           <Route
             path="/admin/teachers"
             element={isAdmin ? <AdminTeachersPage /> : <Navigate to="/exams" replace />}

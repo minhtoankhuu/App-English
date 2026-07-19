@@ -14,6 +14,7 @@ from app.deps import require_admin
 from app.models.user import User, UserRole
 from app.schemas.admin import TeacherCreateRequest, TeacherOut, TeacherUpdateRequest
 from app.security import hash_password
+from app.services.audit import record_audit_log
 
 router = APIRouter(prefix="/admin/teachers", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -32,7 +33,11 @@ def list_teachers(db: Session = Depends(get_db)) -> list[User]:
 
 
 @router.post("", response_model=TeacherOut, status_code=status.HTTP_201_CREATED)
-def create_teacher(payload: TeacherCreateRequest, db: Session = Depends(get_db)) -> User:
+def create_teacher(
+    payload: TeacherCreateRequest,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+) -> User:
     teacher = User(
         email=payload.email,
         password_hash=hash_password(payload.password),
@@ -42,6 +47,8 @@ def create_teacher(payload: TeacherCreateRequest, db: Session = Depends(get_db))
     )
     db.add(teacher)
     try:
+        db.flush()
+        record_audit_log(db, actor=actor, action="teacher.created", target=teacher)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -52,15 +59,37 @@ def create_teacher(payload: TeacherCreateRequest, db: Session = Depends(get_db))
 
 @router.patch("/{teacher_id}", response_model=TeacherOut)
 def update_teacher(
-    teacher_id: uuid.UUID, payload: TeacherUpdateRequest, db: Session = Depends(get_db)
+    teacher_id: uuid.UUID,
+    payload: TeacherUpdateRequest,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
 ) -> User:
     teacher = _get_teacher(db, teacher_id)
+    old_full_name = teacher.full_name
+    was_active = teacher.is_active
     data = payload.model_dump(exclude_unset=True)
     password = data.pop("password", None)
     if password:
         teacher.password_hash = hash_password(password)
     for field_name, value in data.items():
         setattr(teacher, field_name, value)
+    if "full_name" in data and data["full_name"] != old_full_name:
+        record_audit_log(
+            db,
+            actor=actor,
+            action="teacher.updated",
+            target=teacher,
+            details={"changed_fields": ["full_name"]},
+        )
+    if "is_active" in data and data["is_active"] != was_active:
+        record_audit_log(
+            db,
+            actor=actor,
+            action="teacher.activated" if data["is_active"] else "teacher.deactivated",
+            target=teacher,
+        )
+    if password:
+        record_audit_log(db, actor=actor, action="teacher.password_reset", target=teacher)
     db.commit()
     db.refresh(teacher)
     return teacher

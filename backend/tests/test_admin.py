@@ -1,3 +1,8 @@
+import json
+
+from sqlalchemy import func, select
+
+from app.models.audit import AuditLog
 from app.models.user import User, UserRole
 from app.security import hash_password
 
@@ -122,3 +127,67 @@ def test_admin_cannot_manage_other_admins_via_teacher_endpoint(client, db):
     admin_user = _login_as_admin(client, db)
     resp = client.patch(f"/admin/teachers/{admin_user.id}", json={"is_active": False})
     assert resp.status_code == 404
+
+
+def test_create_teacher_writes_audit_log(client, db):
+    admin = _login_as_admin(client, db)
+
+    response = client.post(
+        "/admin/teachers",
+        json={"email": "audit-create@examcraft.dev", "full_name": "Audit Create", "password": "Secret123!"},
+    )
+
+    assert response.status_code == 201
+    teacher = response.json()
+    log = db.scalar(select(AuditLog).where(AuditLog.target_id == teacher["id"]))
+    assert log is not None
+    assert log.actor_user_id == admin.id
+    assert log.actor_email == admin.email
+    assert log.action == "teacher.created"
+    assert log.target_type == "teacher"
+    assert log.target_label == teacher["email"]
+    assert log.details == {}
+
+
+def test_update_teacher_writes_safe_audit_actions(client, db):
+    _login_as_admin(client, db)
+    created = client.post(
+        "/admin/teachers",
+        json={"email": "audit-update@examcraft.dev", "full_name": "Before", "password": "Secret123!"},
+    ).json()
+
+    response = client.patch(
+        f"/admin/teachers/{created['id']}",
+        json={"full_name": "After", "is_active": False, "password": "NewSecret456!"},
+    )
+
+    assert response.status_code == 200
+    logs = list(
+        db.scalars(
+            select(AuditLog)
+            .where(AuditLog.target_id == created["id"], AuditLog.action != "teacher.created")
+            .order_by(AuditLog.created_at, AuditLog.id)
+        )
+    )
+    assert {log.action for log in logs} == {
+        "teacher.updated",
+        "teacher.deactivated",
+        "teacher.password_reset",
+    }
+    update_log = next(log for log in logs if log.action == "teacher.updated")
+    assert update_log.details == {"changed_fields": ["full_name"]}
+    serialized = json.dumps([{"action": log.action, "details": log.details} for log in logs])
+    assert "NewSecret456!" not in serialized
+    assert "password_hash" not in serialized
+
+
+def test_duplicate_teacher_does_not_write_extra_audit_log(client, db):
+    _login_as_admin(client, db)
+    payload = {"email": "audit-dup@examcraft.dev", "full_name": "Audit", "password": "Secret123!"}
+    assert client.post("/admin/teachers", json=payload).status_code == 201
+    count_before = db.scalar(select(func.count()).select_from(AuditLog))
+
+    response = client.post("/admin/teachers", json=payload)
+
+    assert response.status_code == 409
+    assert db.scalar(select(func.count()).select_from(AuditLog)) == count_before

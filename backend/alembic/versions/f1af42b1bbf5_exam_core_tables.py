@@ -117,4 +117,8 @@ def downgrade() -> None:
     op.drop_table('exam_grammar_selections')
     op.drop_table('exam_blocks')
     op.drop_table('exams')
+    op.execute('DROP TYPE IF EXISTS exam_block_difficulty')
+    op.execute('DROP TYPE IF EXISTS exam_export_mode')
+    op.execute('DROP TYPE IF EXISTS exam_status')
+    op.execute('DROP TYPE IF EXISTS exam_source_type')
     # ### end Alembic commands ###
