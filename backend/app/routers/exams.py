@@ -33,7 +33,9 @@ from app.schemas.exam import (
     QuestionFlagsUpdateRequest,
     QuestionOut,
 )
+from app.schemas.exam_preview import ExamPreviewOut
 from app.services.docx_renderer import render_exam_docx
+from app.services.exam_preview import build_preview
 from app.services.generation import generate_block_questions, regenerate_question, shuffle_variant
 from app.services.usage import UsageLimitExceeded, reserve_usage
 
@@ -161,6 +163,14 @@ def list_exams(current_user: User = Depends(require_any_role), db: Session = Dep
     )
     exams = db.scalars(stmt).all()
     return [_exam_summary(e) for e in exams]
+
+
+@router.get("/{exam_id}/preview", response_model=ExamPreviewOut)
+def get_exam_preview(
+    exam_id: uuid.UUID, current_user: User = Depends(require_any_role), db: Session = Depends(get_db)
+) -> dict[str, object]:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    return {"exam_id": exam.id, "title": exam.title, **build_preview(exam)}
 
 
 @router.get("/{exam_id}", response_model=ExamDetailOut)

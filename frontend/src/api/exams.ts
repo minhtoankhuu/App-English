@@ -10,10 +10,13 @@ import type {
   QuestionFlagsUpdateRequest,
   QuestionOut,
 } from "../types/exam";
+import type { ExamPreviewOut } from "../types/examPreview";
 
 export const listExams = (): Promise<ExamSummaryOut[]> => apiGet("/exams");
 
 export const getExam = (examId: string): Promise<ExamDetailOut> => apiGet(`/exams/${examId}`);
+
+export const getExamPreview = (examId: string): Promise<ExamPreviewOut> => apiGet(`/exams/${examId}/preview`);
 
 export const createExam = (payload: ExamCreateRequest): Promise<ExamDetailOut> => apiPost("/exams", payload);
 

@@ -2,7 +2,7 @@
 
 **Mục đích:** gom mọi chi tiết đã chốt ở mức triển khai để đội code (hoặc phiên làm việc sau) bắt đầu được ngay, không phải đọc lại lịch sử thảo luận. Yêu cầu sản phẩm ở [../product/ENGLISH_EXAM_AI_PRODUCT_REQUIREMENTS.vi.md](../product/ENGLISH_EXAM_AI_PRODUCT_REQUIREMENTS.vi.md); prototype tham chiếu ở `prototype/` là **reference implementation** cho hành vi UI và DOCX renderer.
 
-**Cập nhật:** 18/07/2026.
+**Cập nhật:** 19/07/2026.
 
 ## 1. Dữ liệu seed đã được giáo viên duyệt
 
@@ -100,10 +100,10 @@ Kinh nghiệm kỹ thuật đã xác nhận:
 1. **Luồng 4 bước:** Cấu trúc đề → Sinh (validate cấu hình trước khi gọi AI) → Duyệt câu hỏi → Cấu hình xuất + lưu. Tải DOCX **chỉ** từ "Đề của tôi", chỉ với đề trạng thái Sẵn sàng xuất đã lưu cấu hình xuất.
 2. **Checklist dạng bài ↔ block đồng bộ hai chiều:** tick tạo block (mặc định "block ma" chờ cấu hình), bỏ tick/xóa block gỡ nhau; dạng bài của block không sửa trong dialog block (một nguồn chỉnh sửa duy nhất).
 3. **Chọn nguồn kiến thức 3 mục:** Global Success (Unit theo lớp) · Kiến thức chung (chuyên đề → hiện picker thì/cấu trúc) · Cambridge (chứng chỉ → tự gợi ý CEFR).
-4. **Block:** kéo thả sắp xếp, số La Mã tự đánh lại; dialog chỉnh block gồm tiêu đề, hướng dẫn, độ khó (Nhận biết/Thông hiểu/Vận dụng/Hỗn hợp), số câu, điểm (bước 0.5), trình độ ghi đè, 2 cờ đảo câu/đảo đáp án, prompt riêng.
+4. **Block:** kéo thả sắp xếp (vẫn có nút Lên/Xuống hỗ trợ), số La Mã tự đánh lại; reorder cập nhật lạc quan và khôi phục thứ tự cũ nếu API lỗi. Dialog chỉnh block gồm tiêu đề, hướng dẫn, độ khó (Nhận biết/Thông hiểu/Vận dụng/Hỗn hợp), số câu, điểm (bước 0.5), trình độ ghi đè, 2 cờ đảo câu/đảo đáp án, prompt riêng.
 5. **Màn duyệt:** mỗi câu hiển thị đáp án, lời giải, chip kiến thức + trình độ + nguồn RAG; cảnh báo (trùng ngân hàng theo ngưỡng cosine 0.90, vượt trình độ); hành động Duyệt, Sinh lại (bị chặn khi câu đã khóa hoặc đã duyệt), Khóa. Nút hoàn tất chỉ mở khi 100% câu duyệt. **Cập nhật 1B:** backend triển khai Duyệt/Khóa bằng PATCH tường minh (`{is_approved, is_locked}`), không phải toggle — xem mục 4.
 6. **Đề của tôi:** danh sách đề + trạng thái (Nháp/Đã kiểm duyệt/Sẵn sàng xuất); lưu snapshot — file đã xuất không đổi khi đề bị sửa sau đó; câu sửa tay phải duyệt lại.
-7. **Xem trước A4** cập nhật trực tiếp theo mọi thao tác cấu hình; số câu đánh dồn qua các section.
+7. **Xem trước A4** cập nhật theo mọi thao tác cấu hình thành công; số câu đánh dồn qua các section. Preview là ước tính theo dòng logic để phân trang ổn định, không cam kết pixel-perfect với file Word/DOCX.
 
 ## 4. API đề thi (Giai đoạn 1B) — tham chiếu nhanh
 
@@ -113,6 +113,7 @@ Toàn bộ dưới prefix `/exams`, yêu cầu đăng nhập, tự lọc theo `t
 |---|---|---|
 | POST | `/exams` | Tạo đề (validate nguồn kiến thức khớp `source_type`) |
 | GET | `/exams` | "Đề của tôi" — tóm tắt kèm tổng câu/điểm tính động |
+| GET | `/exams/{id}/preview` | Read model xem trước A4 nhiều trang: thứ tự block, số câu đánh dồn, tổng điểm và phân trang theo dòng logic; chỉ đọc dữ liệu, không ghi DB và không dùng quota sinh đề |
 | GET/PATCH | `/exams/{id}` | Xem/sửa thông tin đề |
 | PUT | `/exams/{id}/grammar-selection` | Ghi đè toàn bộ danh sách thì/cấu trúc đã chọn |
 | POST/PATCH/DELETE | `/exams/{id}/blocks[/{block_id}]` | CRUD block |
@@ -125,6 +126,8 @@ Toàn bộ dưới prefix `/exams`, yêu cầu đăng nhập, tự lọc theo `t
 | GET | `/exams/{id}/export.docx?variant=A` | Chỉ khi đề ở trạng thái `ready`; trả file DOCX qua `app/services/docx_renderer.py` |
 
 `MockAIProvider` (`app/services/ai_provider.py` + `fixtures.py`): ưu tiên bộ câu "vàng" khi `grade_number==7` và `unit_order_no==3`, còn lại dùng template chung theo `exercise_type_code`, lặp vòng nếu `question_count` vượt số template có sẵn.
+
+`GET /exams/{id}/preview` dùng cùng xác thực và quy tắc sở hữu của các endpoint đề: chưa đăng nhập trả 401, không phải chủ đề trả 403, đề không tồn tại trả 404. Endpoint chỉ dựng read model; không gọi `AIProvider`, không ghi database và không gọi dịch vụ quota. Phân trang dùng sức chứa 42 dòng logic (đã chừa header/footer), vì vậy chỉ là ước tính ổn định cho giao diện A4, không phải cam kết bản dựng pixel-perfect giống Word.
 
 ### 4.1 API quản lý tài khoản giáo viên (Admin)
 
@@ -147,6 +150,8 @@ API `GET /admin/audit-logs?limit=20&offset=0` chỉ dành cho Admin, trả `item
 `DailyUsage` lưu bộ đếm duy nhất theo `(user_id, usage_date)`, với ngày tính theo `Asia/Bangkok`. `DAILY_GENERATION_LIMIT` mặc định là 10 và phải là số nguyên dương. API `GET /usage/me` trả `limit`, `used`, `remaining`, `usage_date`, `reset_at`, `is_unlimited`; Admin luôn có `is_unlimited=true` và không tạo dòng usage.
 
 `POST /exams/{id}/generate` giữ một lượt cho mỗi block; `POST /exams/{id}/questions/{qid}/regenerate` giữ một lượt. Dòng usage được khóa `FOR UPDATE` và commit cùng thay đổi câu hỏi. Nếu không đủ lượt, toàn request trả 429 trước khi gọi provider; nếu provider/validation lỗi, transaction rollback cả usage và câu hỏi.
+
+`GET /exams/{id}/preview` không phải thao tác sinh, nên không đọc hoặc thay đổi `DailyUsage` và không tiêu thụ hạn mức.
 
 ## 5. Việc cần chốt trước khi code
 
