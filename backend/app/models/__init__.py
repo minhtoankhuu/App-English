@@ -9,6 +9,17 @@ from app.models.academic import (
     Unit,
 )
 from app.models.base import Base
+from app.models.exam import (
+    Difficulty,
+    Exam,
+    ExamBlock,
+    ExamGrammarSelection,
+    ExamStatus,
+    ExamVariant,
+    ExportMode,
+    Question,
+    SourceType,
+)
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
 from app.models.grammar import GrammarGroup, GrammarPoint, GrammarTopic
 from app.models.user import User, UserRole
@@ -29,4 +40,13 @@ __all__ = [
     "ExerciseType",
     "SentenceLengthRule",
     "PassageLengthRule",
+    "Exam",
+    "ExamBlock",
+    "ExamGrammarSelection",
+    "ExamVariant",
+    "Question",
+    "SourceType",
+    "ExamStatus",
+    "ExportMode",
+    "Difficulty",
 ]

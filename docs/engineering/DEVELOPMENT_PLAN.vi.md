@@ -45,7 +45,7 @@ Theo chuẩn Conventional Commits, dùng chung tiền tố cho cả branch và c
 - **Branch:** `<tiền tố>/<mô-tả-ngắn-gạch-ngang>` — ví dụ `feat/1a-skeleton`, `fix/docx-margin`, `chore/update-deps`.
 - **Commit message:** `<tiền tố>: <mô tả ngắn gọn>` — ví dụ `feat: thêm màn hình duyệt câu hỏi`. Không kèm trailer `Co-Authored-By`; lịch sử commit chỉ đứng tên chủ dự án (minhtoankhuu).
 
-### 2.2 Chạy thử skeleton 1A
+### 2.2 Chạy thử skeleton 1A + lõi tạo đề 1B
 
 ```bash
 cp .env.example .env        # chỉnh nếu cần, mặc định đã dùng được ngay
@@ -75,18 +75,24 @@ docker compose up --build
 
 ### Giai đoạn 1B — Lõi tạo đề trên MockAIProvider (tuần 4–7)
 
-- JSON schema (Pydantic + Zod) cho 5 dạng cấp 2: trắc nghiệm, phát âm, word form, đọc hiểu T/F, viết lại câu.
-- Interface `AIProvider` + `MockAIProvider` trả câu hỏi từ fixture bank (có chế độ trộn/nhiễu để test validation).
-- Port UI builder từ prototype: cấu hình → checklist dạng bài → chọn thì/cấu trúc → block editor → kéo thả → xem trước A4.
-- Pipeline sinh: validate cấu hình → retrieval → AIProvider theo block → Validation Engine (schema, đáp án, từ điển phát âm CMU, đếm từ 12–14, trùng lặp cosine 0.90, ma trận ±10%, marker heuristic).
-- Màn duyệt (Duyệt/Sinh lại/Khóa), ngân hàng câu hỏi, "Đề của tôi" + snapshot.
-- DOCX renderer python-docx theo đúng bảng thông số; hai kiểu xuất (chỉ đề / đáp án tô đỏ).
-- **Nghiệm thu:** tạo trọn một đề Unit 3 từ đầu đến file DOCX in được **hoàn toàn bằng mock**, đối chiếu golden test.
+- [x] Model + migration: `Exam`, `ExamBlock`, `ExamGrammarSelection`, `Question`, `ExamVariant` (nhánh `feat/1b-exam-core`).
+- [x] `AIProvider` interface + `MockAIProvider`: fixture bank viết tay cho cả 10 dạng bài (không chỉ 5), ưu tiên bộ câu "vàng" khớp golden test Global Success 7 – Unit 3 khi ngữ cảnh khớp, template chung cho các trường hợp khác.
+- [x] Validation Engine: schema (qua Pydantic), đếm từ câu hỏi 12–14 (trắc nghiệm/word form) và bài đọc theo bảng khối lớp, cảnh báo vượt trình độ, trùng lặp — **dùng fuzzy text-match (difflib) thay cho cosine embedding** vì RAG chưa code (embedding để dành Giai đoạn 1D). Từ điển phát âm CMU và marker-heuristic theo thì **chưa làm** — cần khi tích hợp LLM thật.
+- [x] API đầy đủ: tạo/sửa đề, CRUD + reorder block, chọn thì/cấu trúc (`grammar-selection`), sinh câu (`/generate`), duyệt/khóa qua **PATCH tường minh** `is_approved`/`is_locked` (không dùng toggle — xem ghi chú thiết kế bên dưới), sinh lại từng câu, hoàn tất kiểm duyệt (đưa câu vào ngân hàng), cấu hình xuất + tạo mã đề A/B/C/D (kéo từ 1C lên vì không cần AI), tải DOCX.
+- [x] DOCX renderer bằng `python-docx` theo đúng bảng thông số Implementation Notes mục 2 (Times New Roman, lề Narrow, tab 4 cột, đáp án tô đỏ...).
+- [x] Test pytest: 25 test (auth, catalog, exam flow đầy đủ kể cả golden path Unit 3, regenerate/lock/approve, mã đề, export DOCX kiểm tra bằng python-docx).
+- [x] Frontend: `ExamListPage` (Đề của tôi + tạo đề), `ExamBuilderPage` (block CRUD, sắp xếp bằng nút lên/xuống thay vì kéo-thả, chọn thì/cấu trúc), `ExamReviewPage` (duyệt/khóa/sinh lại), `ExamExportPage` (cấu hình xuất + tải). Nối API thật, không còn mock ở tầng UI. **Không port pixel-perfect giao diện prototype** — ưu tiên đủ chức năng, style tối giản; kéo-thả và xem trước A4 động chưa làm.
+- [x] **Nghiệm thu đạt được:** tạo trọn đề Unit 3 (4 block, 6 câu) từ đầu đến file DOCX qua Docker Compose thật — kiểm chứng bằng curl + mở lại bằng `python-docx`, không phải chỉ chạy `pytest`.
+
+**Quyết định thiết kế phát sinh khi code (không có trong bản kế hoạch gốc):**
+- Endpoint duyệt/khóa đổi từ toggle (`POST .../approve`) sang PATCH tường minh (`PATCH /questions/{id}` với body `{is_approved, is_locked}`) sau khi phát hiện qua kiểm thử rằng toggle không an toàn với mất gói tin/double-click (client retry sẽ âm thầm đảo trạng thái ngược).
+- `update_exam` (PATCH đề) phải kiểm tra nhất quán nguồn kiến thức bất cứ khi nào một trong 4 trường liên quan (`source_type`/`unit_id`/`grammar_topic_id`/`cambridge_certificate_id`) xuất hiện trong payload, không chỉ khi `source_type` có mặt — bug tìm thấy qua test, đã có test hồi quy.
 
 ### Giai đoạn 1C — Hoàn thiện không-AI (tuần 8–9)
 
-- Mã đề A/B/C/D (seed + ánh xạ đáp án), audit log, hạn mức.
-- Golden test tự động; đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
+- Mã đề A/B/C/D đã làm trong 1B (xem trên); còn lại: audit log, hạn mức.
+- Kéo-thả thật cho sắp xếp block, xem trước A4 động ở frontend (hiện dùng nút lên/xuống, chưa có preview).
+- Golden test tự động hoá (hiện đang là test thủ công trong pytest); đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
 
 ### Giai đoạn 1D — Tích hợp LLM thật (tuần 10–11, khi có API key)
 

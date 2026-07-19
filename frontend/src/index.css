@@ -22,10 +22,14 @@ body {
 
 #root {
   min-height: 100vh;
+  padding: 24px;
+}
+
+.center-screen {
+  min-height: calc(100vh - 48px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
 }
 
 button {

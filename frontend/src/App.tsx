@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { fetchCurrentUser } from "./api/auth";
 import { LoginForm } from "./LoginForm";
-import { Dashboard } from "./Dashboard";
+import { Layout } from "./Layout";
+import { ExamListPage } from "./pages/ExamListPage";
+import { ExamBuilderPage } from "./pages/ExamBuilderPage";
+import { ExamReviewPage } from "./pages/ExamReviewPage";
+import { ExamExportPage } from "./pages/ExamExportPage";
 import type { UserOut } from "./types/auth";
 
 function App() {
@@ -16,14 +21,35 @@ function App() {
   }, []);
 
   if (checkingSession) {
-    return <p style={{ color: "var(--muted)" }}>Đang kiểm tra phiên đăng nhập...</p>;
+    return (
+      <div className="center-screen">
+        <p style={{ color: "var(--muted)" }}>Đang kiểm tra phiên đăng nhập...</p>
+      </div>
+    );
   }
 
   if (!user) {
-    return <LoginForm onSuccess={setUser} />;
+    return (
+      <div className="center-screen">
+        <LoginForm onSuccess={setUser} />
+      </div>
+    );
   }
 
-  return <Dashboard user={user} onLogout={() => setUser(null)} />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout user={user} onLogout={() => setUser(null)} />}>
+          <Route path="/" element={<Navigate to="/exams" replace />} />
+          <Route path="/exams" element={<ExamListPage />} />
+          <Route path="/exams/:examId/builder" element={<ExamBuilderPage />} />
+          <Route path="/exams/:examId/review" element={<ExamReviewPage />} />
+          <Route path="/exams/:examId/export" element={<ExamExportPage />} />
+          <Route path="*" element={<Navigate to="/exams" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;

@@ -39,6 +39,12 @@ Quy tắc chung: node vượt trình độ của đề → **cảnh báo, không
 
 Danh sách dạng và câu lệnh chuẩn nằm trong `KIND_INSTRUCTIONS` của prototype (ví dụ Trắc nghiệm → "Choose the best answer A, B, C or D."). Mỗi dạng bài lưu câu lệnh mặc định, giáo viên ghi đè được theo block.
 
+Từ Giai đoạn 1B, nguồn xác thực (`ExerciseType.code`, seed trong `backend/app/seed.py`) dùng đúng 10 mã sau — API/DB tham chiếu theo các mã này:
+
+`pronunciation`, `stress`, `multiple_choice`, `matching`, `gap_fill`, `cloze_test`, `reading_true_false`, `sign_reading`, `word_form`, `sentence_rewrite`.
+
+Cờ `has_passage` (True cho `cloze_test`, `reading_true_false`) quyết định block có trường `passage_word_target` và được Validation Engine kiểm tra độ dài bài đọc (mục 1.6).
+
 ### 1.6 Độ dài nội dung theo khối lớp
 
 **Câu hỏi trắc nghiệm / word form** (số từ mỗi câu, Admin chỉnh được):
@@ -95,11 +101,32 @@ Kinh nghiệm kỹ thuật đã xác nhận:
 2. **Checklist dạng bài ↔ block đồng bộ hai chiều:** tick tạo block (mặc định "block ma" chờ cấu hình), bỏ tick/xóa block gỡ nhau; dạng bài của block không sửa trong dialog block (một nguồn chỉnh sửa duy nhất).
 3. **Chọn nguồn kiến thức 3 mục:** Global Success (Unit theo lớp) · Kiến thức chung (chuyên đề → hiện picker thì/cấu trúc) · Cambridge (chứng chỉ → tự gợi ý CEFR).
 4. **Block:** kéo thả sắp xếp, số La Mã tự đánh lại; dialog chỉnh block gồm tiêu đề, hướng dẫn, độ khó (Nhận biết/Thông hiểu/Vận dụng/Hỗn hợp), số câu, điểm (bước 0.5), trình độ ghi đè, 2 cờ đảo câu/đảo đáp án, prompt riêng.
-5. **Màn duyệt:** mỗi câu hiển thị đáp án, lời giải, chip kiến thức + trình độ + nguồn RAG; cảnh báo (trùng ngân hàng theo ngưỡng cosine 0.90, vượt trình độ); hành động Duyệt (toggle), Sinh lại (bị chặn khi câu đã khóa hoặc đã duyệt), Khóa (toggle). Nút hoàn tất chỉ mở khi 100% câu duyệt.
+5. **Màn duyệt:** mỗi câu hiển thị đáp án, lời giải, chip kiến thức + trình độ + nguồn RAG; cảnh báo (trùng ngân hàng theo ngưỡng cosine 0.90, vượt trình độ); hành động Duyệt, Sinh lại (bị chặn khi câu đã khóa hoặc đã duyệt), Khóa. Nút hoàn tất chỉ mở khi 100% câu duyệt. **Cập nhật 1B:** backend triển khai Duyệt/Khóa bằng PATCH tường minh (`{is_approved, is_locked}`), không phải toggle — xem mục 4.
 6. **Đề của tôi:** danh sách đề + trạng thái (Nháp/Đã kiểm duyệt/Sẵn sàng xuất); lưu snapshot — file đã xuất không đổi khi đề bị sửa sau đó; câu sửa tay phải duyệt lại.
 7. **Xem trước A4** cập nhật trực tiếp theo mọi thao tác cấu hình; số câu đánh dồn qua các section.
 
-## 4. Việc cần chốt trước khi code
+## 4. API đề thi (Giai đoạn 1B) — tham chiếu nhanh
+
+Toàn bộ dưới prefix `/exams`, yêu cầu đăng nhập, tự lọc theo `teacher_id` của người gọi (403 nếu không phải chủ đề):
+
+| Method | Path | Việc gì |
+|---|---|---|
+| POST | `/exams` | Tạo đề (validate nguồn kiến thức khớp `source_type`) |
+| GET | `/exams` | "Đề của tôi" — tóm tắt kèm tổng câu/điểm tính động |
+| GET/PATCH | `/exams/{id}` | Xem/sửa thông tin đề |
+| PUT | `/exams/{id}/grammar-selection` | Ghi đè toàn bộ danh sách thì/cấu trúc đã chọn |
+| POST/PATCH/DELETE | `/exams/{id}/blocks[/{block_id}]` | CRUD block |
+| POST | `/exams/{id}/blocks/reorder` | Sắp xếp lại (đổi `order_no` 2 lượt để tránh vi phạm unique constraint) |
+| POST | `/exams/{id}/generate` | Gọi `AIProvider` cho từng block + chạy Validation Engine |
+| PATCH | `/exams/{id}/questions/{qid}` | Đặt `is_approved`/`is_locked` — **tường minh, không phải toggle** (xem lý do ở DEVELOPMENT_PLAN mục "Quyết định phát sinh") |
+| POST | `/exams/{id}/questions/{qid}/regenerate` | 409 nếu câu đã khóa hoặc đã duyệt |
+| POST | `/exams/{id}/complete-review` | 409 nếu còn câu chưa duyệt; đưa toàn bộ câu vào ngân hàng (`is_in_bank`) |
+| POST | `/exams/{id}/export-config` | Lưu kiểu xuất + tạo `ExamVariant` (mã đề, seed, thứ tự câu đã xáo) |
+| GET | `/exams/{id}/export.docx?variant=A` | Chỉ khi đề ở trạng thái `ready`; trả file DOCX qua `app/services/docx_renderer.py` |
+
+`MockAIProvider` (`app/services/ai_provider.py` + `fixtures.py`): ưu tiên bộ câu "vàng" khi `grade_number==7` và `unit_order_no==3`, còn lại dùng template chung theo `exercise_type_code`, lặp vòng nếu `question_count` vượt số template có sẵn.
+
+## 5. Việc cần chốt trước khi code
 
 - Danh mục Unit lớp 1–5 (giáo viên xác nhận).
 - Nguồn nội dung mục Cambridge: tài liệu luyện thi riêng hay tái dùng Global Success gắn nhãn.
