@@ -1,14 +1,16 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { logout } from "./api/auth";
 import type { UserOut } from "./types/auth";
+import { UsageProvider, useUsage } from "./usage/UsageContext";
 
 interface LayoutProps {
   user: UserOut;
   onLogout: () => void;
 }
 
-export function Layout({ user, onLogout }: LayoutProps) {
+function LayoutContent({ user, onLogout }: LayoutProps) {
   const location = useLocation();
+  const { status } = useUsage();
 
   async function handleLogout() {
     await logout();
@@ -60,6 +62,11 @@ export function Layout({ user, onLogout }: LayoutProps) {
           </nav>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {user.role === "teacher" && status && (
+            <span style={{ fontSize: 13, color: "var(--primary)", fontWeight: 600 }}>
+              Còn {status.remaining}/{status.limit} lượt hôm nay
+            </span>
+          )}
           <span style={{ fontSize: 13, color: "var(--muted)" }}>
             {user.full_name} · {user.role === "admin" ? "Quản trị viên" : "Giáo viên"}
           </span>
@@ -75,5 +82,13 @@ export function Layout({ user, onLogout }: LayoutProps) {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+export function Layout(props: LayoutProps) {
+  return (
+    <UsageProvider user={props.user}>
+      <LayoutContent {...props} />
+    </UsageProvider>
   );
 }

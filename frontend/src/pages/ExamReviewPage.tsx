@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { completeReview, getExam, regenerateQuestion, updateQuestionFlags } from "../api/exams";
 import { ApiError } from "../api/client";
 import type { ExamDetailOut, QuestionOut } from "../types/exam";
+import { useUsage } from "../usage/UsageContext";
 
 export function ExamReviewPage() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
+  const { refresh: refreshUsage } = useUsage();
   const [exam, setExam] = useState<ExamDetailOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function ExamReviewPage() {
     setError(null);
     try {
       await regenerateQuestion(examId, question.id);
+      await refreshUsage();
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không sinh lại được câu này");
