@@ -1,8 +1,10 @@
+import { StrictMode } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
+import type { ExerciseTypeOut, GrammarTopicOut } from "../types/catalog";
 import type { ExamDetailOut } from "../types/exam";
 import type { ExamPreviewOut } from "../types/examPreview";
 import { ExamBuilderPage } from "./ExamBuilderPage";
@@ -109,13 +111,57 @@ const preview: ExamPreviewOut = {
   ],
 };
 
+const examTwo: ExamDetailOut = {
+  ...exam,
+  id: "exam-2",
+  title: "Đề số hai",
+  grammar_point_ids: ["point-1"],
+  blocks: blocks.map((block, index) => ({
+    ...block,
+    id: index === 0 ? "c" : "d",
+    title: index === 0 ? "C" : "D",
+  })),
+};
+
+const previewTwo: ExamPreviewOut = {
+  ...preview,
+  exam_id: "exam-2",
+  title: "Đề số hai",
+  pages: preview.pages.map((page) => ({
+    ...page,
+    blocks: page.blocks.map((block) => ({ ...block, block_id: "c", title: "C" })),
+  })),
+};
+
+function NavigationControl() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate("/exams/exam-2/builder")}>
+      Mở đề số hai
+    </button>
+  );
+}
+
 function renderBuilder() {
   return render(
     <MemoryRouter initialEntries={["/exams/exam-1/builder"]}>
+      <NavigationControl />
       <Routes>
         <Route path="/exams/:examId/builder" element={<ExamBuilderPage />} />
       </Routes>
     </MemoryRouter>,
+  );
+}
+
+function renderBuilderStrict() {
+  return render(
+    <StrictMode>
+      <MemoryRouter initialEntries={["/exams/exam-1/builder"]}>
+        <Routes>
+          <Route path="/exams/:examId/builder" element={<ExamBuilderPage />} />
+        </Routes>
+      </MemoryRouter>
+    </StrictMode>,
   );
 }
 
@@ -158,6 +204,51 @@ describe("ExamBuilderPage", () => {
     expect(screen.getByLabelText("Bản xem trước đề A4")).toBeInTheDocument();
   });
 
+  it("reloads the active route during StrictMode effect replay", async () => {
+    renderBuilderStrict();
+
+    expect(await screen.findByTestId("block-a")).toBeInTheDocument();
+    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
+  });
+
+  it("renders the editor while the initial preview is still loading", async () => {
+    let resolvePreview!: (value: ExamPreviewOut) => void;
+    examApi.getExamPreview.mockReturnValueOnce(
+      new Promise<ExamPreviewOut>((resolve) => {
+        resolvePreview = resolve;
+      }),
+    );
+    renderBuilder();
+
+    expect(await screen.findByTestId("block-a")).toBeInTheDocument();
+    expect(screen.getByText("Đang dựng bản xem trước...")).toBeInTheDocument();
+
+    await act(async () => resolvePreview(preview));
+    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
+  });
+
+  it("retries preview loading in the Builder and clears the active error", async () => {
+    const user = userEvent.setup();
+    let resolveRetry!: (value: ExamPreviewOut) => void;
+    examApi.getExamPreview
+      .mockRejectedValueOnce(new ApiError(503, "Không tải được bản xem trước"))
+      .mockReturnValueOnce(
+        new Promise<ExamPreviewOut>((resolve) => {
+          resolveRetry = resolve;
+        }),
+      );
+    renderBuilder();
+    expect(await screen.findByText("Không tải được bản xem trước")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(screen.queryByText("Không tải được bản xem trước")).not.toBeInTheDocument();
+    expect(screen.getByText("Đang dựng bản xem trước...")).toBeInTheDocument();
+
+    await act(async () => resolveRetry(preview));
+    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
+    expect(examApi.getExamPreview).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores an older preview response that resolves after a mutation refresh", async () => {
     const user = userEvent.setup();
     let resolveInitialPreview!: (value: ExamPreviewOut) => void;
@@ -184,6 +275,109 @@ describe("ExamBuilderPage", () => {
     await act(async () => resolveInitialPreview({ ...preview, title: "Bản cũ" }));
     await waitFor(() => expect(screen.queryByText("Bản cũ")).not.toBeInTheDocument());
     expect(screen.getAllByText("Bản mới")).toHaveLength(2);
+  });
+
+  it("ignores deferred exam and preview responses from the previous route", async () => {
+    const user = userEvent.setup();
+    let resolveOldExam!: (value: ExamDetailOut) => void;
+    let resolveNewExam!: (value: ExamDetailOut) => void;
+    let resolveOldPreview!: (value: ExamPreviewOut) => void;
+    let resolveNewPreview!: (value: ExamPreviewOut) => void;
+    examApi.getExam.mockImplementation(
+      (targetId: string) =>
+        new Promise<ExamDetailOut>((resolve) => {
+          if (targetId === "exam-1") resolveOldExam = resolve;
+          else resolveNewExam = resolve;
+        }),
+    );
+    examApi.getExamPreview.mockImplementation(
+      (targetId: string) =>
+        new Promise<ExamPreviewOut>((resolve) => {
+          if (targetId === "exam-1") resolveOldPreview = resolve;
+          else resolveNewPreview = resolve;
+        }),
+    );
+    renderBuilder();
+    await user.click(screen.getByRole("button", { name: "Mở đề số hai" }));
+
+    await act(async () => {
+      resolveNewExam(examTwo);
+      resolveNewPreview(previewTwo);
+    });
+    expect(await screen.findByTestId("block-c")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOldExam(exam);
+      resolveOldPreview({ ...preview, title: "Đề cũ về muộn" });
+    });
+    expect(screen.getByTestId("block-c")).toBeInTheDocument();
+    expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
+    expect(screen.queryByText("Đề cũ về muộn")).not.toBeInTheDocument();
+  });
+
+  it("ignores stale catalog responses after the route changes", async () => {
+    const user = userEvent.setup();
+    let resolveOldTypes!: (value: ExerciseTypeOut[]) => void;
+    let resolveNewTypes!: (value: ExerciseTypeOut[]) => void;
+    let resolveOldTopics!: (value: GrammarTopicOut[]) => void;
+    let resolveNewTopics!: (value: GrammarTopicOut[]) => void;
+    catalogApi.listExerciseTypes
+      .mockReturnValueOnce(new Promise((resolve) => (resolveOldTypes = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveNewTypes = resolve)));
+    catalogApi.listGrammarTopics
+      .mockReturnValueOnce(new Promise((resolve) => (resolveOldTopics = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveNewTopics = resolve)));
+    examApi.getExam.mockImplementation((targetId: string) => Promise.resolve(targetId === "exam-1" ? exam : examTwo));
+    examApi.getExamPreview.mockImplementation((targetId: string) =>
+      Promise.resolve(targetId === "exam-1" ? preview : previewTwo),
+    );
+    renderBuilder();
+    await screen.findByTestId("block-a");
+    await user.click(screen.getByRole("button", { name: "Mở đề số hai" }));
+    await screen.findByTestId("block-c");
+
+    const newType: ExerciseTypeOut = {
+      ...blocks[0]!.exercise_type,
+      id: "type-new",
+      name: "Dạng mới",
+      default_instruction: "",
+      order_no: 1,
+    };
+    const oldType: ExerciseTypeOut = {
+      ...blocks[0]!.exercise_type,
+      id: "type-old",
+      name: "Dạng cũ",
+      default_instruction: "",
+      order_no: 1,
+    };
+    await act(async () => {
+      resolveNewTypes([newType]);
+      resolveNewTopics([
+        {
+          id: "topic-1",
+          code: "topic-new",
+          name: "Ngữ pháp mới — A2",
+          groups: [],
+        },
+      ]);
+    });
+    expect(await screen.findByRole("option", { name: "Dạng mới" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOldTypes([oldType]);
+      resolveOldTopics([
+        {
+          id: "topic-1",
+          code: "topic-old",
+          name: "Ngữ pháp cũ — A2",
+          groups: [],
+        },
+      ]);
+    });
+    expect(screen.queryByRole("option", { name: "Dạng cũ" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Dạng mới" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
   });
 
   it("rolls back reorder and keeps preview after API failure", async () => {
@@ -228,6 +422,86 @@ describe("ExamBuilderPage", () => {
 
     expect(await screen.findByText("1. B đã lưu")).toBeInTheDocument();
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
+  });
+
+  it("isolates old route fetches, mutations, and locks after navigation", async () => {
+    const user = userEvent.setup();
+    let resolveOldReorder!: (value: ExamDetailOut) => void;
+    let resolveNewReorder!: (value: ExamDetailOut) => void;
+    let resolveExamTwo!: (value: ExamDetailOut) => void;
+    let resolvePreviewTwo!: (value: ExamPreviewOut) => void;
+    let examTwoPreviewCalls = 0;
+    examApi.getExam.mockImplementation((examId: string) => {
+      if (examId === "exam-1") return Promise.resolve(exam);
+      return new Promise<ExamDetailOut>((resolve) => {
+        resolveExamTwo = resolve;
+      });
+    });
+    examApi.getExamPreview.mockImplementation((examId: string) => {
+      if (examId === "exam-2") {
+        examTwoPreviewCalls += 1;
+        if (examTwoPreviewCalls > 1) return Promise.resolve(previewTwo);
+        return new Promise<ExamPreviewOut>((resolve) => {
+          resolvePreviewTwo = resolve;
+        });
+      }
+      return Promise.resolve(preview);
+    });
+    examApi.reorderBlocks.mockImplementation((examId: string) =>
+      new Promise<ExamDetailOut>((resolve) => {
+        if (examId === "exam-1") resolveOldReorder = resolve;
+        else resolveNewReorder = resolve;
+      }),
+    );
+    renderBuilder();
+    await screen.findByTestId("block-a");
+
+    await user.click(screen.getByRole("button", { name: "Xuống A" }));
+    await user.click(screen.getByRole("button", { name: "Mở đề số hai" }));
+
+    expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Xóa A" })).not.toBeInTheDocument();
+    expect(screen.getByText("Đang tải...")).toBeInTheDocument();
+
+    await act(async () => {
+      resolvePreviewTwo(previewTwo);
+      resolveExamTwo(examTwo);
+    });
+    expect(await screen.findByTestId("block-c")).toBeInTheDocument();
+    expect(await screen.findAllByText("Đề số hai")).toHaveLength(3);
+    await user.click(screen.getByRole("button", { name: "Xuống C" }));
+    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+
+    await act(async () => resolveOldReorder({ ...exam, blocks: [...blocks].reverse() }));
+
+    expect(screen.getByTestId("block-c")).toBeInTheDocument();
+    expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+
+    await act(async () => resolveNewReorder(examTwo));
+    await waitFor(() => expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeEnabled());
+    expect(screen.getByTestId("block-c")).toBeInTheDocument();
+  });
+
+  it("clears an active Builder error when the next mutation starts", async () => {
+    const user = userEvent.setup();
+    let resolveAdd!: (value: ExamDetailOut["blocks"][number]) => void;
+    examApi.reorderBlocks.mockRejectedValueOnce(new ApiError(500, "Không lưu được thứ tự"));
+    examApi.addBlock.mockReturnValueOnce(
+      new Promise<ExamDetailOut["blocks"][number]>((resolve) => {
+        resolveAdd = resolve;
+      }),
+    );
+    renderBuilder();
+    await user.click(await screen.findByRole("button", { name: "Xuống A" }));
+    expect(await screen.findByText("Không lưu được thứ tự")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
+
+    await act(async () => resolveAdd(blocks[0]!));
+    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
   });
 
   it("refreshes exam and preview after add, delete, update, and grammar mutations", async () => {
