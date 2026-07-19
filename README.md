@@ -1,6 +1,6 @@
 # ExamCraft AI — Nền tảng AI tạo đề tiếng Anh
 
-Ứng dụng web cho giáo viên tạo bài tập/đề tiếng Anh, kiểm duyệt từng câu và xuất DOCX A4. Lõi tạo đề hiện chạy trên `MockAIProvider`; luồng tạo đề, duyệt câu, mã đề A/B/C/D và xuất DOCX đã được nghiệm thu. Admin đã có dashboard tổng quan và chức năng quản lý tài khoản giáo viên. Kho kiến thức RAG và LLM thật được dành cho giai đoạn tiếp theo.
+Ứng dụng web cho giáo viên tạo bài tập/đề tiếng Anh, kiểm duyệt từng câu và xuất DOCX A4. Lõi tạo đề hiện chạy trên `MockAIProvider`; luồng tạo đề, duyệt câu, mã đề A/B/C/D và xuất DOCX đã được nghiệm thu. Admin có workflow quản trị riêng và không truy cập chức năng đề thi; Giáo viên không truy cập các màn quản trị. Kho kiến thức RAG và LLM thật được dành cho giai đoạn tiếp theo.
 
 ## Yêu cầu
 

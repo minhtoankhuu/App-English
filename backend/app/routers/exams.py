@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
-from app.deps import require_any_role
+from app.deps import require_teacher
 from app.models.academic import Grade, ProficiencyLevel
 from app.models.exam import (
     Exam,
@@ -39,7 +39,7 @@ from app.services.exam_preview import build_preview
 from app.services.generation import generate_block_questions, regenerate_question, shuffle_variant
 from app.services.usage import UsageLimitExceeded, reserve_usage
 
-router = APIRouter(prefix="/exams", tags=["exams"], dependencies=[Depends(require_any_role)])
+router = APIRouter(prefix="/exams", tags=["exams"], dependencies=[Depends(require_teacher)])
 
 BLOCK_LOAD_OPTIONS = (
     selectinload(Exam.blocks).selectinload(ExamBlock.exercise_type),
@@ -129,7 +129,7 @@ def _exam_detail(exam: Exam) -> dict:
 
 @router.post("", response_model=ExamDetailOut, status_code=status.HTTP_201_CREATED)
 def create_exam(
-    payload: ExamCreateRequest, current_user: User = Depends(require_any_role), db: Session = Depends(get_db)
+    payload: ExamCreateRequest, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> dict:
     _validate_source_fields(payload)
     if db.get(Grade, payload.grade_id) is None:
@@ -154,7 +154,7 @@ def create_exam(
 
 
 @router.get("", response_model=list[ExamSummaryOut])
-def list_exams(current_user: User = Depends(require_any_role), db: Session = Depends(get_db)) -> list[dict]:
+def list_exams(current_user: User = Depends(require_teacher), db: Session = Depends(get_db)) -> list[dict]:
     stmt = (
         select(Exam)
         .options(*BLOCK_LOAD_OPTIONS, selectinload(Exam.grade), selectinload(Exam.level))
@@ -167,7 +167,7 @@ def list_exams(current_user: User = Depends(require_any_role), db: Session = Dep
 
 @router.get("/{exam_id}/preview", response_model=ExamPreviewOut)
 def get_exam_preview(
-    exam_id: uuid.UUID, current_user: User = Depends(require_any_role), db: Session = Depends(get_db)
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> dict[str, object]:
     exam = _get_owned_exam(db, exam_id, current_user)
     return {"exam_id": exam.id, "title": exam.title, **build_preview(exam)}
@@ -175,7 +175,7 @@ def get_exam_preview(
 
 @router.get("/{exam_id}", response_model=ExamDetailOut)
 def get_exam(
-    exam_id: uuid.UUID, current_user: User = Depends(require_any_role), db: Session = Depends(get_db)
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
     return _exam_detail(exam)
@@ -185,7 +185,7 @@ def get_exam(
 def update_exam(
     exam_id: uuid.UUID,
     payload: ExamUpdateRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -212,7 +212,7 @@ def update_exam(
 def set_grammar_selection(
     exam_id: uuid.UUID,
     payload: GrammarSelectionRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -227,7 +227,7 @@ def set_grammar_selection(
 def add_block(
     exam_id: uuid.UUID,
     payload: BlockCreateRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> ExamBlock:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -246,7 +246,7 @@ def update_block(
     exam_id: uuid.UUID,
     block_id: uuid.UUID,
     payload: BlockUpdateRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> ExamBlock:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -261,7 +261,7 @@ def update_block(
 def delete_block(
     exam_id: uuid.UUID,
     block_id: uuid.UUID,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> None:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -274,7 +274,7 @@ def delete_block(
 def reorder_blocks(
     exam_id: uuid.UUID,
     payload: BlockReorderRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -293,7 +293,7 @@ def reorder_blocks(
 
 @router.post("/{exam_id}/generate", response_model=ExamDetailOut)
 def generate_exam(
-    exam_id: uuid.UUID, current_user: User = Depends(require_any_role), db: Session = Depends(get_db)
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
     if not exam.blocks:
@@ -317,7 +317,7 @@ def update_question_flags(
     exam_id: uuid.UUID,
     question_id: uuid.UUID,
     payload: QuestionFlagsUpdateRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> Question:
     """Đặt tường minh is_approved/is_locked (không dùng toggle) — an toàn khi client
@@ -342,7 +342,7 @@ def update_question_flags(
 def regenerate(
     exam_id: uuid.UUID,
     question_id: uuid.UUID,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> Question:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -375,7 +375,7 @@ def regenerate(
 
 @router.post("/{exam_id}/complete-review", response_model=ExamDetailOut)
 def complete_review(
-    exam_id: uuid.UUID, current_user: User = Depends(require_any_role), db: Session = Depends(get_db)
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
     all_questions = [q for b in exam.blocks for q in b.questions]
@@ -394,7 +394,7 @@ def complete_review(
 def save_export_config(
     exam_id: uuid.UUID,
     payload: ExportConfigRequest,
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> dict:
     exam = _get_owned_exam(db, exam_id, current_user)
@@ -418,7 +418,7 @@ def save_export_config(
 def export_docx(
     exam_id: uuid.UUID,
     variant: str = "A",
-    current_user: User = Depends(require_any_role),
+    current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
     exam = _get_owned_exam(db, exam_id, current_user)

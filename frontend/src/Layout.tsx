@@ -17,10 +17,11 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
     onLogout();
   }
 
-  const navLinks = [{ to: "/exams", label: "Đề của tôi" }];
-  if (user.role === "admin") {
-    navLinks.push({ to: "/admin", label: "Quản trị" });
-  }
+  const isAdmin = user.role === "admin";
+  const homePath = isAdmin ? "/admin" : "/exams";
+  const navLinks = isAdmin
+    ? [{ to: "/admin", label: "Quản trị" }]
+    : [{ to: "/exams", label: "Đề của tôi" }];
 
   return (
     <div style={{ width: "100%", maxWidth: 960, margin: "0 auto" }}>
@@ -38,7 +39,7 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <Link to="/exams" style={{ fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
+          <Link to={homePath} style={{ fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
             ExamCraft AI
           </Link>
           <nav style={{ display: "flex", gap: 14 }}>

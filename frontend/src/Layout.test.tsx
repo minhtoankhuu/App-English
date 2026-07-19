@@ -34,15 +34,19 @@ describe("Layout", () => {
     });
   });
 
-  it("hiển thị liên kết quản trị cho Admin", () => {
+  it("chỉ hiển thị điều hướng quản trị cho Admin", () => {
     renderLayout();
 
+    expect(screen.getByRole("link", { name: "ExamCraft AI" })).toHaveAttribute("href", "/admin");
     expect(screen.getByRole("link", { name: "Quản trị" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByRole("link", { name: "Đề của tôi" })).not.toBeInTheDocument();
   });
 
-  it("không hiển thị liên kết quản trị cho giáo viên", () => {
+  it("chỉ hiển thị điều hướng đề thi cho giáo viên", () => {
     renderLayout(teacherUser);
 
+    expect(screen.getByRole("link", { name: "ExamCraft AI" })).toHaveAttribute("href", "/exams");
+    expect(screen.getByRole("link", { name: "Đề của tôi" })).toHaveAttribute("href", "/exams");
     expect(screen.queryByRole("link", { name: "Quản trị" })).not.toBeInTheDocument();
   });
 
