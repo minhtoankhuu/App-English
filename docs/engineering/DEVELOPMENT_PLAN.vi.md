@@ -81,7 +81,7 @@ docker compose up --build
 - [x] API đầy đủ: tạo/sửa đề, CRUD + reorder block, chọn thì/cấu trúc (`grammar-selection`), sinh câu (`/generate`), duyệt/khóa qua **PATCH tường minh** `is_approved`/`is_locked` (không dùng toggle — xem ghi chú thiết kế bên dưới), sinh lại từng câu, hoàn tất kiểm duyệt (đưa câu vào ngân hàng), cấu hình xuất + tạo mã đề A/B/C/D (kéo từ 1C lên vì không cần AI), tải DOCX.
 - [x] DOCX renderer bằng `python-docx` theo đúng bảng thông số Implementation Notes mục 2 (Times New Roman, lề Narrow, tab 4 cột, đáp án tô đỏ...).
 - [x] Test pytest: 25 test (auth, catalog, exam flow đầy đủ kể cả golden path Unit 3, regenerate/lock/approve, mã đề, export DOCX kiểm tra bằng python-docx).
-- [x] Frontend: `ExamListPage` (Đề của tôi + tạo đề), `ExamBuilderPage` (block CRUD, sắp xếp bằng nút lên/xuống thay vì kéo-thả, chọn thì/cấu trúc), `ExamReviewPage` (duyệt/khóa/sinh lại), `ExamExportPage` (cấu hình xuất + tải). Nối API thật, không còn mock ở tầng UI. **Không port pixel-perfect giao diện prototype** — ưu tiên đủ chức năng, style tối giản; kéo-thả và xem trước A4 động chưa làm.
+- [x] Frontend: `ExamListPage` (Đề của tôi + tạo đề), `ExamBuilderPage` (block CRUD, sắp xếp bằng nút lên/xuống, chọn thì/cấu trúc), `ExamReviewPage` (duyệt/khóa/sinh lại), `ExamExportPage` (cấu hình xuất + tải). Nối API thật, không còn mock ở tầng UI. **Không port pixel-perfect giao diện prototype** — ưu tiên đủ chức năng, style tối giản; kéo-thả và xem trước A4 động hoàn thiện ở 1C.
 - [x] **Nghiệm thu đạt được:** tạo trọn đề Unit 3 (4 block, 6 câu) từ đầu đến file DOCX qua Docker Compose thật — kiểm chứng bằng curl + mở lại bằng `python-docx`, không phải chỉ chạy `pytest`.
 
 **Quyết định thiết kế phát sinh khi code (không có trong bản kế hoạch gốc):**
@@ -95,7 +95,7 @@ docker compose up --build
 - [x] Audit log quản trị tài khoản giáo viên (nhánh `feat/1c-audit-log`): append-only, cùng transaction với thao tác tạo/cập nhật, không lưu mật khẩu/hash/session; API phân trang và trang Admin riêng.
 - [x] Hạn mức sinh đề: mỗi giáo viên 10 lượt gọi AI/ngày theo `Asia/Bangkok`; sinh toàn đề tính theo số block, sinh lại tính 1 lượt, chặn nguyên tử bằng HTTP 429 khi không đủ; Admin không giới hạn. Frontend hiển thị số lượt còn lại và làm mới sau thao tác sinh thành công.
 - [ ] Màn hình chỉnh sửa Admin còn lại theo prototype: dashboard tổng quan đã có và hiển thị rõ trạng thái; kho kiến thức, dạng bài & template, thư viện hình ảnh, cấu hình AI vẫn chưa có chức năng chỉnh sửa vì các khối này gắn với RAG và chờ cùng Giai đoạn 1D.
-- [ ] Kéo-thả thật cho sắp xếp block, xem trước A4 động ở frontend (hiện dùng nút lên/xuống, chưa có preview).
+- [x] Kéo-thả thật cho sắp xếp block, giữ nút Lên/Xuống làm phương án hỗ trợ; xem trước A4 nhiều trang động ở frontend. Preview lấy từ API read-only `GET /exams/{id}/preview`, không dùng quota sinh đề; thứ tự thay đổi được cập nhật lạc quan và rollback khi API reorder lỗi.
 - [ ] Golden test tự động hoá (hiện đang là test thủ công trong pytest); đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
 
 ### Giai đoạn 1D — Tích hợp LLM thật (tuần 10–11, khi có API key)
