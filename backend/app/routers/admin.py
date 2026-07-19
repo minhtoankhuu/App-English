@@ -1,16 +1,18 @@
 """Admin quản lý tài khoản giáo viên (PRD 5.1). Chỉ thao tác trên tài khoản vai trò
-teacher — không phải bảng quản trị người dùng chung; không xóa cứng tài khoản,
-chỉ đổi is_active (PRD 12: dữ liệu có lịch sử ưu tiên xóa mềm/ngừng sử dụng)."""
+teacher — không phải bảng quản trị người dùng chung. Khóa/mở lại là thao tác chính
+(PRD 12: dữ liệu có lịch sử ưu tiên xóa mềm); xóa cứng chỉ cho phép khi giáo viên
+chưa có đề thi nào, để không vi phạm FK Exam.teacher_id và không mất dữ liệu đã tạo."""
 
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import require_admin
+from app.models.exam import Exam
 from app.models.user import User, UserRole
 from app.schemas.admin import TeacherCreateRequest, TeacherOut, TeacherUpdateRequest
 from app.security import hash_password
@@ -93,3 +95,21 @@ def update_teacher(
     db.commit()
     db.refresh(teacher)
     return teacher
+
+
+@router.delete("/{teacher_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_teacher(
+    teacher_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+) -> None:
+    teacher = _get_teacher(db, teacher_id)
+    exam_count = db.scalar(select(func.count()).select_from(Exam).where(Exam.teacher_id == teacher_id))
+    if exam_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Giáo viên còn {exam_count} đề thi — khóa tài khoản thay vì xóa.",
+        )
+    record_audit_log(db, actor=actor, action="teacher.deleted", target=teacher)
+    db.delete(teacher)
+    db.commit()

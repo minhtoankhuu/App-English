@@ -8,3 +8,6 @@ export const createTeacher = (payload: TeacherCreateRequest): Promise<TeacherOut
 
 export const updateTeacher = (teacherId: string, payload: TeacherUpdateRequest): Promise<TeacherOut> =>
   apiRequest(`/admin/teachers/${teacherId}`, { method: "PATCH", body: JSON.stringify(payload) });
+
+export const deleteTeacher = (teacherId: string): Promise<void> =>
+  apiRequest(`/admin/teachers/${teacherId}`, { method: "DELETE" });
