@@ -17,6 +17,7 @@ import type { ExerciseTypeOut, GrammarTopicOut } from "../types/catalog";
 import type { ExamPreviewOut } from "../types/examPreview";
 import { SortableBlockList } from "../exam-builder/SortableBlockList";
 import { ExamPreview } from "../exam-preview/ExamPreview";
+import { StepsIndicator } from "../components/StepsIndicator";
 import { useUsage } from "../usage/UsageContext";
 
 interface RouteToken {
@@ -191,16 +192,17 @@ export function ExamBuilderPage() {
 
   if (!exam) {
     return (
-      <div className="exam-builder-layout">
-        <section className="exam-builder-editor" style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-          <p style={{ margin: 0, color: activeError ? "var(--danger)" : "var(--muted)" }}>
-            {activeError ?? "Đang tải..."}
-          </p>
-        </section>
-        <aside className="exam-builder-preview">
+      <>
+        <StepsIndicator current={2} />
+        <div className="builder-grid">
+          <section className="configuration">
+            <p style={{ margin: 0, color: activeError ? "var(--danger)" : "var(--muted)" }}>
+              {activeError ?? "Đang tải..."}
+            </p>
+          </section>
           <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
-        </aside>
-      </div>
+        </div>
+      </>
     );
   }
 
@@ -348,153 +350,120 @@ export function ExamBuilderPage() {
   const orderedBlocks = [...exam.blocks].sort((a, b) => a.order_no - b.order_no);
 
   return (
-    <div className="exam-builder-layout">
-      <section className="exam-builder-editor" style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>{exam.title}</h2>
-        {activeError && <p style={{ color: "var(--danger)" }}>{activeError}</p>}
+    <>
+      <StepsIndicator current={2} />
+      <div className="builder-grid">
+        <section className="configuration">
+          <h2>{exam.title}</h2>
+          {activeError && <p style={{ color: "var(--danger)" }}>{activeError}</p>}
 
-        {activeTopic && (
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ marginBottom: 8, fontSize: 15 }}>Chọn {activeTopic.name.split(" — ")[0]}</h3>
-            {activeTopic.groups.map((group) => (
-              <div key={group.id} style={{ marginBottom: 8 }}>
-                <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>
-                  {group.name}
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {group.points.map((point) => (
-                    <label
-                      key={point.id}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        border: "1px solid var(--border)",
-                        fontSize: 12,
-                        background: selectedPoints.has(point.id) ? "#ecf1fe" : "#fff",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedPoints.has(point.id)}
-                        disabled={mutationSaving}
-                        onChange={() => togglePoint(point.id)}
-                      />
-                      {point.name} ({point.min_level.code})
-                    </label>
-                  ))}
+          {activeTopic && (
+            <div style={{ marginBottom: 16 }}>
+              <div className="section-heading block-heading">
+                <div>
+                  <h3>Chọn {activeTopic.name.split(" — ")[0]}</h3>
                 </div>
               </div>
-            ))}
-            <button onClick={handleSaveGrammarSelection} disabled={mutationSaving} style={secondaryButtonStyle}>
-              Lưu lựa chọn
+              {activeTopic.groups.map((group) => (
+                <div key={group.id} style={{ marginTop: 12 }}>
+                  <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>
+                    {group.name}
+                  </p>
+                  <div className="type-grid">
+                    {group.points.map((point) => (
+                      <label key={point.id} className="type-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedPoints.has(point.id)}
+                          disabled={mutationSaving}
+                          onChange={() => togglePoint(point.id)}
+                        />
+                        {point.name} ({point.min_level.code})
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleSaveGrammarSelection}
+                disabled={mutationSaving}
+                className="button secondary compact"
+                style={{ marginTop: 12 }}
+              >
+                Lưu lựa chọn
+              </button>
+            </div>
+          )}
+
+          <div className="section-heading block-heading">
+            <div>
+              <h2>Các phần của đề</h2>
+              <p>Kéo thả, sửa số câu/điểm hoặc xóa riêng từng khối.</p>
+            </div>
+          </div>
+          <SortableBlockList
+            blocks={orderedBlocks}
+            saving={mutationSaving}
+            onReorder={handleReorder}
+            onDelete={handleDeleteBlock}
+            onUpdateField={handleBlockField}
+          />
+
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
+            <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
+              Dạng bài
+              <select value={newTypeId} disabled={mutationSaving} onChange={(e) => setNewTypeId(e.target.value)}>
+                {exerciseTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
+              Số câu
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={newCount}
+                disabled={mutationSaving}
+                onChange={(e) => setNewCount(Number(e.target.value))}
+                style={{ width: 70 }}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
+              Điểm
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.5}
+                value={newPoints}
+                disabled={mutationSaving}
+                onChange={(e) => setNewPoints(Number(e.target.value))}
+                style={{ width: 70 }}
+              />
+            </label>
+            <button type="button" onClick={handleAddBlock} disabled={mutationSaving} className="button secondary compact">
+              + Thêm phần
             </button>
           </div>
-        )}
 
-        <h3 style={{ fontSize: 15 }}>Các phần của đề</h3>
-        <SortableBlockList
-          blocks={orderedBlocks}
-          saving={mutationSaving}
-          onReorder={handleReorder}
-          onDelete={handleDeleteBlock}
-          onUpdateField={handleBlockField}
-        />
-
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
-          <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-            Dạng bài
-            <select
-              value={newTypeId}
-              disabled={mutationSaving}
-              onChange={(e) => setNewTypeId(e.target.value)}
-              style={inputStyle}
+          <div className="config-footer">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating || mutationSaving || exam.blocks.length === 0}
+              className="button primary large"
             >
-              {exerciseTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-            Số câu
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={newCount}
-              disabled={mutationSaving}
-              onChange={(e) => setNewCount(Number(e.target.value))}
-              style={{ ...inputStyle, width: 70 }}
-            />
-          </label>
-          <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-            Điểm
-            <input
-              type="number"
-              min={0}
-              max={10}
-              step={0.5}
-              value={newPoints}
-              disabled={mutationSaving}
-              onChange={(e) => setNewPoints(Number(e.target.value))}
-              style={{ ...inputStyle, width: 70 }}
-            />
-          </label>
-          <button onClick={handleAddBlock} disabled={mutationSaving} style={secondaryButtonStyle}>
-            + Thêm phần
-          </button>
-        </div>
-
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-          <button
-            onClick={handleGenerate}
-            disabled={generating || mutationSaving || exam.blocks.length === 0}
-            style={primaryButtonStyle}
-          >
-            {generating ? "Đang sinh đề..." : "✦ Sinh đề bằng AI"}
-          </button>
-        </div>
-      </section>
-      <aside className="exam-builder-preview">
-        <ExamPreview
-          preview={preview}
-          loading={previewLoading}
-          error={activePreviewError}
-          onRetry={retryPreview}
-        />
-      </aside>
-    </div>
+              {generating ? "Đang sinh đề..." : "✦ Sinh đề bằng AI"}
+            </button>
+          </div>
+        </section>
+        <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
+      </div>
+    </>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  height: 34,
-  padding: "0 8px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  fontSize: 13,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  height: 42,
-  padding: "0 18px",
-  borderRadius: 8,
-  border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 600,
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  height: 34,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  fontWeight: 600,
-  fontSize: 13,
-};

@@ -109,8 +109,7 @@ describe("ExamPreview", () => {
     expect(screen.getByText("Trang 1/2")).toBeInTheDocument();
     expect(screen.getByText("Trang 2/2")).toBeInTheDocument();
     const firstPage = screen.getByRole("article", { name: "Trang 1/2" });
-    expect(firstPage.style.aspectRatio).toBe("210 / 297");
-    expect(firstPage.style.boxShadow).toBe("0 4px 16px rgba(15, 23, 42, 0.12)");
+    expect(firstPage).toHaveClass("paper");
     expect(screen.getByText("Câu 3. ................................................................")).toBeInTheDocument();
   });
 

@@ -279,11 +279,11 @@ describe("ExamBuilderPage", () => {
     await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
     await act(async () => resolveRefreshedPreview({ ...preview, title: "Bản mới" }));
-    expect(await screen.findAllByText("Bản mới")).toHaveLength(2);
+    expect(await screen.findAllByText("Bản mới")).toHaveLength(1);
 
     await act(async () => resolveInitialPreview({ ...preview, title: "Bản cũ" }));
     await waitFor(() => expect(screen.queryByText("Bản cũ")).not.toBeInTheDocument());
-    expect(screen.getAllByText("Bản mới")).toHaveLength(2);
+    expect(screen.getAllByText("Bản mới")).toHaveLength(1);
   });
 
   it("ignores deferred exam and preview responses from the previous route", async () => {
@@ -429,7 +429,7 @@ describe("ExamBuilderPage", () => {
 
     await act(async () => resolveReorder(reorderedExam));
 
-    expect(await screen.findByText("1. B đã lưu")).toBeInTheDocument();
+    expect(await screen.findByText("B đã lưu")).toBeInTheDocument();
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
   });
 
@@ -477,7 +477,7 @@ describe("ExamBuilderPage", () => {
       resolveExamTwo(examTwo);
     });
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
-    expect(await screen.findAllByText("Đề số hai")).toHaveLength(3);
+    expect(await screen.findAllByText("Đề số hai")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Xuống C" }));
     expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
 

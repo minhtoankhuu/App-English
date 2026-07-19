@@ -10,6 +10,8 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   hon_hop: "Hỗn hợp",
 };
 
+const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
 type EditableField = "question_count" | "points";
 
 interface SortableBlockListProps {
@@ -61,119 +63,90 @@ export function SortableBlockList({
   }
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div className="block-list">
       {blocks.map((block, index) => (
         <article
           key={block.id}
           data-testid={`block-${block.id}`}
+          className={`exam-block${draggedId === block.id ? " dragging" : ""}`}
           onDragOver={(event) => handleDragOver(event, block.id)}
           onDrop={(event) => handleDrop(event, block.id)}
-          style={{
-            border:
-              dropTargetId === block.id
-                ? "2px solid var(--primary)"
-                : draggedId === block.id
-                  ? "1px solid var(--primary)"
-                  : "1px solid var(--border)",
-            borderRadius: 10,
-            padding: 12,
-            opacity: draggedId === block.id ? 0.6 : 1,
-          }}
+          style={dropTargetId === block.id ? { border: "2px solid var(--primary)" } : undefined}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-            <div>
-              <strong>
-                {index + 1}. {block.title}
-              </strong>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--muted)" }}>
-                {block.exercise_type.name} · {DIFFICULTY_LABEL[block.difficulty]}
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 4 }}>
-              <button
-                aria-label={`Kéo để sắp xếp ${block.title}`}
-                disabled={saving}
-                draggable={!saving}
-                onDragStart={(event) => handleDragStart(event, block.id)}
-                onDragEnd={() => {
-                  setDropTargetId(null);
-                  setDraggedId(null);
-                }}
-                style={{
-                  ...iconButtonStyle,
-                  cursor: saving ? "not-allowed" : draggedId === block.id ? "grabbing" : "grab",
-                }}
-              >
-                ⠿
-              </button>
-              <button
-                aria-label={`Lên ${block.title}`}
-                disabled={saving || index === 0}
-                onClick={() => requestReorder(block.id, blocks[index - 1]!.id)}
-                style={iconButtonStyle}
-              >
-                ↑
-              </button>
-              <button
-                aria-label={`Xuống ${block.title}`}
-                disabled={saving || index === blocks.length - 1}
-                onClick={() => requestReorder(blocks[index + 1]!.id, block.id)}
-                style={iconButtonStyle}
-              >
-                ↓
-              </button>
-              <button
-                aria-label={`Xóa ${block.title}`}
-                disabled={saving}
-                onClick={() => onDelete(block.id)}
-                style={iconButtonStyle}
-              >
-                ✕
-              </button>
-            </div>
+          <button
+            type="button"
+            aria-label={`Kéo để sắp xếp ${block.title}`}
+            className="drag"
+            disabled={saving}
+            draggable={!saving}
+            onDragStart={(event) => handleDragStart(event, block.id)}
+            onDragEnd={() => {
+              setDropTargetId(null);
+              setDraggedId(null);
+            }}
+            style={{ cursor: saving ? "not-allowed" : draggedId === block.id ? "grabbing" : "grab" }}
+          >
+            ⠿
+          </button>
+
+          <span className={`block-badge badge-${block.exercise_type.code}`} aria-hidden="true">
+            {ROMAN[index] ?? index + 1}
+          </span>
+
+          <div className="block-body">
+            <h3>{block.title}</h3>
+            <p className="chips">
+              <span className="chip">{block.exercise_type.name}</span>
+              <span className="chip">{block.question_count} câu</span>
+              <span className="chip">{DIFFICULTY_LABEL[block.difficulty]}</span>
+              <span className="chip score">{block.points} điểm</span>
+            </p>
           </div>
-          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-            <label style={{ fontSize: 12 }}>
-              Số câu {block.title}{" "}
-              <input
-                type="number"
-                min={1}
-                max={50}
-                defaultValue={block.question_count}
-                disabled={saving}
-                onBlur={(event) => onUpdateField(block, "question_count", Number(event.target.value))}
-                style={numberInputStyle}
-              />
-            </label>
-            <label style={{ fontSize: 12 }}>
-              Điểm {block.title}{" "}
-              <input
-                type="number"
-                min={0}
-                max={10}
-                step={0.5}
-                defaultValue={block.points}
-                disabled={saving}
-                onBlur={(event) => onUpdateField(block, "points", Number(event.target.value))}
-                style={numberInputStyle}
-              />
-            </label>
+
+          <div className="item-actions">
+            <input
+              type="number"
+              min={1}
+              max={50}
+              defaultValue={block.question_count}
+              disabled={saving}
+              aria-label={`Số câu ${block.title}`}
+              className="field-input"
+              onBlur={(event) => onUpdateField(block, "question_count", Number(event.target.value))}
+            />
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step={0.5}
+              defaultValue={block.points}
+              disabled={saving}
+              aria-label={`Điểm ${block.title}`}
+              className="field-input"
+              onBlur={(event) => onUpdateField(block, "points", Number(event.target.value))}
+            />
+            <button
+              type="button"
+              aria-label={`Lên ${block.title}`}
+              disabled={saving || index === 0}
+              onClick={() => requestReorder(block.id, blocks[index - 1]!.id)}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              aria-label={`Xuống ${block.title}`}
+              disabled={saving || index === blocks.length - 1}
+              onClick={() => requestReorder(blocks[index + 1]!.id, block.id)}
+            >
+              ↓
+            </button>
+            <button type="button" aria-label={`Xóa ${block.title}`} disabled={saving} onClick={() => onDelete(block.id)}>
+              ✕
+            </button>
           </div>
         </article>
       ))}
     </div>
   );
 }
-
-const iconButtonStyle: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  border: "1px solid var(--border)",
-  borderRadius: 6,
-  background: "#fff",
-};
-
-const numberInputStyle: React.CSSProperties = {
-  width: 60,
-  marginLeft: 4,
-};
