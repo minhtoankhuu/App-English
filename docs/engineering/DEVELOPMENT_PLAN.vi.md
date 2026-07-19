@@ -67,7 +67,7 @@ docker compose up --build
 ### Giai đoạn 1A — Nền móng (tuần 1–3)
 
 - [x] Skeleton backend (FastAPI + SQLAlchemy + Alembic) và frontend (Vite + React + TypeScript strict), Docker Compose (Postgres/pgvector + backend + frontend), chạy được bằng `docker compose up` — nhánh `feat/1a-skeleton`.
-- [x] Auth session cookie + bcrypt, phân quyền Admin/Giáo viên (`require_admin`/`require_any_role`).
+- [x] Auth session cookie + bcrypt, phân quyền Admin/Giáo viên: `require_admin` khóa API quản trị, `require_teacher` khóa toàn bộ `/exams/*`, còn `require_any_role` chỉ dùng cho tài nguyên chung như catalog/usage.
 - [x] Danh mục học thuật + **seed toàn bộ dữ liệu đã duyệt**: 5 trình độ CEFR, 5 chứng chỉ Cambridge quy đổi, 3 cấp học, 12 khối lớp + gợi ý trình độ, 78 Unit Global Success (lớp 6–12), 12 thì + 20 cấu trúc câu (32 `GrammarPoint`), 10 dạng bài, quy tắc độ dài câu/bài đọc. Idempotent, đã kiểm chứng qua pytest (16 test) và chạy thật trong container.
 - [ ] Nhập tài liệu PDF/DOCX/text → trích xuất → chunk + metadata → full-text search.
 - [ ] **Fixture bank:** số hóa đề Global Success 7 – Unit 3 thành JSON đúng schema — vừa là dữ liệu cho `MockAIProvider`, vừa là golden test sau này.
@@ -91,9 +91,9 @@ docker compose up --build
 ### Giai đoạn 1C — Hoàn thiện không-AI (tuần 8–9)
 
 - [x] Mã đề A/B/C/D — đã làm trong 1B (xem trên).
-- [x] Admin quản lý tài khoản giáo viên (nhánh `feat/1c-admin-teacher-accounts`): API `/admin/teachers` (tạo, khóa/mở lại, đặt lại mật khẩu — không xóa cứng), trang frontend riêng, dashboard tổng quan `/admin`, điều hướng phân theo vai trò (Admin thấy mục "Quản trị", Giáo viên không thấy), gate cả server (403) lẫn client (redirect). 8 test pytest kiểm phân quyền + CRUD; frontend có test tự động cho menu, route và trạng thái dashboard.
+- [x] Admin quản lý tài khoản giáo viên (nhánh `feat/1c-admin-teacher-accounts`): API `/admin/teachers` (tạo, khóa/mở lại, đặt lại mật khẩu — không xóa cứng), trang frontend riêng, dashboard tổng quan `/admin`. Phân tách hai chiều ở cả server và client: Admin chỉ thấy workflow quản trị và bị chặn khỏi `/exams/*`; Giáo viên chỉ thấy workflow đề thi và bị chặn khỏi `/admin/*`.
 - [x] Audit log quản trị tài khoản giáo viên (nhánh `feat/1c-audit-log`): append-only, cùng transaction với thao tác tạo/cập nhật, không lưu mật khẩu/hash/session; API phân trang và trang Admin riêng.
-- [x] Hạn mức sinh đề: mỗi giáo viên 10 lượt gọi AI/ngày theo `Asia/Bangkok`; sinh toàn đề tính theo số block, sinh lại tính 1 lượt, chặn nguyên tử bằng HTTP 429 khi không đủ; Admin không giới hạn. Frontend hiển thị số lượt còn lại và làm mới sau thao tác sinh thành công.
+- [x] Hạn mức sinh đề: mỗi giáo viên 10 lượt gọi AI/ngày theo `Asia/Bangkok`; sinh toàn đề tính theo số block, sinh lại tính 1 lượt, chặn nguyên tử bằng HTTP 429 khi không đủ. Admin không dùng workflow sinh đề. Frontend hiển thị số lượt còn lại cho Giáo viên và làm mới sau thao tác sinh thành công.
 - [ ] Màn hình chỉnh sửa Admin còn lại theo prototype: dashboard tổng quan đã có và hiển thị rõ trạng thái; kho kiến thức, dạng bài & template, thư viện hình ảnh, cấu hình AI vẫn chưa có chức năng chỉnh sửa vì các khối này gắn với RAG và chờ cùng Giai đoạn 1D.
 - [x] Kéo-thả thật cho sắp xếp block, giữ nút Lên/Xuống làm phương án hỗ trợ; xem trước A4 nhiều trang động ở frontend. Preview lấy từ API read-only `GET /exams/{id}/preview`, không dùng quota sinh đề; thứ tự thay đổi được cập nhật lạc quan và rollback khi API reorder lỗi.
 - [ ] Golden test tự động hoá (hiện đang là test thủ công trong pytest); đóng gói VPS; giáo viên dùng thử toàn luồng trên mock.
