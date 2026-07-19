@@ -17,7 +17,7 @@ export function Layout({ user, onLogout }: LayoutProps) {
 
   const navLinks = [{ to: "/exams", label: "Đề của tôi" }];
   if (user.role === "admin") {
-    navLinks.push({ to: "/admin/teachers", label: "Quản lý tài khoản" });
+    navLinks.push({ to: "/admin", label: "Quản trị" });
   }
 
   return (

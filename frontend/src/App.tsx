@@ -7,6 +7,7 @@ import { ExamListPage } from "./pages/ExamListPage";
 import { ExamBuilderPage } from "./pages/ExamBuilderPage";
 import { ExamReviewPage } from "./pages/ExamReviewPage";
 import { ExamExportPage } from "./pages/ExamExportPage";
+import { AdminOverviewPage } from "./pages/AdminOverviewPage";
 import { AdminTeachersPage } from "./pages/AdminTeachersPage";
 import type { UserOut } from "./types/auth";
 
@@ -37,6 +38,8 @@ function App() {
     );
   }
 
+  const isAdmin = user.role === "admin";
+
   return (
     <BrowserRouter>
       <Routes>
@@ -46,9 +49,10 @@ function App() {
           <Route path="/exams/:examId/builder" element={<ExamBuilderPage />} />
           <Route path="/exams/:examId/review" element={<ExamReviewPage />} />
           <Route path="/exams/:examId/export" element={<ExamExportPage />} />
+          <Route path="/admin" element={isAdmin ? <AdminOverviewPage /> : <Navigate to="/exams" replace />} />
           <Route
             path="/admin/teachers"
-            element={user.role === "admin" ? <AdminTeachersPage /> : <Navigate to="/exams" replace />}
+            element={isAdmin ? <AdminTeachersPage /> : <Navigate to="/exams" replace />}
           />
           <Route path="*" element={<Navigate to="/exams" replace />} />
         </Route>
