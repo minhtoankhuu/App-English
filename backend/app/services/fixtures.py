@@ -70,6 +70,96 @@ GOLDEN_UNIT3_QUESTIONS: dict[str, list[dict]] = {
             "source_ref": "GS7-U3 §11",
         }
     ],
+    "stress": [
+        {
+            "prompt_text": "Choose the word that has a different stress pattern.",
+            "options": _opts(("active", False), ("future", False), ("collect", True), ("problems", False)),
+            "answer_text": "C. collect",
+            "explanation": (
+                '"collect" /kəˈlekt/ trọng âm rơi vào âm tiết thứ hai, ba từ còn lại '
+                '("active" /ˈæktɪv/, "future" /ˈfjuːtʃər/, "problems" /ˈprɑːbləmz/) trọng âm rơi vào âm tiết đầu.'
+            ),
+            "target_knowledge": "Trọng âm 2 âm tiết — từ vựng Unit 3",
+            "source_ref": "GS7-U3 §12",
+        }
+    ],
+    "matching": [
+        {
+            "prompt_text": "Match the word (1-4) with its meaning (A-D).",
+            "options": _opts(
+                ("1. volunteer — A. a person who helps others without being paid", True),
+                ("2. donate — B. to give money or goods to help people in need", False),
+                ("3. elderly — C. old people who need care and support", False),
+                ("4. charity — D. an organisation that raises money to help people in need", False),
+            ),
+            "answer_text": "1-A, 2-B, 3-C, 4-D",
+            "explanation": "Nối đúng 4 từ vựng chủ đề hoạt động tình nguyện của Unit 3 với định nghĩa tiếng Anh tương ứng.",
+            "target_knowledge": "Từ vựng Unit 3: volunteer, donate, elderly, charity",
+            "source_ref": "GS7-U3 §6",
+        }
+    ],
+    "gap_fill": [
+        {
+            "prompt_text": (
+                "Every Christmas, our club collects old clothes to ______ to poor children "
+                "in mountainous areas."
+            ),
+            "answer_text": "donate",
+            "explanation": '"donate" (v): quyên góp — phù hợp ngữ cảnh tặng quần áo cũ cho trẻ em nghèo.',
+            "target_knowledge": "Từ vựng Unit 3: donate",
+            "source_ref": "GS7-U3 §7",
+        }
+    ],
+    "cloze_test": [
+        {
+            "prompt_text": "Choose the best option to complete the passage. (blank 1)",
+            "passage_text": (
+                "Every summer, our youth club organises a (1) ______ service programme for teenagers "
+                "in the neighbourhood. Volunteers visit elderly people, donate old clothes to needy "
+                "families, and collect rubbish along the river bank."
+            ),
+            "options": _opts(("community", True), ("communities", False), ("communal", False), ("communicate", False)),
+            "answer_text": "A. community",
+            "explanation": '"community service" là cụm danh từ ghép quen thuộc của Unit 3 (dịch vụ cộng đồng).',
+            "target_knowledge": "Cụm từ community service",
+            "source_ref": "GS7-U3 §9",
+        }
+    ],
+    "sign_reading": [
+        {
+            "prompt_text": (
+                'A sign outside a supermarket reads: "Donation box for the elderly — please leave old '
+                'clothes and blankets here." What is the sign asking people to do?'
+            ),
+            "options": _opts(
+                ("To leave old clothes and blankets for elderly people in need", True),
+                ("To buy new clothes at a discount", False),
+                ("To donate money only, not clothes", False),
+                ("To return borrowed blankets", False),
+            ),
+            "answer_text": "A. To leave old clothes and blankets for elderly people in need",
+            "explanation": (
+                '"Donation box for the elderly" nghĩa là thùng quyên góp cho người cao tuổi — biển '
+                "mời để lại quần áo/chăn cũ. (Mô tả biển báo bằng văn bản — thư viện hình ảnh chưa có, chờ RAG.)"
+            ),
+            "target_knowledge": "Đọc biển báo: donation box",
+            "source_ref": "GS7-U3 §10",
+        }
+    ],
+    "word_form": [
+        {
+            "prompt_text": (
+                "Making a ______ (DECIDE) to help others is the first step to becoming a good volunteer."
+            ),
+            "answer_text": "decision",
+            "explanation": (
+                "Cần danh từ sau mạo từ 'a' — chuyển DECIDE (v) thành decision (n), theo cặp "
+                "decide/decision trong mục Word Form của Unit 3."
+            ),
+            "target_knowledge": "Word form: verb → noun (decide → decision)",
+            "source_ref": "GS7-U3 §4",
+        }
+    ],
 }
 
 # Template chung cho 10 dạng bài — dùng khi không khớp golden test hoặc cần thêm câu.
