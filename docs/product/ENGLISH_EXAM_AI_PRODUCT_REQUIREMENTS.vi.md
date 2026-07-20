@@ -145,13 +145,13 @@ Dựa trên đề tham chiếu Global Success 7 – Unit 3, thư viện đầu t
 - Chọn từ có phần gạch chân phát âm khác.
 - Chọn từ có trọng âm khác.
 - Trắc nghiệm ngữ pháp, từ vựng và giao tiếp.
-- Đọc biển báo/thông báo có hình ảnh.
+- Đọc biển báo/thông báo (mô tả bằng văn bản, không dùng ảnh thật).
 - Cloze test chọn từ điền đoạn văn.
 - Đọc hiểu True/False kết hợp câu hỏi trắc nghiệm.
 - Word form/verb form.
 - Bài tập dựa trên mục từ điển.
 - Viết lại câu theo từ gợi ý hoặc cấu trúc tương đương.
-- Nối (matching) từ/cụm từ với nghĩa, hình ảnh hoặc vế câu.
+- Nối (matching) từ/cụm từ với nghĩa hoặc vế câu.
 - Điền từ vào chỗ trống không cho sẵn lựa chọn (gap fill).
 
 Cấu trúc và renderer của dạng chuẩn được kiểm soát bằng code. Admin được thay prompt, quy tắc và tạo biến thể; dạng hoàn toàn mới có cấu trúc đặc biệt có thể cần bổ sung code.
@@ -161,7 +161,7 @@ Cấu trúc và renderer của dạng chuẩn được kiểm soát bằng code.
 Một số dạng bài có rủi ro kỹ thuật đã được nhận diện và phải xử lý ngay trong thiết kế:
 
 - **Phát âm và trọng âm:** LLM sai nhiều ở kiến thức ngữ âm. Đáp án của hai dạng này phải được kiểm chứng bằng từ điển phát âm máy đọc được (ví dụ CMU Pronouncing Dictionary hoặc dữ liệu IPA tương đương) trong Validation Engine, không tin kết quả LLM đơn thuần. Câu không kiểm chứng được bị đánh dấu cảnh báo bắt buộc giáo viên xem.
-- **Đọc biển báo/thông báo có hình:** AI không sinh được hình ảnh biển báo đạt chất lượng in. Hình lấy từ thư viện hình ảnh do Admin quản lý (upload, gắn metadata chủ đề/Unit); AI chỉ chọn hình từ thư viện và sinh câu hỏi xoay quanh hình đó. Nếu thư viện chưa có hình phù hợp, block báo thiếu nguồn thay vì tự sinh.
+- **Đọc biển báo/thông báo:** AI không sinh được hình ảnh biển báo đạt chất lượng in, và dự án **không xây thư viện hình ảnh do Admin quản lý** (quyết định #18, mục 23.3) — mặc định dạng này mô tả biển báo/thông báo bằng văn bản trong prompt (ví dụ: `A sign at the park gate reads: "..."`). Nếu sau này cần ảnh thật, hướng đi là để **giáo viên tự tải ảnh lên gắn vào từng câu/block lúc tạo đề** (không qua thư viện dùng chung) — chưa triển khai, chỉ ghi nhận hướng đi.
 
 ### 7.4 Trình độ mục tiêu
 
@@ -534,6 +534,7 @@ Giới hạn chủ đích: chưa có màn hình bước 1 tách riêng (chọn n
 | 15 | Tích hợp LLM/API key làm sau cùng (giai đoạn 1D), sau khi UI + BE + FE hoàn tất; phát triển trên MockAIProvider với fixture từ đề Unit 3 |
 | 16 | Duyệt/khóa câu dùng PATCH tường minh, không dùng toggle (an toàn khi mất mạng/double-click); trùng lặp dùng fuzzy text-match tạm thời, cosine embedding chờ RAG |
 | 17 | Admin quản lý tài khoản giáo viên: tạo, khóa/mở lại (không xóa cứng), đặt lại mật khẩu; chỉ áp dụng cho vai trò teacher, không dùng để quản trị tài khoản admin khác |
+| 18 | (20/07/2026) Bỏ kế hoạch thư viện hình ảnh **do Admin quản lý tập trung** — xóa mục "Thư viện hình ảnh" khỏi dashboard Admin và khỏi lộ trình 1D. Dạng "Đọc biển báo/thông báo" mặc định vẫn mô tả bằng văn bản (đã là cách `MockAIProvider` sinh câu hiện tại). Nếu sau này cần ảnh thật: hướng đi là **giáo viên tự tải ảnh lên gắn vào từng câu/block lúc tạo đề**, không qua thư viện dùng chung — chỉ ghi nhận hướng đi, chưa lên kế hoạch triển khai |
 
 ### 23.4 Việc tiếp theo
 
