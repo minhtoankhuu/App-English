@@ -2,7 +2,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
@@ -19,6 +19,10 @@ TEST_DATABASE_URL = os.environ.get(
 @pytest.fixture(scope="session")
 def engine():
     eng = create_engine(TEST_DATABASE_URL)
+    with eng.begin() as conn:
+        # create_all() không tự tạo extension — cột kiểu Vector (pgvector) cần extension
+        # có sẵn trước khi tạo bảng. Không chạy qua Alembic ở test nên phải làm thủ công.
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(eng)
     yield eng
     Base.metadata.drop_all(eng)

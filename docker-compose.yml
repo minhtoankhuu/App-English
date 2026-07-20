@@ -30,6 +30,7 @@ services:
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@examcraft.dev}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ChangeMe123!}
       KNOWLEDGE_BASE_DIR: /knowledge_base
+      AI_CONFIG_ENCRYPTION_KEY: ${AI_CONFIG_ENCRYPTION_KEY:-RzeAmI7PNoRVVxdZyyEaHC1Asjbmt2Af7jWpUvhRdug=}
     volumes:
       - ./Knowledge_Base:/knowledge_base:ro
     ports:

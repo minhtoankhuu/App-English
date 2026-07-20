@@ -1,11 +1,15 @@
 import enum
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, Computed, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Boolean, Computed, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+EMBEDDING_DIM = 1536  # OpenAI text-embedding-3-small
 
 
 class DocumentChunkType(str, enum.Enum):
@@ -70,5 +74,8 @@ class KnowledgeChunk(Base):
     search_vector: Mapped[str | None] = mapped_column(
         TSVECTOR, Computed("to_tsvector('simple', raw_text)", persisted=True), nullable=True
     )
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     document: Mapped[KnowledgeDocument] = relationship(back_populates="chunks")
