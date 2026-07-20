@@ -611,7 +611,7 @@ describe("ExamBuilderPage", () => {
 
     expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
       exercise_type_id: "type-2",
-      title: "Word form",
+      title: "WORD FORM",
       question_count: 5,
       points: 1,
     });

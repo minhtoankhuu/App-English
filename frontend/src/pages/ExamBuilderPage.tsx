@@ -24,6 +24,22 @@ import { StepsIndicator } from "../components/StepsIndicator";
 import { Modal } from "../components/Modal";
 import { useUsage } from "../usage/UsageContext";
 
+// Tiêu đề mặc định cho phần đề (hiển thị trong đề xuất ra) theo đúng quy ước tiếng Anh
+// của đề thi thật — nhãn tiếng Việt ở lưới chọn dạng bài chỉ dùng cho UI giáo viên.
+// Giáo viên vẫn đổi được qua ô "Tiêu đề phần" trong popup chỉnh sửa.
+const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
+  pronunciation: "PRONUNCIATION",
+  stress: "STRESS",
+  multiple_choice: "MULTIPLE CHOICE",
+  matching: "MATCHING",
+  gap_fill: "GAP FILL",
+  cloze_test: "CLOZE TEST",
+  reading_true_false: "READING COMPREHENSION",
+  sign_reading: "PICTURE / SIGN READING",
+  word_form: "WORD FORM",
+  sentence_rewrite: "SENTENCE TRANSFORMATION",
+};
+
 interface RouteToken {
   examId: string;
   generation: number;
@@ -246,7 +262,7 @@ export function ExamBuilderPage() {
       } else {
         await addBlock(target.examId, {
           exercise_type_id: type.id,
-          title: type.name,
+          title: DEFAULT_BLOCK_TITLE_BY_CODE[type.code] ?? type.name,
           question_count: 5,
           points: 1,
         });
