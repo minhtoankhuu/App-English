@@ -49,9 +49,6 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
               </div>
               <div className="paper-title-block">
                 <strong>{preview.title.toUpperCase()}</strong>
-                <p>
-                  English {preview.grade_number} · Level {preview.level_code} · Time: 45 minutes
-                </p>
               </div>
             </header>
 

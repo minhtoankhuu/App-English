@@ -94,8 +94,6 @@ const exam: ExamDetailOut = {
 const preview: ExamPreviewOut = {
   exam_id: "exam-1",
   title: "Đề kiểm tra",
-  grade_number: 7,
-  level_code: "A2",
   total_questions: 10,
   total_points: "2.0",
   page_count: 1,

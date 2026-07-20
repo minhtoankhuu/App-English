@@ -98,10 +98,6 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     title_run = title_p.add_run(f"{exam.title.upper()} — MÃ ĐỀ {variant.code}")
     _set_font(title_run, size=14, bold=True)
 
-    meta_p = _new_paragraph(doc, center=True)
-    meta_run = meta_p.add_run(f"English {exam.grade.number} · Level {exam.level.code} · Time: 45 minutes")
-    _set_font(meta_run)
-
     ordered_blocks = sorted(exam.blocks, key=lambda b: b.order_no)
     question_no = 0
     for idx, block in enumerate(ordered_blocks):

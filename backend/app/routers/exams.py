@@ -189,13 +189,7 @@ def get_exam_preview(
     exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> dict[str, object]:
     exam = _get_owned_exam(db, exam_id, current_user)
-    return {
-        "exam_id": exam.id,
-        "title": exam.title,
-        "grade_number": exam.grade.number,
-        "level_code": exam.level.code,
-        **build_preview(exam),
-    }
+    return {"exam_id": exam.id, "title": exam.title, **build_preview(exam)}
 
 
 @router.get("/{exam_id}", response_model=ExamDetailOut)
