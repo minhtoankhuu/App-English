@@ -80,17 +80,13 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     section.top_margin = section.bottom_margin = Cm(MARGIN_CM)
     section.left_margin = section.right_margin = Cm(MARGIN_CM)
 
-    school_line_p = _new_paragraph(doc)
-    school_line_p.paragraph_format.tab_stops.add_tab_stop(Cm(USABLE_WIDTH_CM - 3.0))
-    school_run = school_line_p.add_run("School: ..........................................")
-    _set_font(school_run)
-    school_line_p.add_run().add_tab()
-    score_run = school_line_p.add_run("Mark:")
-    _set_font(score_run, bold=True)
-
     student_line_p = _new_paragraph(doc)
+    student_line_p.paragraph_format.tab_stops.add_tab_stop(Cm(USABLE_WIDTH_CM - 3.0))
     student_run = student_line_p.add_run("Full name: .......................................... Class: ..........")
     _set_font(student_run)
+    student_line_p.add_run().add_tab()
+    score_run = student_line_p.add_run("Mark:")
+    _set_font(score_run, bold=True)
 
     _new_paragraph(doc)
 

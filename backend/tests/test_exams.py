@@ -214,7 +214,7 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     assert "UNIT 3 — REVISION TEST" in full_text
     assert "MÃ ĐỀ A" in full_text
     assert "PRONUNCIATION" in full_text
-    assert "School:" in full_text
+    assert "School:" not in full_text
     assert "Full name:" in full_text
     assert "Mark:" in full_text
     # đáp án tô đỏ: chữ "bread" xuất hiện, và có ít nhất 1 run màu đỏ trong file

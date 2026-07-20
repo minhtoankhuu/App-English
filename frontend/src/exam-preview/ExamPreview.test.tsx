@@ -108,27 +108,37 @@ describe("ExamPreview", () => {
 
     const page = screen.getByRole("article", { name: "Trang 1/1" });
     expect(within(page).getByText("ĐỀ KIỂM TRA")).toBeInTheDocument();
-    expect(within(page).getByText("School: ..........................................")).toBeInTheDocument();
+    expect(within(page).queryByText(/School:/)).not.toBeInTheDocument();
+    expect(within(page).getByText("Full name: .......................................... Class: ..........")).toBeInTheDocument();
     expect(within(page).getByText("Mark")).toBeInTheDocument();
     expect(within(page).getByText("Thêm phần để xem trước đề")).toBeInTheDocument();
     expect(within(page).getByText("Trang 1/1")).toBeInTheDocument();
   });
 
-  it("renders numbered A4 pages with placeholders", () => {
-    render(<ExamPreview preview={twoPagePreview} loading={false} error={null} onRetry={retry} />);
+  it("does not show pagination buttons for a single-page preview", () => {
+    render(<ExamPreview preview={emptyPreview} loading={false} error={null} onRetry={retry} />);
 
-    expect(screen.getByText("Trang 1/2")).toBeInTheDocument();
-    expect(screen.getByText("Trang 2/2")).toBeInTheDocument();
-    const firstPage = screen.getByRole("article", { name: "Trang 1/2" });
-    expect(firstPage).toHaveClass("paper");
-    expect(screen.getByText("3. ................................................................")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Chọn trang xem trước" })).not.toBeInTheDocument();
   });
 
-  it("renders each block heading with its points inline, singular when the value is 1", () => {
+  it("shows one page at a time and switches page via numbered navigation buttons", async () => {
+    const user = userEvent.setup();
     render(<ExamPreview preview={twoPagePreview} loading={false} error={null} onRetry={retry} />);
 
+    expect(screen.getByRole("article", { name: "Trang 1/2" })).toBeInTheDocument();
+    expect(screen.queryByText("Trang 2/2")).not.toBeInTheDocument();
+    expect(screen.getByText("ĐỀ KIỂM TRA HỌC KỲ")).toBeInTheDocument();
     expect(screen.getByText("I. Đọc hiểu (1.0 point)")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "2" }));
+
+    expect(screen.getByRole("article", { name: "Trang 2/2" })).toBeInTheDocument();
+    expect(screen.queryByText("Trang 1/2")).not.toBeInTheDocument();
+    // Trang tiếp theo không lặp lại tiêu đề/khung họ tên — chỉ tiếp tục nội dung
+    expect(screen.queryByText("ĐỀ KIỂM TRA HỌC KỲ")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Full name:/)).not.toBeInTheDocument();
     expect(screen.getByText("II. Ngữ pháp (1.0 point)")).toBeInTheDocument();
+    expect(screen.getByText("3. ................................................................")).toBeInTheDocument();
   });
 
   it("renders actual questions and shows a repeated passage once per block", () => {

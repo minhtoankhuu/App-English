@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ExamPreviewOut, PreviewBlockOut } from "../types/examPreview";
 
 interface ExamPreviewProps {
@@ -8,6 +9,18 @@ interface ExamPreviewProps {
 }
 
 export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewProps) {
+  const [activePage, setActivePage] = useState(1);
+
+  useEffect(() => {
+    setActivePage(1);
+  }, [preview?.exam_id]);
+
+  useEffect(() => {
+    if (preview && activePage > preview.page_count) {
+      setActivePage(preview.page_count);
+    }
+  }, [preview, activePage]);
+
   if (loading) {
     return <p style={{ color: "var(--muted)" }}>Đang dựng bản xem trước...</p>;
   }
@@ -25,6 +38,9 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
 
   if (!preview) return null;
 
+  const currentPage = preview.pages[activePage - 1] ?? preview.pages[0];
+  if (!currentPage) return null;
+
   return (
     <div className="preview-panel" aria-label="Bản xem trước đề A4">
       <div className="section-heading preview-heading">
@@ -36,38 +52,51 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 18 }}>
-        {preview.pages.map((page) => (
-          <article key={page.page_number} aria-label={`Trang ${page.page_number}/${preview.page_count}`} className="paper">
-            <header className="paper-header">
-              <div className="paper-header-top">
-                <div className="paper-header-fields">
-                  <p>School: ..........................................</p>
-                  <p>Full name: .......................................... Class: ..........</p>
-                </div>
-                <div className="paper-score-box">Mark</div>
+      <article aria-label={`Trang ${currentPage.page_number}/${preview.page_count}`} className="paper">
+        {currentPage.page_number === 1 && (
+          <header className="paper-header">
+            <div className="paper-header-top">
+              <div className="paper-header-fields">
+                <p>Full name: .......................................... Class: ..........</p>
               </div>
-              <div className="paper-title-block">
-                <strong>{preview.title.toUpperCase()}</strong>
-              </div>
-            </header>
-
-            <div style={{ flex: 1 }}>
-              {page.blocks.length === 0 ? (
-                <p style={{ margin: "16px 0 0", color: "var(--muted)", fontSize: 13 }}>Thêm phần để xem trước đề</p>
-              ) : (
-                page.blocks.map((block) => (
-                  <PreviewBlock key={`${block.block_id}-${block.question_start ?? "empty"}`} block={block} />
-                ))
-              )}
+              <div className="paper-score-box">Mark</div>
             </div>
+            <div className="paper-title-block">
+              <strong>{preview.title.toUpperCase()}</strong>
+            </div>
+          </header>
+        )}
 
-            <footer className="paper-footer">
-              Trang {page.page_number}/{preview.page_count}
-            </footer>
-          </article>
-        ))}
-      </div>
+        <div style={{ flex: 1 }}>
+          {currentPage.blocks.length === 0 ? (
+            <p style={{ margin: "16px 0 0", color: "var(--muted)", fontSize: 13 }}>Thêm phần để xem trước đề</p>
+          ) : (
+            currentPage.blocks.map((block) => (
+              <PreviewBlock key={`${block.block_id}-${block.question_start ?? "empty"}`} block={block} />
+            ))
+          )}
+        </div>
+
+        <footer className="paper-footer">
+          Trang {currentPage.page_number}/{preview.page_count}
+        </footer>
+      </article>
+
+      {preview.page_count > 1 && (
+        <nav className="paper-pagination" aria-label="Chọn trang xem trước">
+          {preview.pages.map((page) => (
+            <button
+              key={page.page_number}
+              type="button"
+              className={`button compact ${page.page_number === activePage ? "primary" : "secondary"}`}
+              aria-current={page.page_number === activePage ? "page" : undefined}
+              onClick={() => setActivePage(page.page_number)}
+            >
+              {page.page_number}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <dl className="metrics">
         <div>
