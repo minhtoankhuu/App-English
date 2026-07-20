@@ -31,6 +31,13 @@ class KnowledgeUnitRefOut(BaseModel):
     grade_number: int
 
 
+class KnowledgeGrammarPointRefOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    group_name: str
+    topic_name: str
+
+
 class KnowledgeDocumentAdminOut(BaseModel):
     id: uuid.UUID
     file_name: str
@@ -38,7 +45,8 @@ class KnowledgeDocumentAdminOut(BaseModel):
     chunk_count: int
     created_at: datetime
     updated_at: datetime
-    unit: KnowledgeUnitRefOut
+    unit: KnowledgeUnitRefOut | None
+    grammar_point: KnowledgeGrammarPointRefOut | None
 
 
 class KnowledgeDocumentUpdateRequest(BaseModel):

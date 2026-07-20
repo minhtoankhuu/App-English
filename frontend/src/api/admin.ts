@@ -20,9 +20,15 @@ export const deleteTeacher = (teacherId: string): Promise<void> =>
 
 export const listKnowledgeDocuments = (): Promise<KnowledgeDocumentOut[]> => apiGet("/admin/knowledge-documents");
 
-export const uploadKnowledgeDocument = (unitId: string, file: File): Promise<KnowledgeDocumentOut> => {
+export type KnowledgeDocumentSource = { unitId: string } | { grammarPointId: string };
+
+export const uploadKnowledgeDocument = (source: KnowledgeDocumentSource, file: File): Promise<KnowledgeDocumentOut> => {
   const formData = new FormData();
-  formData.append("unit_id", unitId);
+  if ("unitId" in source) {
+    formData.append("unit_id", source.unitId);
+  } else {
+    formData.append("grammar_point_id", source.grammarPointId);
+  }
   formData.append("file", file);
   return apiUpload("/admin/knowledge-documents", formData);
 };

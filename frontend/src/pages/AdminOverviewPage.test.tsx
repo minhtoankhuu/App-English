@@ -30,6 +30,7 @@ const knowledgeDocuments: KnowledgeDocumentOut[] = [
     created_at: "2026-07-20T00:00:00Z",
     updated_at: "2026-07-20T00:00:00Z",
     unit: { id: "unit-3", order_no: 3, title: "Community Service", grade_number: 7 },
+    grammar_point: null,
   },
 ];
 

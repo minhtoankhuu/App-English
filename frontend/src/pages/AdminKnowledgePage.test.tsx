@@ -8,8 +8,9 @@ import {
   updateKnowledgeDocument,
   uploadKnowledgeDocument,
 } from "../api/admin";
-import { listGrades, listUnitsForGrade } from "../api/catalog";
+import { listGrades, listGrammarTopics, listUnitsForGrade } from "../api/catalog";
 import type { KnowledgeDocumentOut } from "../types/admin";
+import type { GrammarTopicOut } from "../types/catalog";
 import { AdminKnowledgePage } from "./AdminKnowledgePage";
 
 vi.mock("../api/admin", () => ({
@@ -23,6 +24,7 @@ vi.mock("../api/admin", () => ({
 vi.mock("../api/catalog", () => ({
   listGrades: vi.fn(),
   listUnitsForGrade: vi.fn(),
+  listGrammarTopics: vi.fn(),
 }));
 
 const document1: KnowledgeDocumentOut = {
@@ -33,6 +35,7 @@ const document1: KnowledgeDocumentOut = {
   created_at: "2026-07-20T00:00:00Z",
   updated_at: "2026-07-20T00:00:00Z",
   unit: { id: "unit-3", order_no: 3, title: "Community Service", grade_number: 7 },
+  grammar_point: null,
 };
 
 const document2: KnowledgeDocumentOut = {
@@ -43,6 +46,32 @@ const document2: KnowledgeDocumentOut = {
   created_at: "2026-07-20T00:00:00Z",
   updated_at: "2026-07-20T00:00:00Z",
   unit: { id: "unit-8-1", order_no: 1, title: "Leisure Time", grade_number: 8 },
+  grammar_point: null,
+};
+
+const grammarDocument: KnowledgeDocumentOut = {
+  id: "doc-3",
+  file_name: "present-simple.docx",
+  is_published: true,
+  chunk_count: 6,
+  created_at: "2026-07-20T00:00:00Z",
+  updated_at: "2026-07-20T00:00:00Z",
+  unit: null,
+  grammar_point: { id: "point-1", name: "Present Simple", group_name: "Hiện tại", topic_name: "Tense" },
+};
+
+const tenseTopic: GrammarTopicOut = {
+  id: "topic-1",
+  code: "tense",
+  name: "Tense — 12 thì tiếng Anh",
+  groups: [
+    {
+      id: "group-1",
+      name: "Hiện tại",
+      order_no: 1,
+      points: [{ id: "point-1", name: "Present Simple", order_no: 1, min_level: { id: "level-a1", code: "A1", rank: 1 } }],
+    },
+  ],
 };
 
 describe("AdminKnowledgePage", () => {
@@ -54,10 +83,12 @@ describe("AdminKnowledgePage", () => {
     vi.mocked(listKnowledgeDocumentChunks).mockReset();
     vi.mocked(listGrades).mockReset();
     vi.mocked(listUnitsForGrade).mockReset();
+    vi.mocked(listGrammarTopics).mockReset();
     vi.mocked(listGrades).mockResolvedValue([
       { id: "grade-7", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-a2", code: "A2", rank: 2 } },
     ]);
     vi.mocked(listUnitsForGrade).mockResolvedValue([{ id: "unit-3", order_no: 3, title: "Community Service" }]);
+    vi.mocked(listGrammarTopics).mockResolvedValue([tenseTopic]);
     vi.spyOn(window, "confirm").mockReset();
   });
 
@@ -99,8 +130,44 @@ describe("AdminKnowledgePage", () => {
 
     await user.click(screen.getByRole("button", { name: "Nhập tài liệu" }));
 
-    expect(uploadKnowledgeDocument).toHaveBeenCalledWith("unit-3", file);
+    expect(uploadKnowledgeDocument).toHaveBeenCalledWith({ unitId: "unit-3" }, file);
     expect(listKnowledgeDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it("nhập tài liệu ngữ pháp theo GrammarPoint", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([]);
+    vi.mocked(uploadKnowledgeDocument).mockResolvedValue(grammarDocument);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("Chưa có tài liệu nào.");
+
+    await user.click(screen.getByRole("button", { name: "+ Nhập tài liệu" }));
+    await user.selectOptions(screen.getByLabelText("Loại nguồn"), "Kiến thức chung (ngữ pháp)");
+    await screen.findByRole("option", { name: "Present Simple" });
+
+    const file = new File(["nội dung"], "present-simple.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    await user.upload(screen.getByLabelText("File tài liệu (.docx)"), file);
+    await user.click(screen.getByRole("button", { name: "Nhập tài liệu" }));
+
+    expect(uploadKnowledgeDocument).toHaveBeenCalledWith({ grammarPointId: "point-1" }, file);
+  });
+
+  it("hiển thị nguồn Kiến thức chung và lọc theo loại nguồn", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1, grammarDocument]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    expect(screen.getByText(/Kiến thức chung · Present Simple/)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Lọc theo loại nguồn"), "Global Success (theo Unit)");
+
+    expect(screen.queryByText("present-simple.docx")).not.toBeInTheDocument();
+    expect(screen.getByText("GS7 - UNIT 3 - LESSON.docx")).toBeInTheDocument();
   });
 
   it("ẩn/xuất bản tài liệu", async () => {
@@ -188,6 +255,32 @@ describe("AdminKnowledgePage", () => {
     expect(listKnowledgeDocumentChunks).toHaveBeenCalledWith("doc-1");
     expect(await screen.findByText(/volunteer/)).toBeInTheDocument();
     expect(screen.getByText("Từ vựng")).toBeInTheDocument();
+  });
+
+  it("hiển thị đoạn có bảng dưới dạng bảng thật thay vì gộp dấu |", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1]);
+    vi.mocked(listKnowledgeDocumentChunks).mockResolvedValue([
+      {
+        id: "chunk-table",
+        order_no: 1,
+        chunk_type: "grammar",
+        section_title: "GRAMMAR AND STRUCTURES",
+        raw_text: "Positive | Comparative\ngood | better",
+        structured: { table: [["Positive", "Comparative"], ["good", "better"]] },
+      },
+    ]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    await user.click(screen.getByRole("button", { name: "Xem" }));
+
+    const cell = await screen.findByRole("cell", { name: "Comparative" });
+    expect(cell).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "good" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "better" })).toBeInTheDocument();
+    expect(screen.queryByText("Positive | Comparative")).not.toBeInTheDocument();
   });
 
   it("mặc định sắp xếp theo Khối / Unit tăng dần", async () => {

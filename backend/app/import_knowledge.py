@@ -8,6 +8,7 @@ Chạy độc lập: `python -m app.import_knowledge` — không gộp vào seed
 nhập tài liệu lớn, không phải danh mục tĩnh (tránh làm chậm mọi lần khởi động).
 """
 
+import argparse
 import hashlib
 import re
 from dataclasses import dataclass
@@ -44,8 +45,12 @@ def _unit_number(file_name: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def import_global_success(db: Session, base_path: Path) -> ImportStats:
-    """`base_path` là gốc Knowledge_Base/ — file thật nằm dưới `Global Success/G{6,7,8}/`."""
+def import_global_success(db: Session, base_path: Path, force: bool = False) -> ImportStats:
+    """`base_path` là gốc Knowledge_Base/ — file thật nằm dưới `Global Success/G{6,7,8}/`.
+
+    `force=True` bỏ qua so khớp checksum, parse lại toàn bộ file đã import — dùng khi
+    sửa logic parser (`docx_utils`/`knowledge_parser`) mà nội dung file .docx không đổi,
+    nên checksum vẫn khớp và bản ghi cũ (chunk cũ) sẽ không tự refresh nếu không có cờ này."""
     stats = ImportStats()
     grades = {g.number: g for g in db.scalars(select(Grade).where(Grade.number.in_(GRADES)))}
     global_success_dir = base_path / "Global Success"
@@ -73,7 +78,7 @@ def import_global_success(db: Session, base_path: Path) -> ImportStats:
                 )
             )
 
-            if existing is not None and existing.checksum == checksum:
+            if existing is not None and existing.checksum == checksum and not force:
                 stats.documents_unchanged += 1
                 continue
 
@@ -106,10 +111,18 @@ def import_global_success(db: Session, base_path: Path) -> ImportStats:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Parse lại toàn bộ file kể cả khi checksum không đổi (dùng khi logic parser vừa sửa).",
+    )
+    args = parser.parse_args()
+
     settings = get_settings()
     db = SessionLocal()
     try:
-        stats = import_global_success(db, Path(settings.knowledge_base_dir))
+        stats = import_global_success(db, Path(settings.knowledge_base_dir), force=args.force)
         db.commit()
         print(
             f"Import OK: {stats.files_seen} file, {stats.documents_created} mới, "
