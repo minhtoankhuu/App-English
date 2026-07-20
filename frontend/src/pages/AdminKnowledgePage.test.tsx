@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -188,6 +188,32 @@ describe("AdminKnowledgePage", () => {
     expect(listKnowledgeDocumentChunks).toHaveBeenCalledWith("doc-1");
     expect(await screen.findByText(/volunteer/)).toBeInTheDocument();
     expect(screen.getByText("Từ vựng")).toBeInTheDocument();
+  });
+
+  it("mặc định sắp xếp theo Khối / Unit tăng dần", async () => {
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document2, document1]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[1]!).getByText("GS7 - UNIT 3 - LESSON.docx")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("GS8 - UNIT 1 - LESSON.docx")).toBeInTheDocument();
+  });
+
+  it("đảo chiều sắp xếp khi bấm lại cùng cột", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1, document2]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    await user.click(screen.getByRole("button", { name: /Số đoạn/ }));
+    await user.click(screen.getByRole("button", { name: /Số đoạn/ }));
+
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[1]!).getByText("GS8 - UNIT 1 - LESSON.docx")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("GS7 - UNIT 3 - LESSON.docx")).toBeInTheDocument();
   });
 
   it("hiển thị lỗi khi tải nội dung đoạn thất bại", async () => {

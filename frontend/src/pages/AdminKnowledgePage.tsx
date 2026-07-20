@@ -20,12 +20,36 @@ const CHUNK_TYPE_LABEL: Record<KnowledgeChunkType, string> = {
   other: "Khác",
 };
 
+type SortKey = "unit" | "file_name" | "chunk_count" | "status";
+
+const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "unit", label: "Khối / Unit" },
+  { key: "file_name", label: "Tên file" },
+  { key: "chunk_count", label: "Số đoạn" },
+  { key: "status", label: "Trạng thái" },
+];
+
+function compareDocuments(a: KnowledgeDocumentOut, b: KnowledgeDocumentOut, key: SortKey): number {
+  switch (key) {
+    case "unit":
+      return a.unit.grade_number - b.unit.grade_number || a.unit.order_no - b.unit.order_no;
+    case "file_name":
+      return a.file_name.localeCompare(b.file_name);
+    case "chunk_count":
+      return a.chunk_count - b.chunk_count;
+    case "status":
+      return Number(a.is_published) - Number(b.is_published);
+  }
+}
+
 export function AdminKnowledgePage() {
   const [documents, setDocuments] = useState<KnowledgeDocumentOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterGradeNumber, setFilterGradeNumber] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("unit");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const [showUpload, setShowUpload] = useState(false);
   const [grades, setGrades] = useState<GradeOut[]>([]);
@@ -50,9 +74,18 @@ export function AdminKnowledgePage() {
   const availableGradeNumbers = Array.from(new Set((documents ?? []).map((d) => d.unit.grade_number))).sort(
     (a, b) => a - b,
   );
-  const filteredDocuments = (documents ?? []).filter(
-    (d) => !filterGradeNumber || d.unit.grade_number === Number(filterGradeNumber),
-  );
+  const sortedDocuments = (documents ?? [])
+    .filter((d) => !filterGradeNumber || d.unit.grade_number === Number(filterGradeNumber))
+    .sort((a, b) => compareDocuments(a, b, sortKey) * (sortDirection === "asc" ? 1 : -1));
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+  }
 
   useEffect(() => {
     listGrades().then((g) => {
@@ -162,15 +195,29 @@ export function AdminKnowledgePage() {
           <table className="data-table">
           <thead>
             <tr>
-              <th>Khối / Unit</th>
-              <th>Tên file</th>
-              <th>Số đoạn</th>
-              <th>Trạng thái</th>
+              {SORT_COLUMNS.map((column) => (
+                <th key={column.key}>
+                  <button
+                    type="button"
+                    onClick={() => handleSort(column.key)}
+                    style={{
+                      all: "unset",
+                      cursor: "pointer",
+                      fontWeight: "inherit",
+                      fontSize: "inherit",
+                      color: "inherit",
+                    }}
+                  >
+                    {column.label}
+                    {sortKey === column.key ? (sortDirection === "asc" ? " ▲" : " ▼") : ""}
+                  </button>
+                </th>
+              ))}
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filteredDocuments.map((document) => (
+            {sortedDocuments.map((document) => (
               <tr key={document.id}>
                 <td>
                   Lớp {document.unit.grade_number} · Unit {document.unit.order_no} — {document.unit.title}
