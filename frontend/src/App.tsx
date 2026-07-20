@@ -5,6 +5,7 @@ import { fetchCurrentUser } from "./api/auth";
 import { LoginScreen } from "./LoginScreen";
 import { Layout } from "./Layout";
 import { ExamListPage } from "./pages/ExamListPage";
+import { ExamCreatePage } from "./pages/ExamCreatePage";
 import { ExamBuilderPage } from "./pages/ExamBuilderPage";
 import { ExamReviewPage } from "./pages/ExamReviewPage";
 import { ExamExportPage } from "./pages/ExamExportPage";
@@ -46,6 +47,7 @@ function App() {
         <Route element={<Layout user={user} onLogout={() => setUser(null)} />}>
           <Route path="/" element={<Navigate to={homePath} replace />} />
           <Route path="/exams" element={teacherOnly(<ExamListPage />)} />
+          <Route path="/exams/new" element={teacherOnly(<ExamCreatePage />)} />
           <Route path="/exams/:examId/builder" element={teacherOnly(<ExamBuilderPage />)} />
           <Route path="/exams/:examId/review" element={teacherOnly(<ExamReviewPage />)} />
           <Route path="/exams/:examId/export" element={teacherOnly(<ExamExportPage />)} />

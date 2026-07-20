@@ -1,8 +1,8 @@
 const STEP_LABELS = ["Nguồn kiến thức", "Cấu trúc đề", "Duyệt câu hỏi", "Xuất DOCX"];
 
 interface StepsIndicatorProps {
-  /** 1-indexed: bước nào đang active (1 luôn coi là đã hoàn thành vì đề đã được tạo). */
-  current: 2 | 3 | 4;
+  /** 1-indexed: bước nào đang active. */
+  current: 1 | 2 | 3 | 4;
 }
 
 export function StepsIndicator({ current }: StepsIndicatorProps) {

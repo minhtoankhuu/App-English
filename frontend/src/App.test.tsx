@@ -13,6 +13,10 @@ vi.mock("./pages/ExamListPage", () => ({
   ExamListPage: () => <h2>Đề của tôi</h2>,
 }));
 
+vi.mock("./pages/ExamCreatePage", () => ({
+  ExamCreatePage: () => <h2>Tạo đề mới</h2>,
+}));
+
 vi.mock("./pages/ExamBuilderPage", () => ({
   ExamBuilderPage: () => <h2>Trình dựng đề</h2>,
 }));
@@ -50,6 +54,7 @@ describe("App admin routes", () => {
   it.each([
     "/",
     "/exams",
+    "/exams/new",
     "/exams/exam-1/builder",
     "/exams/exam-1/review",
     "/exams/exam-1/export",
@@ -63,6 +68,7 @@ describe("App admin routes", () => {
     expect(await screen.findByRole("heading", { name: "Quản trị hệ thống" })).toBeInTheDocument();
     await waitFor(() => expect(window.location.pathname).toBe("/admin"));
     expect(screen.queryByRole("heading", { name: "Đề của tôi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Tạo đề mới" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Trình dựng đề" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Duyệt câu hỏi" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Xuất đề" })).not.toBeInTheDocument();

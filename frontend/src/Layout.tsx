@@ -17,7 +17,7 @@ interface NavItem {
 }
 
 const TEACHER_NAV: NavItem[] = [
-  { to: "/exams#tao-de", label: "Tạo đề", Icon: PlusIcon },
+  { to: "/exams/new", label: "Tạo đề", Icon: PlusIcon },
   { to: "/exams", label: "Đề của tôi", Icon: DocIcon },
 ];
 
@@ -27,11 +27,11 @@ const ADMIN_NAV: NavItem[] = [
   { to: "/admin/audit-logs", label: "Audit log", Icon: BankIcon },
 ];
 
-function isNavActive(location: { pathname: string; hash: string }, to: string): boolean {
-  const [toPath = "", toHash] = to.split("#");
-  if (toPath === "/admin") return location.pathname === "/admin";
-  if (toHash) return location.pathname === toPath && location.hash === `#${toHash}`;
-  return location.pathname.startsWith(toPath) && !location.hash;
+function isNavActive(pathname: string, to: string): boolean {
+  if (to === "/exams") {
+    return pathname === "/exams" || (pathname.startsWith("/exams/") && !pathname.startsWith("/exams/new"));
+  }
+  return pathname === to || pathname.startsWith(`${to}/`);
 }
 
 function LayoutContent({ user, onLogout }: LayoutProps) {
@@ -60,7 +60,7 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
 
         <nav className="main-nav" aria-label={isAdmin ? "Điều hướng quản trị" : "Điều hướng giáo viên"}>
           {navItems.map(({ to, label, Icon }) => (
-            <Link key={to} to={to} className={`nav-item${isNavActive(location, to) ? " active" : ""}`}>
+            <Link key={to} to={to} className={`nav-item${isNavActive(location.pathname, to) ? " active" : ""}`}>
               <Icon />
               <span>{label}</span>
             </Link>
