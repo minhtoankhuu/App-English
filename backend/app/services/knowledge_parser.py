@@ -6,15 +6,13 @@ là chunk rơi vào DocumentChunkType.OTHER, không chặn import các file khá
 """
 
 import re
-from dataclasses import dataclass
 from pathlib import Path
 
 from docx import Document
-from docx.oxml.ns import qn
 from docx.table import Table
-from docx.text.paragraph import Paragraph
 
 from app.models.knowledge import DocumentChunkType
+from app.services.docx_utils import ParsedChunk, iter_block_items, table_to_text
 
 # Global Success không đồng nhất định dạng mục từ vựng giữa các khối lớp/Unit:
 # "word /IPA/ (pos): meaning" (đa số G6/G7), "word (pos) /IPA/ – meaning" (G8),
@@ -35,25 +33,6 @@ _SECTION_KEYWORDS: list[tuple[str, DocumentChunkType]] = [
 ]
 
 _HEADER_MAX_LEN = 60
-
-
-@dataclass
-class ParsedChunk:
-    order_no: int
-    chunk_type: DocumentChunkType
-    section_title: str
-    raw_text: str
-    structured: dict | None
-
-
-def _iter_block_items(document: Document):
-    """Duyệt paragraph và table theo đúng thứ tự xuất hiện trong body (python-docx tách
-    riêng .paragraphs/.tables nên phải tự duyệt XML để giữ thứ tự thật)."""
-    for child in document.element.body.iterchildren():
-        if child.tag == qn("w:p"):
-            yield Paragraph(child, document)
-        elif child.tag == qn("w:tbl"):
-            yield Table(child, document)
 
 
 def _classify_header(text: str) -> DocumentChunkType | None:
@@ -96,15 +75,6 @@ def _parse_phrase(text: str) -> dict | None:
     return {"phrase": match.group("phrase").strip(), "meaning": match.group("meaning").strip()}
 
 
-def _table_to_text(table: Table) -> str:
-    lines = []
-    for row in table.rows:
-        cells = [cell.text.strip() for cell in row.cells]
-        if any(cells):
-            lines.append(" | ".join(cells))
-    return "\n".join(lines)
-
-
 def parse_lesson_docx(path: Path) -> list[ParsedChunk]:
     document = Document(str(path))
     chunks: list[ParsedChunk] = []
@@ -113,10 +83,10 @@ def parse_lesson_docx(path: Path) -> list[ParsedChunk]:
     order_no = 0
     seen_title = False
 
-    for item in _iter_block_items(document):
+    for item in iter_block_items(document):
         if isinstance(item, Table):
             if current_type == DocumentChunkType.GRAMMAR:
-                raw_text = _table_to_text(item)
+                raw_text = table_to_text(item)
                 if raw_text:
                     order_no += 1
                     chunks.append(
