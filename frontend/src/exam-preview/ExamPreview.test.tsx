@@ -126,21 +126,21 @@ describe("ExamPreview", () => {
     expect(screen.getByText("Trang 2/2")).toBeInTheDocument();
     const firstPage = screen.getByRole("article", { name: "Trang 1/2" });
     expect(firstPage).toHaveClass("paper");
-    expect(screen.getByText("Câu 3. ................................................................")).toBeInTheDocument();
+    expect(screen.getByText("3. ................................................................")).toBeInTheDocument();
   });
 
   it("renders each block question range and points", () => {
     render(<ExamPreview preview={twoPagePreview} loading={false} error={null} onRetry={retry} />);
 
-    expect(screen.getByText("Câu 1–2 · 1.0 điểm")).toBeInTheDocument();
-    expect(screen.getByText("Câu 3–3 · 1.0 điểm")).toBeInTheDocument();
+    expect(screen.getByText("1–2 · 1.0 điểm")).toBeInTheDocument();
+    expect(screen.getByText("3–3 · 1.0 điểm")).toBeInTheDocument();
   });
 
   it("renders actual questions and shows a repeated passage once per block", () => {
     render(<ExamPreview preview={twoPagePreview} loading={false} error={null} onRetry={retry} />);
 
-    expect(screen.getByText("Câu 1. Ý chính của đoạn văn là gì?")).toBeInTheDocument();
-    expect(screen.getByText("Câu 2. Tác giả đề cập đến điều gì?")).toBeInTheDocument();
+    expect(screen.getByText("1. Ý chính của đoạn văn là gì?")).toBeInTheDocument();
+    expect(screen.getByText("2. Tác giả đề cập đến điều gì?")).toBeInTheDocument();
     expect(screen.getAllByText("Đây là đoạn văn dùng chung.")).toHaveLength(1);
   });
 });

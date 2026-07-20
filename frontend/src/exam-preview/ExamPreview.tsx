@@ -101,7 +101,7 @@ function PreviewBlock({ block }: { block: PreviewBlockOut }) {
         {block.continuation ? " (tiếp theo)" : ""}
       </h3>
       <p style={{ margin: "4px 0 8px", fontSize: 12, color: "var(--muted)", fontFamily: "inherit" }}>
-        Câu {block.question_start}–{block.question_end} · {block.points} điểm
+        {block.question_start}–{block.question_end} · {block.points} điểm
       </p>
       {block.instruction && <p style={{ fontStyle: "italic" }}>{block.instruction}</p>}
       <div style={{ display: "grid", gap: 8 }}>
@@ -121,7 +121,7 @@ function PreviewBlock({ block }: { block: PreviewBlockOut }) {
               )}
               {showPassage && <p style={{ whiteSpace: "pre-wrap" }}>{question.passage_text}</p>}
               <p>
-                Câu {question.question_number}. {question.is_placeholder ? "................................................................" : (question.prompt_text ?? "Chưa có nội dung")}
+                {question.question_number}. {question.is_placeholder ? "................................................................" : (question.prompt_text ?? "Chưa có nội dung")}
               </p>
             </div>
           );
