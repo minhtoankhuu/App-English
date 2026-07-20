@@ -42,15 +42,15 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
             <header className="paper-header">
               <div className="paper-header-top">
                 <div className="paper-header-fields">
-                  <p>Trường: ..........................................</p>
-                  <p>Họ và tên: .......................................... Lớp: ..........</p>
+                  <p>School: ..........................................</p>
+                  <p>Full name: .......................................... Class: ..........</p>
                 </div>
-                <div className="paper-score-box">Điểm</div>
+                <div className="paper-score-box">Mark</div>
               </div>
               <div className="paper-title-block">
                 <strong>{preview.title.toUpperCase()}</strong>
                 <p>
-                  English {preview.grade_number} · Level {preview.level_code} · Thời gian làm bài: 45 phút
+                  English {preview.grade_number} · Level {preview.level_code} · Time: 45 minutes
                 </p>
               </div>
             </header>

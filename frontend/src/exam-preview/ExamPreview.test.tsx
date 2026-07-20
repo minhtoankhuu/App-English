@@ -112,9 +112,9 @@ describe("ExamPreview", () => {
 
     const page = screen.getByRole("article", { name: "Trang 1/1" });
     expect(within(page).getByText("ĐỀ KIỂM TRA")).toBeInTheDocument();
-    expect(within(page).getByText(/English 7 · Level A2 · Thời gian làm bài: 45 phút/)).toBeInTheDocument();
-    expect(within(page).getByText("Trường: ..........................................")).toBeInTheDocument();
-    expect(within(page).getByText("Điểm")).toBeInTheDocument();
+    expect(within(page).getByText(/English 7 · Level A2 · Time: 45 minutes/)).toBeInTheDocument();
+    expect(within(page).getByText("School: ..........................................")).toBeInTheDocument();
+    expect(within(page).getByText("Mark")).toBeInTheDocument();
     expect(within(page).getByText("Thêm phần để xem trước đề")).toBeInTheDocument();
     expect(within(page).getByText("Trang 1/1")).toBeInTheDocument();
   });
