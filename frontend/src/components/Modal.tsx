@@ -6,9 +6,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  size?: "md" | "lg";
 }
 
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   // Chỉ mount <dialog> khi mở — tránh nhiều dialog cùng nằm trong DOM lúc đóng
@@ -34,7 +35,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   if (!open) return null;
 
   return (
-    <dialog ref={dialogRef} className="app-modal" onClose={onClose} onCancel={onClose}>
+    <dialog ref={dialogRef} className={`app-modal${size === "lg" ? " app-modal-lg" : ""}`} onClose={onClose} onCancel={onClose}>
       <div className="app-modal-header">
         <h2>{title}</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">

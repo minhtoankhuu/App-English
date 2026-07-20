@@ -23,6 +23,9 @@ const examApi = vi.hoisted(() => ({
 const catalogApi = vi.hoisted(() => ({
   listExerciseTypes: vi.fn(),
   listGrammarTopics: vi.fn(),
+  listProficiencyLevels: vi.fn(),
+  listGrades: vi.fn(),
+  listPassageLengthRules: vi.fn(),
 }));
 
 vi.mock("../api/exams", () => examApi);
@@ -202,6 +205,11 @@ describe("ExamBuilderPage", () => {
         ],
       },
     ]);
+    catalogApi.listProficiencyLevels.mockResolvedValue([{ id: "level-1", code: "A2", rank: 2 }]);
+    catalogApi.listGrades.mockResolvedValue([
+      { id: "grade-1", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-1", code: "A2", rank: 2 } },
+    ]);
+    catalogApi.listPassageLengthRules.mockResolvedValue([{ grade_min: 6, grade_max: 7, min_words: 80, max_words: 150 }]);
   });
 
   it("loads exam and preview together", async () => {
@@ -558,7 +566,18 @@ describe("ExamBuilderPage", () => {
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(5));
 
     expect(examApi.getExam).toHaveBeenCalledTimes(5);
-    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", { question_count: 8, points: 1 });
+    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", {
+      title: "A",
+      instruction: null,
+      difficulty: "nhan_biet",
+      question_count: 8,
+      points: 1,
+      level_override_id: null,
+      shuffle_questions: false,
+      shuffle_answers: false,
+      prompt_override: null,
+      passage_word_target: null,
+    });
     expect(examApi.setGrammarSelection).toHaveBeenCalledWith("exam-1", ["point-1"]);
   });
 
@@ -586,5 +605,45 @@ describe("ExamBuilderPage", () => {
 
     expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "a");
     expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "b");
+  });
+
+  it("shows passage word hint for passage-based types and saves full block edit", async () => {
+    const user = userEvent.setup();
+    const readingType = { id: "type-read", code: "reading_true_false", name: "Đọc hiểu True/False", has_passage: true };
+    const readingBlock = {
+      ...blocks[0]!,
+      id: "r",
+      title: "Đọc hiểu True/False",
+      exercise_type: readingType,
+      instruction: null,
+      difficulty: "hon_hop" as const,
+      level_override: null,
+      passage_word_target: null,
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [readingBlock] });
+    renderBuilder();
+    await screen.findByTestId("block-r");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa Đọc hiểu True/False" }));
+
+    expect(screen.getByText(/Gợi ý 80–150 từ cho Lớp 7/)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Tiêu đề phần"));
+    await user.type(screen.getByLabelText("Tiêu đề phần"), "III. Reading");
+    await user.selectOptions(screen.getByLabelText("Trình độ của phần này"), "A2");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "r", {
+      title: "III. Reading",
+      instruction: null,
+      difficulty: "hon_hop",
+      question_count: 5,
+      points: 1,
+      level_override_id: "level-1",
+      shuffle_questions: false,
+      shuffle_answers: false,
+      prompt_override: null,
+      passage_word_target: 120,
+    });
   });
 });
