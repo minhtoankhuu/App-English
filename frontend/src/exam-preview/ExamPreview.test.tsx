@@ -9,6 +9,8 @@ const retry = vi.fn();
 const emptyPreview: ExamPreviewOut = {
   exam_id: "exam-1",
   title: "Đề kiểm tra",
+  grade_number: 7,
+  level_code: "A2",
   total_questions: 0,
   total_points: "0.0",
   page_count: 1,
@@ -18,6 +20,8 @@ const emptyPreview: ExamPreviewOut = {
 const twoPagePreview: ExamPreviewOut = {
   exam_id: "exam-1",
   title: "Đề kiểm tra học kỳ",
+  grade_number: 9,
+  level_code: "B1",
   total_questions: 3,
   total_points: "2.0",
   page_count: 2,
@@ -107,7 +111,10 @@ describe("ExamPreview", () => {
     render(<ExamPreview preview={emptyPreview} loading={false} error={null} onRetry={retry} />);
 
     const page = screen.getByRole("article", { name: "Trang 1/1" });
-    expect(within(page).getByText("Đề kiểm tra")).toBeInTheDocument();
+    expect(within(page).getByText("ĐỀ KIỂM TRA")).toBeInTheDocument();
+    expect(within(page).getByText(/English 7 · Level A2 · Thời gian làm bài: 45 phút/)).toBeInTheDocument();
+    expect(within(page).getByText("Trường: ..........................................")).toBeInTheDocument();
+    expect(within(page).getByText("Điểm")).toBeInTheDocument();
     expect(within(page).getByText("Thêm phần để xem trước đề")).toBeInTheDocument();
     expect(within(page).getByText("Trang 1/1")).toBeInTheDocument();
   });

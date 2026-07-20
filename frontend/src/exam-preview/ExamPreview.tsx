@@ -40,7 +40,19 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
         {preview.pages.map((page) => (
           <article key={page.page_number} aria-label={`Trang ${page.page_number}/${preview.page_count}`} className="paper">
             <header className="paper-header">
-              <strong>{preview.title}</strong>
+              <div className="paper-header-top">
+                <div className="paper-header-fields">
+                  <p>Trường: ..........................................</p>
+                  <p>Họ và tên: .......................................... Lớp: ..........</p>
+                </div>
+                <div className="paper-score-box">Điểm</div>
+              </div>
+              <div className="paper-title-block">
+                <strong>{preview.title.toUpperCase()}</strong>
+                <p>
+                  English {preview.grade_number} · Level {preview.level_code} · Thời gian làm bài: 45 phút
+                </p>
+              </div>
             </header>
 
             <div style={{ flex: 1 }}>

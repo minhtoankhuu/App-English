@@ -36,6 +36,8 @@ class PreviewPageOut(BaseModel):
 class ExamPreviewOut(BaseModel):
     exam_id: uuid.UUID
     title: str
+    grade_number: int
+    level_code: str
     total_questions: int
     total_points: Decimal
     page_count: int

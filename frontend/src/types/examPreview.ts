@@ -30,6 +30,8 @@ export interface PreviewPageOut {
 export interface ExamPreviewOut {
   exam_id: string;
   title: string;
+  grade_number: number;
+  level_code: string;
   total_questions: number;
   total_points: string;
   page_count: number;

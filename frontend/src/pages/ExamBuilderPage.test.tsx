@@ -94,6 +94,8 @@ const exam: ExamDetailOut = {
 const preview: ExamPreviewOut = {
   exam_id: "exam-1",
   title: "Đề kiểm tra",
+  grade_number: 7,
+  level_code: "A2",
   total_questions: 10,
   total_points: "2.0",
   page_count: 1,
@@ -314,11 +316,11 @@ describe("ExamBuilderPage", () => {
     await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
     await act(async () => resolveRefreshedPreview({ ...preview, title: "Bản mới" }));
-    expect(await screen.findAllByText("Bản mới")).toHaveLength(1);
+    expect(await screen.findAllByText("BẢN MỚI")).toHaveLength(1);
 
     await act(async () => resolveInitialPreview({ ...preview, title: "Bản cũ" }));
-    await waitFor(() => expect(screen.queryByText("Bản cũ")).not.toBeInTheDocument());
-    expect(screen.getAllByText("Bản mới")).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByText("BẢN CŨ")).not.toBeInTheDocument());
+    expect(screen.getAllByText("BẢN MỚI")).toHaveLength(1);
   });
 
   it("ignores deferred exam and preview responses from the previous route", async () => {
@@ -512,7 +514,8 @@ describe("ExamBuilderPage", () => {
       resolveExamTwo(examTwo);
     });
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
-    expect(await screen.findAllByText("Đề số hai")).toHaveLength(2);
+    expect(await screen.findByRole("heading", { name: "Đề số hai" })).toBeInTheDocument();
+    expect(screen.getByText("ĐỀ SỐ HAI")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Xuống C" }));
     expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 

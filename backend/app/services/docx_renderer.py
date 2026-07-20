@@ -80,12 +80,26 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     section.top_margin = section.bottom_margin = Cm(MARGIN_CM)
     section.left_margin = section.right_margin = Cm(MARGIN_CM)
 
+    school_line_p = _new_paragraph(doc)
+    school_line_p.paragraph_format.tab_stops.add_tab_stop(Cm(USABLE_WIDTH_CM - 3.0))
+    school_run = school_line_p.add_run("Trường: ..........................................")
+    _set_font(school_run)
+    school_line_p.add_run().add_tab()
+    score_run = school_line_p.add_run("Điểm:")
+    _set_font(score_run, bold=True)
+
+    student_line_p = _new_paragraph(doc)
+    student_run = student_line_p.add_run("Họ và tên: .......................................... Lớp: ..........")
+    _set_font(student_run)
+
+    _new_paragraph(doc)
+
     title_p = _new_paragraph(doc, center=True)
     title_run = title_p.add_run(f"{exam.title.upper()} — MÃ ĐỀ {variant.code}")
     _set_font(title_run, size=14, bold=True)
 
     meta_p = _new_paragraph(doc, center=True)
-    meta_run = meta_p.add_run(f"English {exam.grade.number} · Level {exam.level.code}")
+    meta_run = meta_p.add_run(f"English {exam.grade.number} · Level {exam.level.code} · Thời gian làm bài: 45 phút")
     _set_font(meta_run)
 
     ordered_blocks = sorted(exam.blocks, key=lambda b: b.order_no)

@@ -286,6 +286,8 @@ def test_preview_endpoint_returns_typed_payload(client, seeded_db):
     payload = response.json()
     assert payload["exam_id"] == exam["id"]
     assert payload["title"] == "Preview exam"
+    assert payload["grade_number"] == 7
+    assert payload["level_code"] == "A2"
     assert payload["total_questions"] == 3
     assert payload["total_points"] == "2.0"
     assert payload["page_count"] == len(payload["pages"])
