@@ -40,7 +40,7 @@ from app.schemas.exam import (
 from app.schemas.exam_preview import ExamPreviewOut
 from app.services.docx_renderer import render_exam_docx
 from app.services.exam_preview import build_preview
-from app.services.generation import generate_block_questions, regenerate_question, shuffle_variant
+from app.services.generation import embed_questions_for_bank, generate_block_questions, regenerate_question, shuffle_variant
 from app.services.usage import UsageLimitExceeded, reserve_usage
 
 router = APIRouter(prefix="/exams", tags=["exams"], dependencies=[Depends(require_teacher)])
@@ -495,6 +495,7 @@ def complete_review(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Đề chưa có câu hỏi nào")
     if not all(q.is_approved for q in all_questions):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Còn câu chưa được duyệt")
+    embed_questions_for_bank(db, all_questions)
     for q in all_questions:
         q.is_in_bank = True
     exam.status = ExamStatus.REVIEWED
