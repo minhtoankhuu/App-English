@@ -103,8 +103,11 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     for idx, block in enumerate(ordered_blocks):
         _new_paragraph(doc)  # dòng trống ngăn cách phần
 
+        point_label = "point" if block.points == 1 else "points"
         heading_p = _new_paragraph(doc)
-        heading_run = heading_p.add_run(f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} điểm)")
+        heading_run = heading_p.add_run(
+            f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} {point_label})"
+        )
         _set_font(heading_run, bold=True)
 
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])

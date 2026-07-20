@@ -94,12 +94,9 @@ function PreviewBlock({ block }: { block: PreviewBlockOut }) {
   return (
     <section>
       <h3>
-        {block.section_label}. {block.title}
-        {block.continuation ? " (tiếp theo)" : ""}
+        {block.section_label}. {block.title} ({block.points} {Number(block.points) === 1 ? "point" : "points"})
+        {block.continuation ? " (continued)" : ""}
       </h3>
-      <p style={{ margin: "4px 0 8px", fontSize: 12, color: "var(--muted)", fontFamily: "inherit" }}>
-        {block.question_start}–{block.question_end} · {block.points} điểm
-      </p>
       {block.instruction && <p style={{ fontStyle: "italic" }}>{block.instruction}</p>}
       <div style={{ display: "grid", gap: 8 }}>
         {block.questions.map((question) => {

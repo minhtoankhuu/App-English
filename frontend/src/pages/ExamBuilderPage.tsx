@@ -12,6 +12,7 @@ import {
   setGrammarSelection,
   updateBlock,
   updateBlockPart,
+  updateExam,
 } from "../api/exams";
 import { listExerciseTypes, listGrades, listGrammarTopics, listPassageLengthRules, listProficiencyLevels } from "../api/catalog";
 import { ApiError } from "../api/client";
@@ -22,6 +23,7 @@ import { SortableBlockList } from "../exam-builder/SortableBlockList";
 import { ExamPreview } from "../exam-preview/ExamPreview";
 import { StepsIndicator } from "../components/StepsIndicator";
 import { Modal } from "../components/Modal";
+import { PencilIcon } from "../icons/Icon";
 import { useUsage } from "../usage/UsageContext";
 
 // Tiêu đề mặc định cho phần đề (hiển thị trong đề xuất ra) theo đúng quy ước tiếng Anh
@@ -94,6 +96,9 @@ export function ExamBuilderPage() {
   const [editShuffleQuestions, setEditShuffleQuestions] = useState(true);
   const [editShuffleAnswers, setEditShuffleAnswers] = useState(true);
   const [editPromptOverride, setEditPromptOverride] = useState("");
+
+  const [editingExamTitle, setEditingExamTitle] = useState(false);
+  const [examTitleDraft, setExamTitleDraft] = useState("");
 
   const [partTitle, setPartTitle] = useState("");
   const [partInstruction, setPartInstruction] = useState("");
@@ -451,6 +456,33 @@ export function ExamBuilderPage() {
     }
   }
 
+  function startEditExamTitle() {
+    if (!exam) return;
+    setExamTitleDraft(exam.title);
+    setEditingExamTitle(true);
+  }
+
+  async function handleSaveExamTitle() {
+    if (mutationSaving || !examTitleDraft.trim()) return;
+    const target = beginMutation();
+    if (!target) return;
+    try {
+      await updateExam(target.examId, { title: examTitleDraft.trim() });
+      if (!isActiveOperation(target)) return;
+      await refreshBuilder(target);
+      setEditingExamTitle(false);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không cập nhật được tiêu đề đề",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
+  }
+
   function togglePoint(pointId: string) {
     setSelectedPoints((prev) => {
       const next = new Set(prev);
@@ -508,7 +540,41 @@ export function ExamBuilderPage() {
       <StepsIndicator current={2} />
       <div className="builder-grid">
         <section className="configuration">
-          <h2>{exam.title}</h2>
+          {editingExamTitle ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <input
+                type="text"
+                aria-label="Tiêu đề đề thi"
+                value={examTitleDraft}
+                onChange={(e) => setExamTitleDraft(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="button primary compact"
+                onClick={handleSaveExamTitle}
+                disabled={mutationSaving || !examTitleDraft.trim()}
+              >
+                Lưu
+              </button>
+              <button type="button" className="button secondary compact" onClick={() => setEditingExamTitle(false)}>
+                Hủy
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <h2 style={{ margin: 0 }}>{exam.title}</h2>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Chỉnh sửa tiêu đề đề thi"
+                onClick={startEditExamTitle}
+                disabled={mutationSaving}
+              >
+                <PencilIcon />
+              </button>
+            </div>
+          )}
           {activeError && <p style={{ color: "var(--danger)" }}>{activeError}</p>}
 
           {activeTopic && (

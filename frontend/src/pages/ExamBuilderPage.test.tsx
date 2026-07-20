@@ -20,6 +20,7 @@ const examApi = vi.hoisted(() => ({
   reorderBlocks: vi.fn(),
   setGrammarSelection: vi.fn(),
   updateBlock: vi.fn(),
+  updateExam: vi.fn(),
   updateBlockPart: vi.fn(),
 }));
 
@@ -204,6 +205,7 @@ describe("ExamBuilderPage", () => {
     examApi.addBlock.mockResolvedValue(blocks[0]);
     examApi.deleteBlock.mockResolvedValue(undefined);
     examApi.updateBlock.mockResolvedValue(blocks[0]);
+    examApi.updateExam.mockResolvedValue({ ...exam, title: "Đề kiểm tra (đã sửa)" });
     examApi.setGrammarSelection.mockResolvedValue(exam);
     examApi.reorderBlocks.mockResolvedValue(exam);
     catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType]);
@@ -237,6 +239,34 @@ describe("ExamBuilderPage", () => {
     expect(examApi.getExam).toHaveBeenCalledWith("exam-1");
     expect(examApi.getExamPreview).toHaveBeenCalledWith("exam-1");
     expect(screen.getByLabelText("Bản xem trước đề A4")).toBeInTheDocument();
+  });
+
+  it("edits the exam title inline and refreshes exam and preview", async () => {
+    const user = userEvent.setup();
+    examApi.getExam.mockResolvedValueOnce(exam).mockResolvedValueOnce({ ...exam, title: "Đề kiểm tra (đã sửa)" });
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa tiêu đề đề thi" }));
+    const titleInput = screen.getByLabelText("Tiêu đề đề thi");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Đề kiểm tra (đã sửa)");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    expect(examApi.updateExam).toHaveBeenCalledWith("exam-1", { title: "Đề kiểm tra (đã sửa)" });
+    expect(await screen.findByRole("heading", { name: "Đề kiểm tra (đã sửa)" })).toBeInTheDocument();
+  });
+
+  it("cancels exam title editing without calling the API", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa tiêu đề đề thi" }));
+    await user.click(screen.getByRole("button", { name: "Hủy" }));
+
+    expect(examApi.updateExam).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Đề kiểm tra" })).toBeInTheDocument();
   });
 
   it("reloads the active route during StrictMode effect replay", async () => {

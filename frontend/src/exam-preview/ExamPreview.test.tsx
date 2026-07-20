@@ -124,11 +124,11 @@ describe("ExamPreview", () => {
     expect(screen.getByText("3. ................................................................")).toBeInTheDocument();
   });
 
-  it("renders each block question range and points", () => {
+  it("renders each block heading with its points inline, singular when the value is 1", () => {
     render(<ExamPreview preview={twoPagePreview} loading={false} error={null} onRetry={retry} />);
 
-    expect(screen.getByText("1–2 · 1.0 điểm")).toBeInTheDocument();
-    expect(screen.getByText("3–3 · 1.0 điểm")).toBeInTheDocument();
+    expect(screen.getByText("I. Đọc hiểu (1.0 point)")).toBeInTheDocument();
+    expect(screen.getByText("II. Ngữ pháp (1.0 point)")).toBeInTheDocument();
   });
 
   it("renders actual questions and shows a repeated passage once per block", () => {

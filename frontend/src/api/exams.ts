@@ -8,6 +8,7 @@ import type {
   ExamCreateRequest,
   ExamDetailOut,
   ExamSummaryOut,
+  ExamUpdateRequest,
   ExportConfigRequest,
   QuestionFlagsUpdateRequest,
   QuestionOut,
@@ -21,6 +22,9 @@ export const getExam = (examId: string): Promise<ExamDetailOut> => apiGet(`/exam
 export const getExamPreview = (examId: string): Promise<ExamPreviewOut> => apiGet(`/exams/${examId}/preview`);
 
 export const createExam = (payload: ExamCreateRequest): Promise<ExamDetailOut> => apiPost("/exams", payload);
+
+export const updateExam = (examId: string, payload: ExamUpdateRequest): Promise<ExamDetailOut> =>
+  apiRequest(`/exams/${examId}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 export const setGrammarSelection = (examId: string, grammarPointIds: string[]): Promise<ExamDetailOut> =>
   apiRequest(`/exams/${examId}/grammar-selection`, {

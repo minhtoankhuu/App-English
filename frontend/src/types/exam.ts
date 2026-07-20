@@ -115,6 +115,8 @@ export interface ExamCreateRequest {
   extra_prompt?: string | null;
 }
 
+export type ExamUpdateRequest = Partial<ExamCreateRequest>;
+
 export interface BlockCreateRequest {
   exercise_type_id: string;
   title: string;
