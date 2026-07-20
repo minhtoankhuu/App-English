@@ -2,17 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   addBlock,
+  addBlockPart,
   deleteBlock,
+  deleteBlockPart,
   generateExam,
   getExam,
   getExamPreview,
   reorderBlocks,
   setGrammarSelection,
   updateBlock,
+  updateBlockPart,
 } from "../api/exams";
 import { listExerciseTypes, listGrades, listGrammarTopics, listPassageLengthRules, listProficiencyLevels } from "../api/catalog";
 import { ApiError } from "../api/client";
-import type { ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
+import type { BlockPartOut, ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
 import type { ExerciseTypeOut, GradeOut, GrammarTopicOut, PassageLengthRuleOut, ProficiencyLevelOut } from "../types/catalog";
 import type { ExamPreviewOut } from "../types/examPreview";
 import { SortableBlockList } from "../exam-builder/SortableBlockList";
@@ -75,6 +78,12 @@ export function ExamBuilderPage() {
   const [editShuffleQuestions, setEditShuffleQuestions] = useState(true);
   const [editShuffleAnswers, setEditShuffleAnswers] = useState(true);
   const [editPromptOverride, setEditPromptOverride] = useState("");
+
+  const [partTitle, setPartTitle] = useState("");
+  const [partInstruction, setPartInstruction] = useState("");
+  const [partCount, setPartCount] = useState(5);
+  const [partPromptOverride, setPartPromptOverride] = useState("");
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
 
   function isActiveRoute(target: RouteToken) {
     return routeRef.current.examId === target.examId && routeRef.current.generation === target.generation;
@@ -315,6 +324,77 @@ export function ExamBuilderPage() {
     setEditShuffleQuestions(block.shuffle_questions);
     setEditShuffleAnswers(block.shuffle_answers);
     setEditPromptOverride(block.prompt_override ?? "");
+    resetPartForm();
+  }
+
+  function resetPartForm() {
+    setEditingPartId(null);
+    setPartTitle("");
+    setPartInstruction("");
+    setPartCount(5);
+    setPartPromptOverride("");
+  }
+
+  function openEditPart(part: BlockPartOut) {
+    setEditingPartId(part.id);
+    setPartTitle(part.title);
+    setPartInstruction(part.instruction ?? "");
+    setPartCount(part.question_count);
+    setPartPromptOverride(part.prompt_override ?? "");
+  }
+
+  async function handleSavePart() {
+    if (!editingBlock || mutationSaving || !partTitle.trim()) return;
+    const target = beginMutation();
+    if (!target) return;
+    const payload = {
+      title: partTitle.trim(),
+      instruction: partInstruction.trim() || null,
+      question_count: partCount,
+      prompt_override: partPromptOverride.trim() || null,
+    };
+    try {
+      const updatedBlock = editingPartId
+        ? await updateBlockPart(target.examId, editingBlock.id, editingPartId, payload)
+        : await addBlockPart(target.examId, editingBlock.id, payload);
+      if (!isActiveOperation(target)) return;
+      setEditingBlock(updatedBlock);
+      setEditCount(updatedBlock.question_count);
+      resetPartForm();
+      await refreshBuilder(target);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không lưu được phần con",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
+  }
+
+  async function handleDeletePart(partId: string) {
+    if (!editingBlock || mutationSaving) return;
+    const target = beginMutation();
+    if (!target) return;
+    try {
+      const updatedBlock = await deleteBlockPart(target.examId, editingBlock.id, partId);
+      if (!isActiveOperation(target)) return;
+      setEditingBlock(updatedBlock);
+      setEditCount(updatedBlock.question_count);
+      if (editingPartId === partId) resetPartForm();
+      await refreshBuilder(target);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không xóa được phần con",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
   }
 
   function passageRangeFor(gradeNumber: number | undefined): [number, number] | null {
@@ -550,13 +630,17 @@ export function ExamBuilderPage() {
               </label>
               <label>
                 Số câu
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={editCount}
-                  onChange={(e) => setEditCount(Number(e.target.value))}
-                />
+                {editingBlock.parts.length > 0 ? (
+                  <input type="number" value={editCount} disabled title="Tự động tính theo phần con bên dưới" />
+                ) : (
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={editCount}
+                    onChange={(e) => setEditCount(Number(e.target.value))}
+                  />
+                )}
               </label>
               <label>
                 Điểm
@@ -569,6 +653,99 @@ export function ExamBuilderPage() {
                   onChange={(e) => setEditPoints(Number(e.target.value))}
                 />
               </label>
+            </div>
+
+            <div>
+              <div className="section-heading block-heading">
+                <div>
+                  <h3>Phần con</h3>
+                  <p>Chia thành các phần đánh số 1., 2., 3. khi dạng bài cần nhiều chủ đề/mẫu câu riêng (ví dụ so sánh kép, cụm động từ).</p>
+                </div>
+              </div>
+              {editingBlock.parts.length > 0 && (
+                <ul style={{ listStyle: "none", margin: "0 0 12px", padding: 0, display: "grid", gap: 8 }}>
+                  {[...editingBlock.parts]
+                    .sort((a, b) => a.order_no - b.order_no)
+                    .map((part) => (
+                      <li
+                        key={part.id}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+                      >
+                        <span>
+                          {part.order_no}. {part.title} <span style={{ color: "var(--muted)" }}>({part.question_count} câu)</span>
+                        </span>
+                        <span style={{ display: "flex", gap: 6 }}>
+                          <button type="button" className="button secondary compact" onClick={() => openEditPart(part)}>
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            className="button secondary compact"
+                            onClick={() => handleDeletePart(part.id)}
+                            disabled={mutationSaving}
+                          >
+                            Xóa
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+
+              <div style={{ display: "grid", gap: 8, padding: 12, borderRadius: 8, background: "var(--surface)" }}>
+                <label>
+                  Tiêu đề phần con
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: So sánh kép"
+                    value={partTitle}
+                    onChange={(e) => setPartTitle(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Hướng dẫn riêng (tuỳ chọn)
+                  <input
+                    type="text"
+                    value={partInstruction}
+                    onChange={(e) => setPartInstruction(e.target.value)}
+                  />
+                </label>
+                <div className="editor-grid">
+                  <label>
+                    Số câu của phần con
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={partCount}
+                      onChange={(e) => setPartCount(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Prompt bổ sung cho phần con (tuỳ chọn)
+                  <textarea
+                    rows={2}
+                    value={partPromptOverride}
+                    onChange={(e) => setPartPromptOverride(e.target.value)}
+                  />
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={handleSavePart}
+                    disabled={mutationSaving || !partTitle.trim()}
+                  >
+                    {editingPartId ? "Lưu phần con" : "+ Thêm phần con"}
+                  </button>
+                  {editingPartId && (
+                    <button type="button" className="button secondary compact" onClick={resetPartForm}>
+                      Hủy sửa
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {editingBlock.exercise_type.has_passage &&

@@ -80,6 +80,7 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
 
 function PreviewBlock({ block }: { block: PreviewBlockOut }) {
   let previousPassage: string | null = null;
+  let previousPartNumber: number | null = null;
 
   return (
     <section>
@@ -95,9 +96,17 @@ function PreviewBlock({ block }: { block: PreviewBlockOut }) {
         {block.questions.map((question) => {
           const showPassage = Boolean(question.passage_text && question.passage_text !== previousPassage);
           previousPassage = question.passage_text;
+          const showPart = Boolean(question.part_number !== null && question.part_number !== previousPartNumber);
+          previousPartNumber = question.part_number;
 
           return (
             <div key={question.question_number}>
+              {showPart && (
+                <p style={{ fontWeight: 600 }}>
+                  {question.part_number}. {question.part_title}
+                  {question.part_instruction ? ` — ${question.part_instruction}` : ""}
+                </p>
+              )}
               {showPassage && <p style={{ whiteSpace: "pre-wrap" }}>{question.passage_text}</p>}
               <p>
                 Câu {question.question_number}. {question.is_placeholder ? "................................................................" : (question.prompt_text ?? "Chưa có nội dung")}

@@ -11,13 +11,16 @@ import { ExamBuilderPage } from "./ExamBuilderPage";
 
 const examApi = vi.hoisted(() => ({
   addBlock: vi.fn(),
+  addBlockPart: vi.fn(),
   deleteBlock: vi.fn(),
+  deleteBlockPart: vi.fn(),
   generateExam: vi.fn(),
   getExam: vi.fn(),
   getExamPreview: vi.fn(),
   reorderBlocks: vi.fn(),
   setGrammarSelection: vi.fn(),
   updateBlock: vi.fn(),
+  updateBlockPart: vi.fn(),
 }));
 
 const catalogApi = vi.hoisted(() => ({
@@ -50,6 +53,7 @@ const blocks: ExamDetailOut["blocks"] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
   {
     id: "b",
@@ -66,6 +70,7 @@ const blocks: ExamDetailOut["blocks"] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
 ];
 
@@ -107,7 +112,17 @@ const preview: ExamPreviewOut = {
           question_count: 5,
           points: "1.0",
           continuation: false,
-          questions: [{ question_number: 1, prompt_text: null, passage_text: null, is_placeholder: true }],
+          questions: [
+            {
+              question_number: 1,
+              prompt_text: null,
+              passage_text: null,
+              is_placeholder: true,
+              part_number: null,
+              part_title: null,
+              part_instruction: null,
+            },
+          ],
         },
       ],
     },
@@ -210,6 +225,9 @@ describe("ExamBuilderPage", () => {
       { id: "grade-1", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-1", code: "A2", rank: 2 } },
     ]);
     catalogApi.listPassageLengthRules.mockResolvedValue([{ grade_min: 6, grade_max: 7, min_words: 80, max_words: 150 }]);
+    examApi.addBlockPart.mockResolvedValue(blocks[0]);
+    examApi.updateBlockPart.mockResolvedValue(blocks[0]);
+    examApi.deleteBlockPart.mockResolvedValue(blocks[0]);
   });
 
   it("loads exam and preview together", async () => {
@@ -645,5 +663,60 @@ describe("ExamBuilderPage", () => {
       prompt_override: null,
       passage_word_target: 120,
     });
+  });
+
+  it("adds a sub-part and disables the block-level question count once a part exists", async () => {
+    const user = userEvent.setup();
+    const blockWithPart = {
+      ...blocks[0]!,
+      question_count: 5,
+      parts: [{ id: "part-1", order_no: 1, title: "So sánh kép", instruction: null, question_count: 5, prompt_override: null }],
+    };
+    examApi.addBlockPart.mockResolvedValue(blockWithPart);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    await user.type(screen.getByLabelText("Tiêu đề phần con"), "So sánh kép");
+    await user.click(screen.getByRole("button", { name: "+ Thêm phần con" }));
+
+    expect(examApi.addBlockPart).toHaveBeenCalledWith("exam-1", "a", {
+      title: "So sánh kép",
+      instruction: null,
+      question_count: 5,
+      prompt_override: null,
+    });
+    expect(await screen.findByText(/1\. So sánh kép/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Số câu")).toBeDisabled();
+  });
+
+  it("edits and deletes an existing sub-part", async () => {
+    const user = userEvent.setup();
+    const existingPart = { id: "part-1", order_no: 1, title: "So sánh kép", instruction: null, question_count: 5, prompt_override: null };
+    const blockWithPart = { ...blocks[0]!, question_count: 5, parts: [existingPart] };
+    const blockWithoutPart = { ...blocks[0]!, parts: [] };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [blockWithPart, blocks[1]!] });
+    examApi.updateBlockPart.mockResolvedValue({ ...blockWithPart, parts: [{ ...existingPart, question_count: 8 }] });
+    examApi.deleteBlockPart.mockResolvedValue(blockWithoutPart);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    await user.click(screen.getByRole("button", { name: "Sửa" }));
+    expect(screen.getByLabelText("Tiêu đề phần con")).toHaveValue("So sánh kép");
+
+    await user.clear(screen.getByLabelText("Số câu của phần con"));
+    await user.type(screen.getByLabelText("Số câu của phần con"), "8");
+    await user.click(screen.getByRole("button", { name: "Lưu phần con" }));
+
+    expect(examApi.updateBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1", {
+      title: "So sánh kép",
+      instruction: null,
+      question_count: 8,
+      prompt_override: null,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Xóa" }));
+    expect(examApi.deleteBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1");
   });
 });

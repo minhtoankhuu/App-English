@@ -35,7 +35,26 @@ export interface QuestionOut {
   warnings: string[];
   is_approved: boolean;
   is_locked: boolean;
+  part_id: string | null;
 }
+
+export interface BlockPartOut {
+  id: string;
+  order_no: number;
+  title: string;
+  instruction: string | null;
+  question_count: number;
+  prompt_override: string | null;
+}
+
+export interface BlockPartCreateRequest {
+  title: string;
+  instruction?: string | null;
+  question_count: number;
+  prompt_override?: string | null;
+}
+
+export type BlockPartUpdateRequest = Partial<BlockPartCreateRequest>;
 
 export interface BlockOut {
   id: string;
@@ -52,6 +71,7 @@ export interface BlockOut {
   prompt_override: string | null;
   passage_word_target: number | null;
   questions: QuestionOut[];
+  parts: BlockPartOut[];
 }
 
 export interface ExamSummaryOut {
