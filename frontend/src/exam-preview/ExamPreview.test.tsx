@@ -110,7 +110,7 @@ describe("ExamPreview", () => {
     expect(within(page).getByText("ĐỀ KIỂM TRA")).toBeInTheDocument();
     expect(within(page).queryByText(/School:/)).not.toBeInTheDocument();
     expect(within(page).getByText("Full name: .......................................... Class: ..........")).toBeInTheDocument();
-    expect(within(page).getByText("Mark")).toBeInTheDocument();
+    expect(within(page).queryByText("Mark")).not.toBeInTheDocument();
     expect(within(page).getByText("Thêm phần để xem trước đề")).toBeInTheDocument();
     expect(within(page).getByText("Trang 1/1")).toBeInTheDocument();
   });

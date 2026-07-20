@@ -478,9 +478,7 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
 }
 .paper-header { display: grid; gap: 8px; padding-bottom: 11px; border-bottom: 1px solid #d4dbe6; }
 .paper-header strong, .paper-header p { font-family: Cambria, Georgia, serif; }
-.paper-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; text-align: left; }
-.paper-header-fields p { margin: 0 0 3px; font-size: 9px; color: #38445a; }
-.paper-score-box { min-width: 46px; padding: 4px 8px; border: 1px solid #38445a; border-radius: 3px; text-align: center; font-size: 8.5px; color: var(--muted); }
+.paper-header-fields { margin: 0; font-size: 9px; color: #38445a; text-align: left; }
 .paper-title-block { display: grid; gap: 3px; text-align: center; }
 .paper-title-block strong { font-size: 12px; letter-spacing: .3px; }
 .paper-title-block p { color: var(--muted); font-size: 9.5px; margin: 0; }

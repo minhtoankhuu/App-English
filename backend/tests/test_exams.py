@@ -216,7 +216,7 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     assert "PRONUNCIATION" in full_text
     assert "School:" not in full_text
     assert "Full name:" in full_text
-    assert "Mark:" in full_text
+    assert "Mark:" not in full_text
     # đáp án tô đỏ: chữ "bread" xuất hiện, và có ít nhất 1 run màu đỏ trong file
     red_runs = [r for p in doc.paragraphs for r in p.runs if r.font.color and r.font.color.rgb is not None]
     assert len(red_runs) > 0

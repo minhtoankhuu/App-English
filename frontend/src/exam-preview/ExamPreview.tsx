@@ -55,12 +55,7 @@ export function ExamPreview({ preview, loading, error, onRetry }: ExamPreviewPro
       <article aria-label={`Trang ${currentPage.page_number}/${preview.page_count}`} className="paper">
         {currentPage.page_number === 1 && (
           <header className="paper-header">
-            <div className="paper-header-top">
-              <div className="paper-header-fields">
-                <p>Full name: .......................................... Class: ..........</p>
-              </div>
-              <div className="paper-score-box">Mark</div>
-            </div>
+            <p className="paper-header-fields">Full name: .......................................... Class: ..........</p>
             <div className="paper-title-block">
               <strong>{preview.title.toUpperCase()}</strong>
             </div>
