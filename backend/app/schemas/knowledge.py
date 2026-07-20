@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,3 +22,24 @@ class KnowledgeChunkOut(BaseModel):
     raw_text: str
     structured: dict | None
     document: KnowledgeDocumentRefOut
+
+
+class KnowledgeUnitRefOut(BaseModel):
+    id: uuid.UUID
+    order_no: int
+    title: str
+    grade_number: int
+
+
+class KnowledgeDocumentAdminOut(BaseModel):
+    id: uuid.UUID
+    file_name: str
+    is_published: bool
+    chunk_count: int
+    created_at: datetime
+    updated_at: datetime
+    unit: KnowledgeUnitRefOut
+
+
+class KnowledgeDocumentUpdateRequest(BaseModel):
+    is_published: bool
