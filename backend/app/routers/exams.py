@@ -11,6 +11,7 @@ from app.models.academic import Grade, ProficiencyLevel
 from app.models.exam import (
     Exam,
     ExamBlock,
+    ExamBlockPart,
     ExamGrammarSelection,
     ExamStatus,
     ExamVariant,
@@ -22,6 +23,9 @@ from app.models.user import User
 from app.schemas.exam import (
     BlockCreateRequest,
     BlockOut,
+    BlockPartCreateRequest,
+    BlockPartReorderRequest,
+    BlockPartUpdateRequest,
     BlockReorderRequest,
     BlockUpdateRequest,
     ExamCreateRequest,
@@ -45,6 +49,7 @@ BLOCK_LOAD_OPTIONS = (
     selectinload(Exam.blocks).selectinload(ExamBlock.exercise_type),
     selectinload(Exam.blocks).selectinload(ExamBlock.level_override),
     selectinload(Exam.blocks).selectinload(ExamBlock.questions).selectinload(Question.level),
+    selectinload(Exam.blocks).selectinload(ExamBlock.parts),
 )
 
 
@@ -89,6 +94,20 @@ def _get_owned_question(block: ExamBlock, question_id: uuid.UUID) -> Question:
     if question is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy câu hỏi")
     return question
+
+
+def _get_owned_part(block: ExamBlock, part_id: uuid.UUID) -> ExamBlockPart:
+    part = next((p for p in block.parts if p.id == part_id), None)
+    if part is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phần con")
+    return part
+
+
+def _sync_block_question_count(block: ExamBlock) -> None:
+    """question_count của block = tổng question_count các phần con khi block có phần con
+    (xem docs/superpowers/specs/2026-07-20-block-sub-parts-design.md)."""
+    if block.parts:
+        block.question_count = sum(p.question_count for p in block.parts)
 
 
 def _exam_summary(exam: Exam) -> dict:
@@ -208,6 +227,15 @@ def update_exam(
     return _exam_detail(_get_owned_exam(db, exam_id, current_user))
 
 
+@router.delete("/{exam_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_exam(
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
+) -> None:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    db.delete(exam)
+    db.commit()
+
+
 @router.put("/{exam_id}/grammar-selection", response_model=ExamDetailOut)
 def set_grammar_selection(
     exam_id: uuid.UUID,
@@ -251,7 +279,12 @@ def update_block(
 ) -> ExamBlock:
     exam = _get_owned_exam(db, exam_id, current_user)
     block = _get_owned_block(exam, block_id)
-    for field_name, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if block.parts:
+        # question_count là tổng tự động của các phần con — sửa qua endpoint phần con,
+        # không cho ghi đè trực tiếp để tránh hai nguồn sự thật (xem spec phần con).
+        data.pop("question_count", None)
+    for field_name, value in data.items():
         setattr(block, field_name, value)
     db.commit()
     return _get_owned_block(_get_owned_exam(db, exam_id, current_user), block_id)
@@ -289,6 +322,85 @@ def reorder_blocks(
         blocks_by_id[block_id].order_no = i + 1
     db.commit()
     return _exam_detail(_get_owned_exam(db, exam_id, current_user))
+
+
+@router.post("/{exam_id}/blocks/{block_id}/parts", response_model=BlockOut, status_code=status.HTTP_201_CREATED)
+def add_block_part(
+    exam_id: uuid.UUID,
+    block_id: uuid.UUID,
+    payload: BlockPartCreateRequest,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+) -> ExamBlock:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    block = _get_owned_block(exam, block_id)
+    next_order = (max((p.order_no for p in block.parts), default=0)) + 1
+    part = ExamBlockPart(block_id=block.id, order_no=next_order, **payload.model_dump())
+    db.add(part)
+    db.flush()
+    db.refresh(block, attribute_names=["parts"])
+    _sync_block_question_count(block)
+    db.commit()
+    return _get_owned_block(_get_owned_exam(db, exam_id, current_user), block_id)
+
+
+@router.patch("/{exam_id}/blocks/{block_id}/parts/{part_id}", response_model=BlockOut)
+def update_block_part(
+    exam_id: uuid.UUID,
+    block_id: uuid.UUID,
+    part_id: uuid.UUID,
+    payload: BlockPartUpdateRequest,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+) -> ExamBlock:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    block = _get_owned_block(exam, block_id)
+    part = _get_owned_part(block, part_id)
+    for field_name, value in payload.model_dump(exclude_unset=True).items():
+        setattr(part, field_name, value)
+    _sync_block_question_count(block)
+    db.commit()
+    return _get_owned_block(_get_owned_exam(db, exam_id, current_user), block_id)
+
+
+@router.delete("/{exam_id}/blocks/{block_id}/parts/{part_id}", response_model=BlockOut)
+def delete_block_part(
+    exam_id: uuid.UUID,
+    block_id: uuid.UUID,
+    part_id: uuid.UUID,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+) -> ExamBlock:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    block = _get_owned_block(exam, block_id)
+    part = _get_owned_part(block, part_id)
+    block.parts.remove(part)
+    _sync_block_question_count(block)
+    db.commit()
+    return _get_owned_block(_get_owned_exam(db, exam_id, current_user), block_id)
+
+
+@router.post("/{exam_id}/blocks/{block_id}/parts/reorder", response_model=BlockOut)
+def reorder_block_parts(
+    exam_id: uuid.UUID,
+    block_id: uuid.UUID,
+    payload: BlockPartReorderRequest,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+) -> ExamBlock:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    block = _get_owned_block(exam, block_id)
+    parts_by_id = {p.id: p for p in block.parts}
+    if set(payload.part_ids) != set(parts_by_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Danh sách phần con không khớp block")
+    # 2 lượt để tránh vi phạm unique constraint (block_id, order_no) giữa chừng
+    for i, part_id in enumerate(payload.part_ids):
+        parts_by_id[part_id].order_no = -(i + 1)
+    db.flush()
+    for i, part_id in enumerate(payload.part_ids):
+        parts_by_id[part_id].order_no = i + 1
+    db.commit()
+    return _get_owned_block(_get_owned_exam(db, exam_id, current_user), block_id)
 
 
 @router.post("/{exam_id}/generate", response_model=ExamDetailOut)

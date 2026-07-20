@@ -3,6 +3,9 @@ export interface PreviewQuestionOut {
   prompt_text: string | null;
   passage_text: string | null;
   is_placeholder: boolean;
+  part_number: number | null;
+  part_title: string | null;
+  part_instruction: string | null;
 }
 
 export interface PreviewBlockOut {

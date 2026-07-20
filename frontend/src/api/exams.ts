@@ -2,10 +2,13 @@ import { apiGet, apiPost, apiRequest } from "./client";
 import type {
   BlockCreateRequest,
   BlockOut,
+  BlockPartCreateRequest,
+  BlockPartUpdateRequest,
   BlockUpdateRequest,
   ExamCreateRequest,
   ExamDetailOut,
   ExamSummaryOut,
+  ExamUpdateRequest,
   ExportConfigRequest,
   QuestionFlagsUpdateRequest,
   QuestionOut,
@@ -19,6 +22,11 @@ export const getExam = (examId: string): Promise<ExamDetailOut> => apiGet(`/exam
 export const getExamPreview = (examId: string): Promise<ExamPreviewOut> => apiGet(`/exams/${examId}/preview`);
 
 export const createExam = (payload: ExamCreateRequest): Promise<ExamDetailOut> => apiPost("/exams", payload);
+
+export const updateExam = (examId: string, payload: ExamUpdateRequest): Promise<ExamDetailOut> =>
+  apiRequest(`/exams/${examId}`, { method: "PATCH", body: JSON.stringify(payload) });
+
+export const deleteExam = (examId: string): Promise<void> => apiRequest(`/exams/${examId}`, { method: "DELETE" });
 
 export const setGrammarSelection = (examId: string, grammarPointIds: string[]): Promise<ExamDetailOut> =>
   apiRequest(`/exams/${examId}/grammar-selection`, {
@@ -37,6 +45,23 @@ export const deleteBlock = (examId: string, blockId: string): Promise<void> =>
 
 export const reorderBlocks = (examId: string, blockIds: string[]): Promise<ExamDetailOut> =>
   apiPost(`/exams/${examId}/blocks/reorder`, { block_ids: blockIds });
+
+export const addBlockPart = (examId: string, blockId: string, payload: BlockPartCreateRequest): Promise<BlockOut> =>
+  apiPost(`/exams/${examId}/blocks/${blockId}/parts`, payload);
+
+export const updateBlockPart = (
+  examId: string,
+  blockId: string,
+  partId: string,
+  payload: BlockPartUpdateRequest,
+): Promise<BlockOut> =>
+  apiRequest(`/exams/${examId}/blocks/${blockId}/parts/${partId}`, { method: "PATCH", body: JSON.stringify(payload) });
+
+export const deleteBlockPart = (examId: string, blockId: string, partId: string): Promise<BlockOut> =>
+  apiRequest(`/exams/${examId}/blocks/${blockId}/parts/${partId}`, { method: "DELETE" });
+
+export const reorderBlockParts = (examId: string, blockId: string, partIds: string[]): Promise<BlockOut> =>
+  apiPost(`/exams/${examId}/blocks/${blockId}/parts/reorder`, { part_ids: partIds });
 
 export const generateExam = (examId: string): Promise<ExamDetailOut> => apiPost(`/exams/${examId}/generate`);
 

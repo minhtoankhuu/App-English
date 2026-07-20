@@ -21,6 +21,7 @@ const blocks: BlockOut[] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
   {
     id: "b",
@@ -37,6 +38,7 @@ const blocks: BlockOut[] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
   {
     id: "c",
@@ -53,6 +55,7 @@ const blocks: BlockOut[] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
 ];
 

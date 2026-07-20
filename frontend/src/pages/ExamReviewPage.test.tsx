@@ -37,11 +37,12 @@ function makeExam(id: string, prompt: string, approved = false): ExamDetailOut {
       title: "Grammar", instruction: null, question_count: 1, points: "1.0", difficulty: "hon_hop",
       level_override: null, shuffle_questions: true, shuffle_answers: true, prompt_override: null,
       passage_word_target: null,
+      parts: [],
       questions: [{
         id: `question-${id}`, order_no: 1, prompt_text: prompt, passage_text: null, options: null,
         answer_text: "A", explanation: "Because", target_knowledge: "Grammar",
         level: { id: "level-1", code: "A2" }, source_ref: "fixture", warnings: [],
-        is_approved: approved, is_locked: false,
+        is_approved: approved, is_locked: false, part_id: null,
       }],
     }],
   };

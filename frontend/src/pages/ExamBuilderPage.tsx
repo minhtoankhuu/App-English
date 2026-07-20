@@ -2,24 +2,45 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   addBlock,
+  addBlockPart,
   deleteBlock,
+  deleteBlockPart,
   generateExam,
   getExam,
   getExamPreview,
   reorderBlocks,
   setGrammarSelection,
   updateBlock,
+  updateBlockPart,
+  updateExam,
 } from "../api/exams";
 import { listExerciseTypes, listGrades, listGrammarTopics, listPassageLengthRules, listProficiencyLevels } from "../api/catalog";
 import { ApiError } from "../api/client";
-import type { ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
+import type { BlockPartOut, ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
 import type { ExerciseTypeOut, GradeOut, GrammarTopicOut, PassageLengthRuleOut, ProficiencyLevelOut } from "../types/catalog";
 import type { ExamPreviewOut } from "../types/examPreview";
 import { SortableBlockList } from "../exam-builder/SortableBlockList";
 import { ExamPreview } from "../exam-preview/ExamPreview";
 import { StepsIndicator } from "../components/StepsIndicator";
 import { Modal } from "../components/Modal";
+import { PencilIcon } from "../icons/Icon";
 import { useUsage } from "../usage/UsageContext";
+
+// Tiêu đề mặc định cho phần đề (hiển thị trong đề xuất ra) theo đúng quy ước tiếng Anh
+// của đề thi thật — nhãn tiếng Việt ở lưới chọn dạng bài chỉ dùng cho UI giáo viên.
+// Giáo viên vẫn đổi được qua ô "Tiêu đề phần" trong popup chỉnh sửa.
+const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
+  pronunciation: "PRONUNCIATION",
+  stress: "STRESS",
+  multiple_choice: "MULTIPLE CHOICE",
+  matching: "MATCHING",
+  gap_fill: "GAP FILL",
+  cloze_test: "CLOZE TEST",
+  reading_true_false: "READING COMPREHENSION",
+  sign_reading: "PICTURE / SIGN READING",
+  word_form: "WORD FORM",
+  sentence_rewrite: "SENTENCE TRANSFORMATION",
+};
 
 interface RouteToken {
   examId: string;
@@ -68,13 +89,22 @@ export function ExamBuilderPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editInstruction, setEditInstruction] = useState("");
   const [editDifficulty, setEditDifficulty] = useState<Difficulty>("hon_hop");
-  const [editCount, setEditCount] = useState(1);
-  const [editPoints, setEditPoints] = useState(1);
-  const [editPassageWordTarget, setEditPassageWordTarget] = useState(100);
+  const [editCount, setEditCount] = useState<number | "">(1);
+  const [editPoints, setEditPoints] = useState<number | "">(1);
+  const [editPassageWordTarget, setEditPassageWordTarget] = useState<number | "">(100);
   const [editLevelOverrideId, setEditLevelOverrideId] = useState("");
   const [editShuffleQuestions, setEditShuffleQuestions] = useState(true);
   const [editShuffleAnswers, setEditShuffleAnswers] = useState(true);
   const [editPromptOverride, setEditPromptOverride] = useState("");
+
+  const [editingExamTitle, setEditingExamTitle] = useState(false);
+  const [examTitleDraft, setExamTitleDraft] = useState("");
+
+  const [partTitle, setPartTitle] = useState("");
+  const [partInstruction, setPartInstruction] = useState("");
+  const [partCount, setPartCount] = useState<number | "">(5);
+  const [partPromptOverride, setPartPromptOverride] = useState("");
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
 
   function isActiveRoute(target: RouteToken) {
     return routeRef.current.examId === target.examId && routeRef.current.generation === target.generation;
@@ -237,7 +267,7 @@ export function ExamBuilderPage() {
       } else {
         await addBlock(target.examId, {
           exercise_type_id: type.id,
-          title: type.name,
+          title: DEFAULT_BLOCK_TITLE_BY_CODE[type.code] ?? type.name,
           question_count: 5,
           points: 1,
         });
@@ -315,6 +345,77 @@ export function ExamBuilderPage() {
     setEditShuffleQuestions(block.shuffle_questions);
     setEditShuffleAnswers(block.shuffle_answers);
     setEditPromptOverride(block.prompt_override ?? "");
+    resetPartForm();
+  }
+
+  function resetPartForm() {
+    setEditingPartId(null);
+    setPartTitle("");
+    setPartInstruction("");
+    setPartCount(5);
+    setPartPromptOverride("");
+  }
+
+  function openEditPart(part: BlockPartOut) {
+    setEditingPartId(part.id);
+    setPartTitle(part.title);
+    setPartInstruction(part.instruction ?? "");
+    setPartCount(part.question_count);
+    setPartPromptOverride(part.prompt_override ?? "");
+  }
+
+  async function handleSavePart() {
+    if (!editingBlock || mutationSaving || !partTitle.trim() || partCount === "") return;
+    const target = beginMutation();
+    if (!target) return;
+    const payload = {
+      title: partTitle.trim(),
+      instruction: partInstruction.trim() || null,
+      question_count: partCount,
+      prompt_override: partPromptOverride.trim() || null,
+    };
+    try {
+      const updatedBlock = editingPartId
+        ? await updateBlockPart(target.examId, editingBlock.id, editingPartId, payload)
+        : await addBlockPart(target.examId, editingBlock.id, payload);
+      if (!isActiveOperation(target)) return;
+      setEditingBlock(updatedBlock);
+      setEditCount(updatedBlock.question_count);
+      resetPartForm();
+      await refreshBuilder(target);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không lưu được phần con",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
+  }
+
+  async function handleDeletePart(partId: string) {
+    if (!editingBlock || mutationSaving) return;
+    const target = beginMutation();
+    if (!target) return;
+    try {
+      const updatedBlock = await deleteBlockPart(target.examId, editingBlock.id, partId);
+      if (!isActiveOperation(target)) return;
+      setEditingBlock(updatedBlock);
+      setEditCount(updatedBlock.question_count);
+      if (editingPartId === partId) resetPartForm();
+      await refreshBuilder(target);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không xóa được phần con",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
   }
 
   function passageRangeFor(gradeNumber: number | undefined): [number, number] | null {
@@ -323,8 +424,13 @@ export function ExamBuilderPage() {
     return rule ? [rule.min_words, rule.max_words] : null;
   }
 
+  const editFieldsValid =
+    editCount !== "" && editPoints !== "" && (!editingBlock?.exercise_type.has_passage || editPassageWordTarget !== "");
+
   async function handleSaveBlockEdit() {
     if (!editingBlock || mutationSaving || !editTitle.trim()) return;
+    if (editCount === "" || editPoints === "") return;
+    if (editingBlock.exercise_type.has_passage && editPassageWordTarget === "") return;
     const target = beginMutation();
     if (!target) return;
     try {
@@ -338,7 +444,8 @@ export function ExamBuilderPage() {
         shuffle_questions: editShuffleQuestions,
         shuffle_answers: editShuffleAnswers,
         prompt_override: editPromptOverride.trim() || null,
-        passage_word_target: editingBlock.exercise_type.has_passage ? editPassageWordTarget : null,
+        passage_word_target:
+          editingBlock.exercise_type.has_passage && editPassageWordTarget !== "" ? editPassageWordTarget : null,
       });
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
@@ -348,6 +455,33 @@ export function ExamBuilderPage() {
         setError({
           generation: target.generation,
           value: err instanceof ApiError ? err.message : "Không cập nhật được phần",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
+  }
+
+  function startEditExamTitle() {
+    if (!exam) return;
+    setExamTitleDraft(exam.title);
+    setEditingExamTitle(true);
+  }
+
+  async function handleSaveExamTitle() {
+    if (mutationSaving || !examTitleDraft.trim()) return;
+    const target = beginMutation();
+    if (!target) return;
+    try {
+      await updateExam(target.examId, { title: examTitleDraft.trim() });
+      if (!isActiveOperation(target)) return;
+      await refreshBuilder(target);
+      setEditingExamTitle(false);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không cập nhật được tiêu đề đề",
         });
       }
     } finally {
@@ -412,7 +546,41 @@ export function ExamBuilderPage() {
       <StepsIndicator current={2} />
       <div className="builder-grid">
         <section className="configuration">
-          <h2>{exam.title}</h2>
+          {editingExamTitle ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <input
+                type="text"
+                aria-label="Tiêu đề đề thi"
+                value={examTitleDraft}
+                onChange={(e) => setExamTitleDraft(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="button primary compact"
+                onClick={handleSaveExamTitle}
+                disabled={mutationSaving || !examTitleDraft.trim()}
+              >
+                Lưu
+              </button>
+              <button type="button" className="button secondary compact" onClick={() => setEditingExamTitle(false)}>
+                Hủy
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <h2 style={{ margin: 0 }}>{exam.title}</h2>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Chỉnh sửa tiêu đề đề thi"
+                onClick={startEditExamTitle}
+                disabled={mutationSaving}
+              >
+                <PencilIcon />
+              </button>
+            </div>
+          )}
           {activeError && <p style={{ color: "var(--danger)" }}>{activeError}</p>}
 
           {activeTopic && (
@@ -550,13 +718,17 @@ export function ExamBuilderPage() {
               </label>
               <label>
                 Số câu
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={editCount}
-                  onChange={(e) => setEditCount(Number(e.target.value))}
-                />
+                {editingBlock.parts.length > 0 ? (
+                  <input type="number" value={editCount} disabled title="Tự động tính theo phần con bên dưới" />
+                ) : (
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={editCount}
+                    onChange={(e) => setEditCount(e.target.value === "" ? "" : Number(e.target.value))}
+                  />
+                )}
               </label>
               <label>
                 Điểm
@@ -566,9 +738,102 @@ export function ExamBuilderPage() {
                   max={10}
                   step={0.5}
                   value={editPoints}
-                  onChange={(e) => setEditPoints(Number(e.target.value))}
+                  onChange={(e) => setEditPoints(e.target.value === "" ? "" : Number(e.target.value))}
                 />
               </label>
+            </div>
+
+            <div>
+              <div className="section-heading block-heading">
+                <div>
+                  <h3>Phần con</h3>
+                  <p>Chia thành các phần đánh số 1., 2., 3. khi dạng bài cần nhiều chủ đề/mẫu câu riêng (ví dụ so sánh kép, cụm động từ).</p>
+                </div>
+              </div>
+              {editingBlock.parts.length > 0 && (
+                <ul style={{ listStyle: "none", margin: "0 0 12px", padding: 0, display: "grid", gap: 8 }}>
+                  {[...editingBlock.parts]
+                    .sort((a, b) => a.order_no - b.order_no)
+                    .map((part) => (
+                      <li
+                        key={part.id}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+                      >
+                        <span>
+                          {part.order_no}. {part.title} <span style={{ color: "var(--muted)" }}>({part.question_count} câu)</span>
+                        </span>
+                        <span style={{ display: "flex", gap: 6 }}>
+                          <button type="button" className="button secondary compact" onClick={() => openEditPart(part)}>
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            className="button secondary compact"
+                            onClick={() => handleDeletePart(part.id)}
+                            disabled={mutationSaving}
+                          >
+                            Xóa
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+
+              <div style={{ display: "grid", gap: 8, padding: 12, borderRadius: 8, background: "var(--surface)" }}>
+                <label>
+                  Tiêu đề phần con
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: So sánh kép"
+                    value={partTitle}
+                    onChange={(e) => setPartTitle(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Hướng dẫn riêng (tuỳ chọn)
+                  <input
+                    type="text"
+                    value={partInstruction}
+                    onChange={(e) => setPartInstruction(e.target.value)}
+                  />
+                </label>
+                <div className="editor-grid">
+                  <label>
+                    Số câu của phần con
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={partCount}
+                      onChange={(e) => setPartCount(e.target.value === "" ? "" : Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Prompt bổ sung cho phần con (tuỳ chọn)
+                  <textarea
+                    rows={2}
+                    value={partPromptOverride}
+                    onChange={(e) => setPartPromptOverride(e.target.value)}
+                  />
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={handleSavePart}
+                    disabled={mutationSaving || !partTitle.trim() || partCount === ""}
+                  >
+                    {editingPartId ? "Lưu phần con" : "+ Thêm phần con"}
+                  </button>
+                  {editingPartId && (
+                    <button type="button" className="button secondary compact" onClick={resetPartForm}>
+                      Hủy sửa
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {editingBlock.exercise_type.has_passage &&
@@ -585,7 +850,7 @@ export function ExamBuilderPage() {
                         max={500}
                         step={10}
                         value={editPassageWordTarget}
-                        onChange={(e) => setEditPassageWordTarget(Number(e.target.value))}
+                        onChange={(e) => setEditPassageWordTarget(e.target.value === "" ? "" : Number(e.target.value))}
                       />
                     </label>
                     {range && (
@@ -650,7 +915,7 @@ export function ExamBuilderPage() {
             type="button"
             className="button primary"
             onClick={handleSaveBlockEdit}
-            disabled={mutationSaving || !editTitle.trim()}
+            disabled={mutationSaving || !editTitle.trim() || !editFieldsValid}
           >
             Lưu
           </button>

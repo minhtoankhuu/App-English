@@ -64,6 +64,24 @@ class BlockReorderRequest(BaseModel):
     block_ids: list[uuid.UUID]
 
 
+class BlockPartCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    instruction: str | None = None
+    question_count: int = Field(ge=1, le=50)
+    prompt_override: str | None = None
+
+
+class BlockPartUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    instruction: str | None = None
+    question_count: int | None = Field(default=None, ge=1, le=50)
+    prompt_override: str | None = None
+
+
+class BlockPartReorderRequest(BaseModel):
+    part_ids: list[uuid.UUID]
+
+
 class QuestionFlagsUpdateRequest(BaseModel):
     is_approved: bool | None = None
     is_locked: bool | None = None
@@ -96,6 +114,7 @@ class QuestionOut(BaseModel):
     warnings: list[str]
     is_approved: bool
     is_locked: bool
+    part_id: uuid.UUID | None
 
 
 class ExerciseTypeRefOut(BaseModel):
@@ -104,6 +123,17 @@ class ExerciseTypeRefOut(BaseModel):
     code: str
     name: str
     has_passage: bool
+
+
+class BlockPartOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    order_no: int
+    title: str
+    instruction: str | None
+    question_count: int
+    prompt_override: str | None
 
 
 class BlockOut(BaseModel):
@@ -123,6 +153,7 @@ class BlockOut(BaseModel):
     prompt_override: str | None
     passage_word_target: int | None
     questions: list[QuestionOut]
+    parts: list[BlockPartOut]
 
 
 class ExamSummaryOut(BaseModel):

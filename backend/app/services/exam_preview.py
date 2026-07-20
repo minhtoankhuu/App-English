@@ -45,12 +45,16 @@ def _preview_questions(block: ExamBlock, next_number: int) -> tuple[list[dict[st
 
     for index in range(count):
         question = actual[index] if index < len(actual) else None
+        part = question.part if question else None
         items.append(
             {
                 "question_number": next_number,
                 "prompt_text": question.prompt_text if question else None,
                 "passage_text": question.passage_text if question else None,
                 "is_placeholder": question is None,
+                "part_number": part.order_no if part else None,
+                "part_title": part.title if part else None,
+                "part_instruction": part.instruction if part else None,
             }
         )
         next_number += 1
@@ -58,7 +62,9 @@ def _preview_questions(block: ExamBlock, next_number: int) -> tuple[list[dict[st
     return items, next_number
 
 
-def _question_lines(question: dict[str, object], previous_passage: str | None) -> int:
+def _question_lines(
+    question: dict[str, object], previous_passage: str | None, previous_part_number: int | None = None
+) -> int:
     if question["is_placeholder"]:
         return 2
 
@@ -67,6 +73,9 @@ def _question_lines(question: dict[str, object], previous_passage: str | None) -
     lines = 2 + math.ceil(len(prompt) / 90)
     if passage and passage != previous_passage:
         lines += math.ceil(len(str(passage)) / 90)
+    part_number = question.get("part_number")
+    if part_number is not None and part_number != previous_part_number:
+        lines += 2 + int(bool(question.get("part_instruction")))
     return lines
 
 
@@ -110,7 +119,7 @@ def _paginate(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
         continuation = False
         while question_index < len(questions):
             first_question = questions[question_index]
-            first_question_lines = _question_lines(first_question, previous_passage=None)
+            first_question_lines = _question_lines(first_question, previous_passage=None, previous_part_number=None)
             if page["blocks"] and used_lines + block_header + first_question_lines > content_capacity:
                 page = start_page()
 
@@ -124,10 +133,11 @@ def _paginate(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
             page["blocks"].append(piece)
             used_lines += block_header
             previous_passage: str | None = None
+            previous_part_number: int | None = None
 
             while question_index < len(questions):
                 question = questions[question_index]
-                question_lines = _question_lines(question, previous_passage)
+                question_lines = _question_lines(question, previous_passage, previous_part_number)
                 piece_questions = piece["questions"]
                 if used_lines + question_lines > content_capacity and piece_questions:
                     page = start_page()
@@ -141,6 +151,7 @@ def _paginate(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
                 piece["question_end"] = question_number
                 used_lines += question_lines
                 previous_passage = question["passage_text"]
+                previous_part_number = question.get("part_number")
                 question_index += 1
 
     return pages

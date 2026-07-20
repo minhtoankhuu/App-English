@@ -19,6 +19,15 @@ import type {
 } from "../types/catalog";
 import { StepsIndicator } from "../components/StepsIndicator";
 
+type ExamCategory = "unit_revision" | "midterm1" | "final1" | "semester2";
+
+const EXAM_CATEGORY_LABEL: Record<ExamCategory, string> = {
+  unit_revision: "Ôn tập theo Unit",
+  midterm1: "Kiểm tra giữa kì 1",
+  final1: "Kiểm tra cuối kì 1",
+  semester2: "Kiểm tra học kì 2",
+};
+
 export function ExamCreatePage() {
   const navigate = useNavigate();
   const [grades, setGrades] = useState<GradeOut[]>([]);
@@ -29,6 +38,7 @@ export function ExamCreatePage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const [examCategory, setExamCategory] = useState<ExamCategory>("unit_revision");
   const [title, setTitle] = useState("Đề kiểm tra mới");
   const [gradeId, setGradeId] = useState("");
   const [levelId, setLevelId] = useState("");
@@ -62,6 +72,18 @@ export function ExamCreatePage() {
       setUnitId(u.length > 0 ? u[0]!.id : "");
     });
   }, [sourceType, gradeId]);
+
+  const selectedGrade = grades.find((g) => g.id === gradeId);
+  const selectedUnit = units.find((u) => u.id === unitId);
+  const autoTitle =
+    examCategory === "unit_revision" && sourceType === "global_success" && selectedGrade && selectedUnit
+      ? `UNIT ${selectedUnit.order_no} REVISION EXERCISES – GLOBAL SUCCESS ${selectedGrade.number}`
+      : null;
+
+  useEffect(() => {
+    if (autoTitle) setTitle(autoTitle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTitle]);
 
   const sourceReady =
     (sourceType === "global_success" && unitId !== "") ||
@@ -103,8 +125,32 @@ export function ExamCreatePage() {
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
         <div className="form-grid">
           <label>
+            Loại đề
+            <select value={examCategory} onChange={(e) => setExamCategory(e.target.value as ExamCategory)}>
+              {(Object.keys(EXAM_CATEGORY_LABEL) as ExamCategory[]).map((category) => (
+                <option key={category} value={category}>
+                  {EXAM_CATEGORY_LABEL[category]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {examCategory !== "unit_revision" ? (
+          <p style={{ color: "var(--muted)" }}>
+            "{EXAM_CATEGORY_LABEL[examCategory]}" sắp ra mắt — hiện tại chỉ dùng được "Ôn tập theo Unit".
+          </p>
+        ) : (
+        <div className="form-grid">
+          <label>
             Tên đề
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              readOnly={Boolean(autoTitle)}
+              title={autoTitle ? "Tự động đặt theo Unit và Global Success đã chọn" : undefined}
+            />
           </label>
           <label>
             Khối lớp
@@ -172,8 +218,14 @@ export function ExamCreatePage() {
             </label>
           )}
         </div>
+        )}
         <div className="config-footer">
-          <button type="button" onClick={handleCreate} disabled={creating || !sourceReady} className="button primary large">
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={creating || !sourceReady || examCategory !== "unit_revision"}
+            className="button primary large"
+          >
             + Tạo đề
           </button>
         </div>

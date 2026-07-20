@@ -57,10 +57,12 @@ describe("ExamCreatePage", () => {
     expect(screen.getAllByText("Nguồn kiến thức")).toHaveLength(2); // step-label + label form
     expect(await screen.findByRole("option", { name: "Unit 3 — Community Service" })).toBeInTheDocument();
 
+    expect(await screen.findByDisplayValue("UNIT 3 REVISION EXERCISES – GLOBAL SUCCESS 7")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "+ Tạo đề" }));
 
     expect(examApi.createExam).toHaveBeenCalledWith({
-      title: "Đề kiểm tra mới",
+      title: "UNIT 3 REVISION EXERCISES – GLOBAL SUCCESS 7",
       grade_id: "grade-7",
       level_id: "level-a2",
       source_type: "global_success",
@@ -69,6 +71,25 @@ describe("ExamCreatePage", () => {
       cambridge_certificate_id: undefined,
     });
     expect(await screen.findByText("Trình dựng đề")).toBeInTheDocument();
+  });
+
+  it("khóa ô Tên đề và tự đặt theo Unit + Global Success khi chọn Ôn tập theo Unit", async () => {
+    renderCreate();
+    await screen.findByRole("option", { name: "Unit 3 — Community Service" });
+
+    const titleInput = await screen.findByDisplayValue("UNIT 3 REVISION EXERCISES – GLOBAL SUCCESS 7");
+    expect(titleInput).toHaveAttribute("readonly");
+  });
+
+  it("hiện thông báo sắp ra mắt và khóa nút Tạo đề với loại đề khác Ôn tập theo Unit", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    await screen.findByRole("option", { name: "Unit 3 — Community Service" });
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Loại đề" }), "Kiểm tra giữa kì 1");
+
+    expect(screen.getByText(/sắp ra mắt/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Tạo đề" })).toBeDisabled();
   });
 
   it("chặn tạo đề khi chưa có Unit nào cho khối lớp đã chọn", async () => {

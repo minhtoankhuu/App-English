@@ -11,13 +11,17 @@ import { ExamBuilderPage } from "./ExamBuilderPage";
 
 const examApi = vi.hoisted(() => ({
   addBlock: vi.fn(),
+  addBlockPart: vi.fn(),
   deleteBlock: vi.fn(),
+  deleteBlockPart: vi.fn(),
   generateExam: vi.fn(),
   getExam: vi.fn(),
   getExamPreview: vi.fn(),
   reorderBlocks: vi.fn(),
   setGrammarSelection: vi.fn(),
   updateBlock: vi.fn(),
+  updateExam: vi.fn(),
+  updateBlockPart: vi.fn(),
 }));
 
 const catalogApi = vi.hoisted(() => ({
@@ -50,6 +54,7 @@ const blocks: ExamDetailOut["blocks"] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
   {
     id: "b",
@@ -66,6 +71,7 @@ const blocks: ExamDetailOut["blocks"] = [
     prompt_override: null,
     passage_word_target: null,
     questions: [],
+    parts: [],
   },
 ];
 
@@ -107,7 +113,17 @@ const preview: ExamPreviewOut = {
           question_count: 5,
           points: "1.0",
           continuation: false,
-          questions: [{ question_number: 1, prompt_text: null, passage_text: null, is_placeholder: true }],
+          questions: [
+            {
+              question_number: 1,
+              prompt_text: null,
+              passage_text: null,
+              is_placeholder: true,
+              part_number: null,
+              part_title: null,
+              part_instruction: null,
+            },
+          ],
         },
       ],
     },
@@ -189,6 +205,7 @@ describe("ExamBuilderPage", () => {
     examApi.addBlock.mockResolvedValue(blocks[0]);
     examApi.deleteBlock.mockResolvedValue(undefined);
     examApi.updateBlock.mockResolvedValue(blocks[0]);
+    examApi.updateExam.mockResolvedValue({ ...exam, title: "Đề kiểm tra (đã sửa)" });
     examApi.setGrammarSelection.mockResolvedValue(exam);
     examApi.reorderBlocks.mockResolvedValue(exam);
     catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType]);
@@ -210,6 +227,9 @@ describe("ExamBuilderPage", () => {
       { id: "grade-1", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-1", code: "A2", rank: 2 } },
     ]);
     catalogApi.listPassageLengthRules.mockResolvedValue([{ grade_min: 6, grade_max: 7, min_words: 80, max_words: 150 }]);
+    examApi.addBlockPart.mockResolvedValue(blocks[0]);
+    examApi.updateBlockPart.mockResolvedValue(blocks[0]);
+    examApi.deleteBlockPart.mockResolvedValue(blocks[0]);
   });
 
   it("loads exam and preview together", async () => {
@@ -219,6 +239,34 @@ describe("ExamBuilderPage", () => {
     expect(examApi.getExam).toHaveBeenCalledWith("exam-1");
     expect(examApi.getExamPreview).toHaveBeenCalledWith("exam-1");
     expect(screen.getByLabelText("Bản xem trước đề A4")).toBeInTheDocument();
+  });
+
+  it("edits the exam title inline and refreshes exam and preview", async () => {
+    const user = userEvent.setup();
+    examApi.getExam.mockResolvedValueOnce(exam).mockResolvedValueOnce({ ...exam, title: "Đề kiểm tra (đã sửa)" });
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa tiêu đề đề thi" }));
+    const titleInput = screen.getByLabelText("Tiêu đề đề thi");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Đề kiểm tra (đã sửa)");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    expect(examApi.updateExam).toHaveBeenCalledWith("exam-1", { title: "Đề kiểm tra (đã sửa)" });
+    expect(await screen.findByRole("heading", { name: "Đề kiểm tra (đã sửa)" })).toBeInTheDocument();
+  });
+
+  it("cancels exam title editing without calling the API", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa tiêu đề đề thi" }));
+    await user.click(screen.getByRole("button", { name: "Hủy" }));
+
+    expect(examApi.updateExam).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Đề kiểm tra" })).toBeInTheDocument();
   });
 
   it("reloads the active route during StrictMode effect replay", async () => {
@@ -296,11 +344,11 @@ describe("ExamBuilderPage", () => {
     await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
     await act(async () => resolveRefreshedPreview({ ...preview, title: "Bản mới" }));
-    expect(await screen.findAllByText("Bản mới")).toHaveLength(1);
+    expect(await screen.findAllByText("BẢN MỚI")).toHaveLength(1);
 
     await act(async () => resolveInitialPreview({ ...preview, title: "Bản cũ" }));
-    await waitFor(() => expect(screen.queryByText("Bản cũ")).not.toBeInTheDocument());
-    expect(screen.getAllByText("Bản mới")).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByText("BẢN CŨ")).not.toBeInTheDocument());
+    expect(screen.getAllByText("BẢN MỚI")).toHaveLength(1);
   });
 
   it("ignores deferred exam and preview responses from the previous route", async () => {
@@ -494,7 +542,8 @@ describe("ExamBuilderPage", () => {
       resolveExamTwo(examTwo);
     });
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
-    expect(await screen.findAllByText("Đề số hai")).toHaveLength(2);
+    expect(await screen.findByRole("heading", { name: "Đề số hai" })).toBeInTheDocument();
+    expect(screen.getByText("ĐỀ SỐ HAI")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Xuống C" }));
     expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 
@@ -590,7 +639,7 @@ describe("ExamBuilderPage", () => {
 
     expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
       exercise_type_id: "type-2",
-      title: "Word form",
+      title: "WORD FORM",
       question_count: 5,
       points: 1,
     });
@@ -605,6 +654,23 @@ describe("ExamBuilderPage", () => {
 
     expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "a");
     expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "b");
+  });
+
+  it("lets the question count field go empty instead of snapping back to 0 while retyping", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    const questionCount = screen.getByLabelText("Số câu");
+    await user.clear(questionCount);
+
+    expect(questionCount).toHaveValue(null);
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
+
+    await user.type(questionCount, "10");
+    expect(questionCount).toHaveValue(10);
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeEnabled();
   });
 
   it("shows passage word hint for passage-based types and saves full block edit", async () => {
@@ -645,5 +711,60 @@ describe("ExamBuilderPage", () => {
       prompt_override: null,
       passage_word_target: 120,
     });
+  });
+
+  it("adds a sub-part and disables the block-level question count once a part exists", async () => {
+    const user = userEvent.setup();
+    const blockWithPart = {
+      ...blocks[0]!,
+      question_count: 5,
+      parts: [{ id: "part-1", order_no: 1, title: "So sánh kép", instruction: null, question_count: 5, prompt_override: null }],
+    };
+    examApi.addBlockPart.mockResolvedValue(blockWithPart);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    await user.type(screen.getByLabelText("Tiêu đề phần con"), "So sánh kép");
+    await user.click(screen.getByRole("button", { name: "+ Thêm phần con" }));
+
+    expect(examApi.addBlockPart).toHaveBeenCalledWith("exam-1", "a", {
+      title: "So sánh kép",
+      instruction: null,
+      question_count: 5,
+      prompt_override: null,
+    });
+    expect(await screen.findByText(/1\. So sánh kép/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Số câu")).toBeDisabled();
+  });
+
+  it("edits and deletes an existing sub-part", async () => {
+    const user = userEvent.setup();
+    const existingPart = { id: "part-1", order_no: 1, title: "So sánh kép", instruction: null, question_count: 5, prompt_override: null };
+    const blockWithPart = { ...blocks[0]!, question_count: 5, parts: [existingPart] };
+    const blockWithoutPart = { ...blocks[0]!, parts: [] };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [blockWithPart, blocks[1]!] });
+    examApi.updateBlockPart.mockResolvedValue({ ...blockWithPart, parts: [{ ...existingPart, question_count: 8 }] });
+    examApi.deleteBlockPart.mockResolvedValue(blockWithoutPart);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    await user.click(screen.getByRole("button", { name: "Sửa" }));
+    expect(screen.getByLabelText("Tiêu đề phần con")).toHaveValue("So sánh kép");
+
+    await user.clear(screen.getByLabelText("Số câu của phần con"));
+    await user.type(screen.getByLabelText("Số câu của phần con"), "8");
+    await user.click(screen.getByRole("button", { name: "Lưu phần con" }));
+
+    expect(examApi.updateBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1", {
+      title: "So sánh kép",
+      instruction: null,
+      question_count: 8,
+      prompt_override: null,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Xóa" }));
+    expect(examApi.deleteBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1");
   });
 });

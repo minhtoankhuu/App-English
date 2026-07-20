@@ -80,28 +80,49 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     section.top_margin = section.bottom_margin = Cm(MARGIN_CM)
     section.left_margin = section.right_margin = Cm(MARGIN_CM)
 
+    student_line_p = _new_paragraph(doc)
+    student_run = student_line_p.add_run("Full name: .......................................... Class: ..........")
+    _set_font(student_run)
+
+    _new_paragraph(doc)
+
     title_p = _new_paragraph(doc, center=True)
     title_run = title_p.add_run(f"{exam.title.upper()} — MÃ ĐỀ {variant.code}")
     _set_font(title_run, size=14, bold=True)
-
-    meta_p = _new_paragraph(doc, center=True)
-    meta_run = meta_p.add_run(f"English {exam.grade.number} · Level {exam.level.code}")
-    _set_font(meta_run)
 
     ordered_blocks = sorted(exam.blocks, key=lambda b: b.order_no)
     question_no = 0
     for idx, block in enumerate(ordered_blocks):
         _new_paragraph(doc)  # dòng trống ngăn cách phần
 
+        point_label = "point" if block.points == 1 else "points"
         heading_p = _new_paragraph(doc)
-        heading_run = heading_p.add_run(f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} điểm)")
+        heading_run = heading_p.add_run(
+            f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} {point_label})"
+        )
         _set_font(heading_run, bold=True)
 
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])
         by_id = {str(q.id): q for q in block.questions}
         ordered_questions = [by_id[qid] for qid in order if qid in by_id]
+        parts_by_id = {p.id: p for p in block.parts}
 
+        current_part_id = None
+        started = False
         for question in ordered_questions:
+            if not started or question.part_id != current_part_id:
+                started = True
+                current_part_id = question.part_id
+                part = parts_by_id.get(current_part_id) if current_part_id else None
+                if part is not None:
+                    part_heading_p = _new_paragraph(doc)
+                    part_heading_run = part_heading_p.add_run(f"{part.order_no}. {part.title}")
+                    _set_font(part_heading_run, bold=True)
+                    if part.instruction:
+                        part_instruction_p = _new_paragraph(doc)
+                        part_instruction_run = part_instruction_p.add_run(part.instruction)
+                        _set_font(part_instruction_run)
+
             question_no += 1
 
             if question.passage_text:

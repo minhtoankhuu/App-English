@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { downloadExportUrl, listExams } from "../api/exams";
+import { deleteExam, downloadExportUrl, listExams } from "../api/exams";
 import { ApiError } from "../api/client";
 import type { ExamSummaryOut } from "../types/exam";
 
@@ -15,6 +15,7 @@ const VARIANT_CODES = ["A", "B", "C", "D"];
 export function ExamListPage() {
   const [exams, setExams] = useState<ExamSummaryOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function reload() {
     listExams()
@@ -23,6 +24,19 @@ export function ExamListPage() {
   }
 
   useEffect(reload, []);
+
+  async function handleDelete(exam: ExamSummaryOut) {
+    if (!window.confirm(`Xóa vĩnh viễn đề "${exam.title}"? Không thể hoàn tác.`)) return;
+    setDeletingId(exam.id);
+    try {
+      await deleteExam(exam.id);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không xóa được đề");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <section className="configuration">
@@ -65,6 +79,14 @@ export function ExamListPage() {
                   Xuất
                 </Link>
               ) : null}
+              <button
+                type="button"
+                className="button secondary compact"
+                onClick={() => handleDelete(exam)}
+                disabled={deletingId === exam.id}
+              >
+                Xóa
+              </button>
             </div>
           </article>
         ))}
