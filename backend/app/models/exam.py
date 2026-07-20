@@ -115,6 +115,33 @@ class ExamBlock(Base):
     questions: Mapped[list["Question"]] = relationship(
         back_populates="block", order_by="Question.order_no", cascade="all, delete-orphan"
     )
+    parts: Mapped[list["ExamBlockPart"]] = relationship(
+        back_populates="block", order_by="ExamBlockPart.order_no", cascade="all, delete-orphan"
+    )
+
+
+class ExamBlockPart(Base):
+    """Phần con đánh số 1./2./3. bên trong một block (ví dụ IV. TRANSFORMATION PATTERNS
+    chia thành 1. So sánh kép, 2. So sánh hơn/kém/nhất, 3. Cụm động từ — mẫu đề thật GS9
+    Unit 2). Dùng chung exercise_type/points/difficulty của block cha; chỉ tách tiêu đề,
+    hướng dẫn, số câu và prompt bổ sung. Block không có phần con nào hoạt động như trước
+    (tương thích ngược, xem docs/superpowers/specs/2026-07-20-block-sub-parts-design.md)."""
+
+    __tablename__ = "exam_block_parts"
+    __table_args__ = (UniqueConstraint("block_id", "order_no", name="uq_block_part_order"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    block_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("exam_blocks.id"), nullable=False)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    block = relationship("ExamBlock", back_populates="parts")
+    questions: Mapped[list["Question"]] = relationship(
+        back_populates="part", order_by="Question.order_no", cascade="all, delete-orphan"
+    )
 
 
 class Question(TimestampMixin, Base):
@@ -125,6 +152,7 @@ class Question(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     block_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("exam_blocks.id"), nullable=False)
+    part_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("exam_block_parts.id"), nullable=True)
     order_no: Mapped[int] = mapped_column(Integer, nullable=False)
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
     passage_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -140,6 +168,7 @@ class Question(TimestampMixin, Base):
     is_in_bank: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     block = relationship("ExamBlock", back_populates="questions")
+    part = relationship("ExamBlockPart", back_populates="questions")
     level = relationship("ProficiencyLevel")
 
 

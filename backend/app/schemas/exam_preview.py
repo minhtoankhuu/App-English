@@ -9,6 +9,9 @@ class PreviewQuestionOut(BaseModel):
     prompt_text: str | None
     passage_text: str | None
     is_placeholder: bool
+    part_number: int | None
+    part_title: str | None
+    part_instruction: str | None
 
 
 class PreviewBlockOut(BaseModel):

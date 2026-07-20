@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 import app.services.exam_preview as exam_preview
 from app.models.academic import Grade, ProficiencyLevel, Unit
-from app.models.exam import Exam, ExamBlock, Question
+from app.models.exam import Exam, ExamBlock, ExamBlockPart, Question
 from app.models.exercise import ExerciseType
 from app.models.user import User, UserRole
 from app.security import hash_password
@@ -157,6 +157,45 @@ def test_to_roman_supports_more_than_twenty():
     assert to_roman(24) == "XXIV"
 
 
+def test_preview_carries_part_number_and_title_for_questions_in_a_part():
+    part1 = ExamBlockPart(order_no=1, title="So sánh kép", instruction=None, question_count=1)
+    part2 = ExamBlockPart(order_no=2, title="Cụm động từ", instruction="Rewrite using phrasal verbs.", question_count=1)
+    block = ExamBlock(
+        order_no=1,
+        title="Transformation Patterns",
+        instruction=None,
+        question_count=2,
+        points=Decimal("2.0"),
+        questions=[
+            Question(order_no=1, prompt_text="Q1", passage_text=None, part=part1),
+            Question(order_no=2, prompt_text="Q2", passage_text=None, part=part2),
+        ],
+    )
+
+    preview = build_preview(Exam(blocks=[block]))
+    questions = preview["pages"][0]["blocks"][0]["questions"]
+
+    assert questions[0]["part_number"] == 1
+    assert questions[0]["part_title"] == "So sánh kép"
+    assert questions[1]["part_number"] == 2
+    assert questions[1]["part_title"] == "Cụm động từ"
+    assert questions[1]["part_instruction"] == "Rewrite using phrasal verbs."
+
+
+def test_question_line_estimate_adds_lines_when_part_changes():
+    question = {
+        "is_placeholder": False,
+        "prompt_text": "x" * 10,
+        "passage_text": None,
+        "part_number": 2,
+        "part_title": "Cụm động từ",
+        "part_instruction": None,
+    }
+    without_part_change = exam_preview._question_lines(question, previous_passage=None, previous_part_number=2)
+    with_part_change = exam_preview._question_lines(question, previous_passage=None, previous_part_number=1)
+    assert with_part_change == without_part_change + 2
+
+
 def test_long_block_splits_between_questions(long_exam):
     preview = build_preview(long_exam)
     assert preview["page_count"] >= 2
@@ -271,6 +310,9 @@ def test_preview_endpoint_returns_typed_payload(client, seeded_db):
                             "prompt_text": None,
                             "passage_text": None,
                             "is_placeholder": True,
+                            "part_number": None,
+                            "part_title": None,
+                            "part_instruction": None,
                         }
                         for number in range(1, 4)
                     ],

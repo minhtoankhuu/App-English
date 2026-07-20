@@ -100,8 +100,24 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])
         by_id = {str(q.id): q for q in block.questions}
         ordered_questions = [by_id[qid] for qid in order if qid in by_id]
+        parts_by_id = {p.id: p for p in block.parts}
 
+        current_part_id = None
+        started = False
         for question in ordered_questions:
+            if not started or question.part_id != current_part_id:
+                started = True
+                current_part_id = question.part_id
+                part = parts_by_id.get(current_part_id) if current_part_id else None
+                if part is not None:
+                    part_heading_p = _new_paragraph(doc)
+                    part_heading_run = part_heading_p.add_run(f"{part.order_no}. {part.title}")
+                    _set_font(part_heading_run, bold=True)
+                    if part.instruction:
+                        part_instruction_p = _new_paragraph(doc)
+                        part_instruction_run = part_instruction_p.add_run(part.instruction)
+                        _set_font(part_instruction_run)
+
             question_no += 1
 
             if question.passage_text:
