@@ -656,6 +656,23 @@ describe("ExamBuilderPage", () => {
     expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "b");
   });
 
+  it("lets the question count field go empty instead of snapping back to 0 while retyping", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    const questionCount = screen.getByLabelText("Số câu");
+    await user.clear(questionCount);
+
+    expect(questionCount).toHaveValue(null);
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
+
+    await user.type(questionCount, "10");
+    expect(questionCount).toHaveValue(10);
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeEnabled();
+  });
+
   it("shows passage word hint for passage-based types and saves full block edit", async () => {
     const user = userEvent.setup();
     const readingType = { id: "type-read", code: "reading_true_false", name: "Đọc hiểu True/False", has_passage: true };

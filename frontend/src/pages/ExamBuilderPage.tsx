@@ -89,9 +89,9 @@ export function ExamBuilderPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editInstruction, setEditInstruction] = useState("");
   const [editDifficulty, setEditDifficulty] = useState<Difficulty>("hon_hop");
-  const [editCount, setEditCount] = useState(1);
-  const [editPoints, setEditPoints] = useState(1);
-  const [editPassageWordTarget, setEditPassageWordTarget] = useState(100);
+  const [editCount, setEditCount] = useState<number | "">(1);
+  const [editPoints, setEditPoints] = useState<number | "">(1);
+  const [editPassageWordTarget, setEditPassageWordTarget] = useState<number | "">(100);
   const [editLevelOverrideId, setEditLevelOverrideId] = useState("");
   const [editShuffleQuestions, setEditShuffleQuestions] = useState(true);
   const [editShuffleAnswers, setEditShuffleAnswers] = useState(true);
@@ -102,7 +102,7 @@ export function ExamBuilderPage() {
 
   const [partTitle, setPartTitle] = useState("");
   const [partInstruction, setPartInstruction] = useState("");
-  const [partCount, setPartCount] = useState(5);
+  const [partCount, setPartCount] = useState<number | "">(5);
   const [partPromptOverride, setPartPromptOverride] = useState("");
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
 
@@ -365,7 +365,7 @@ export function ExamBuilderPage() {
   }
 
   async function handleSavePart() {
-    if (!editingBlock || mutationSaving || !partTitle.trim()) return;
+    if (!editingBlock || mutationSaving || !partTitle.trim() || partCount === "") return;
     const target = beginMutation();
     if (!target) return;
     const payload = {
@@ -424,8 +424,13 @@ export function ExamBuilderPage() {
     return rule ? [rule.min_words, rule.max_words] : null;
   }
 
+  const editFieldsValid =
+    editCount !== "" && editPoints !== "" && (!editingBlock?.exercise_type.has_passage || editPassageWordTarget !== "");
+
   async function handleSaveBlockEdit() {
     if (!editingBlock || mutationSaving || !editTitle.trim()) return;
+    if (editCount === "" || editPoints === "") return;
+    if (editingBlock.exercise_type.has_passage && editPassageWordTarget === "") return;
     const target = beginMutation();
     if (!target) return;
     try {
@@ -439,7 +444,8 @@ export function ExamBuilderPage() {
         shuffle_questions: editShuffleQuestions,
         shuffle_answers: editShuffleAnswers,
         prompt_override: editPromptOverride.trim() || null,
-        passage_word_target: editingBlock.exercise_type.has_passage ? editPassageWordTarget : null,
+        passage_word_target:
+          editingBlock.exercise_type.has_passage && editPassageWordTarget !== "" ? editPassageWordTarget : null,
       });
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
@@ -720,7 +726,7 @@ export function ExamBuilderPage() {
                     min={1}
                     max={50}
                     value={editCount}
-                    onChange={(e) => setEditCount(Number(e.target.value))}
+                    onChange={(e) => setEditCount(e.target.value === "" ? "" : Number(e.target.value))}
                   />
                 )}
               </label>
@@ -732,7 +738,7 @@ export function ExamBuilderPage() {
                   max={10}
                   step={0.5}
                   value={editPoints}
-                  onChange={(e) => setEditPoints(Number(e.target.value))}
+                  onChange={(e) => setEditPoints(e.target.value === "" ? "" : Number(e.target.value))}
                 />
               </label>
             </div>
@@ -800,7 +806,7 @@ export function ExamBuilderPage() {
                       min={1}
                       max={50}
                       value={partCount}
-                      onChange={(e) => setPartCount(Number(e.target.value))}
+                      onChange={(e) => setPartCount(e.target.value === "" ? "" : Number(e.target.value))}
                     />
                   </label>
                 </div>
@@ -817,7 +823,7 @@ export function ExamBuilderPage() {
                     type="button"
                     className="button secondary compact"
                     onClick={handleSavePart}
-                    disabled={mutationSaving || !partTitle.trim()}
+                    disabled={mutationSaving || !partTitle.trim() || partCount === ""}
                   >
                     {editingPartId ? "Lưu phần con" : "+ Thêm phần con"}
                   </button>
@@ -844,7 +850,7 @@ export function ExamBuilderPage() {
                         max={500}
                         step={10}
                         value={editPassageWordTarget}
-                        onChange={(e) => setEditPassageWordTarget(Number(e.target.value))}
+                        onChange={(e) => setEditPassageWordTarget(e.target.value === "" ? "" : Number(e.target.value))}
                       />
                     </label>
                     {range && (
@@ -909,7 +915,7 @@ export function ExamBuilderPage() {
             type="button"
             className="button primary"
             onClick={handleSaveBlockEdit}
-            disabled={mutationSaving || !editTitle.trim()}
+            disabled={mutationSaving || !editTitle.trim() || !editFieldsValid}
           >
             Lưu
           </button>
