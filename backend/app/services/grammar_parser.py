@@ -21,23 +21,16 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 
 from app.models.knowledge import DocumentChunkType
-from app.services.docx_utils import ParsedChunk, iter_block_items, table_to_grid, table_to_text
+from app.services.docx_utils import ParsedChunk, is_bold_paragraph, iter_block_items, table_to_grid, table_to_text
 
 _HEADER_MAX_LEN = 120
 _NUMBERED_HEADING_RE = re.compile(r"^\d+\.\s+\S")
 
 
-def _is_bold_paragraph(paragraph: Paragraph) -> bool:
-    runs = [r for r in paragraph.runs if r.text.strip()]
-    if not runs:
-        return False
-    return all(r.bold for r in runs)
-
-
 def _is_header(paragraph: Paragraph, text: str) -> bool:
     if not text or len(text) > _HEADER_MAX_LEN:
         return False
-    if _is_bold_paragraph(paragraph):
+    if is_bold_paragraph(paragraph):
         return True
     return bool(_NUMBERED_HEADING_RE.match(text))
 

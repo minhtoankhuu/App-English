@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from docx import Document
+
 from app.models.knowledge import DocumentChunkType
 from app.services.knowledge_parser import parse_lesson_docx
 
@@ -58,6 +60,51 @@ def test_vocabulary_match_rate_across_all_units_is_high():
 
     assert total_vocab > 2000
     assert total_matched / total_vocab > 0.9
+
+
+def test_every_unit_file_has_a_minimum_vocabulary_count():
+    """Một số Unit dùng tiêu đề "New words"/"Vocabulary" in đậm nhưng không viết HOA
+    (khác với "VOCABULARY" viết HOA của đa số Unit) — nếu parser chỉ nhận diện tiêu đề
+    bằng viết HOA, cả file sẽ không có mục từ vựng nào được phân loại đúng (rơi hết vào
+    DocumentChunkType.OTHER). Ngưỡng thấp (5) đủ để bắt lỗi này ở TỪNG file thay vì chỉ
+    nhìn tổng toàn kho (tổng vẫn > 2000 dù một vài file bằng 0, xem test phía trên)."""
+    for file_path in _all_lesson_files():
+        chunks = parse_lesson_docx(file_path)
+        vocab_count = sum(1 for c in chunks if c.chunk_type == DocumentChunkType.VOCABULARY)
+        assert vocab_count >= 5, f"{file_path.name} chỉ có {vocab_count} mục từ vựng — tiêu đề có thể không được nhận diện"
+
+
+def _build_bold_title_case_header_doc(tmp_path) -> Path:
+    doc = Document()
+    doc.add_paragraph("UNIT 99: TEST UNIT")
+
+    header = doc.add_paragraph()
+    header.add_run("New words").bold = True
+    doc.add_paragraph("ability /əˈbɪləti/ (n) : khả năng")
+    doc.add_paragraph("amazing /əˈmeɪzɪŋ/ (adj) : đáng kinh ngạc")
+
+    header2 = doc.add_paragraph()
+    header2.add_run("Grammar and Structures").bold = True
+    doc.add_paragraph("She has lived here since 2010.")
+
+    path = tmp_path / "bold-title-case-headers.docx"
+    doc.save(str(path))
+    return path
+
+
+def test_recognizes_bold_title_case_headers_not_just_all_caps(tmp_path):
+    path = _build_bold_title_case_header_doc(tmp_path)
+
+    chunks = parse_lesson_docx(path)
+
+    vocab_chunks = [c for c in chunks if c.chunk_type == DocumentChunkType.VOCABULARY]
+    assert len(vocab_chunks) == 2
+    assert vocab_chunks[0].section_title == "New words"
+    assert vocab_chunks[0].structured == {"word": "ability", "ipa": "əˈbɪləti", "pos": "n", "meaning": "khả năng"}
+
+    grammar_chunks = [c for c in chunks if c.chunk_type == DocumentChunkType.GRAMMAR]
+    assert len(grammar_chunks) == 1
+    assert grammar_chunks[0].section_title == "Grammar and Structures"
 
 
 def test_parser_never_raises_on_any_unit_file():

@@ -21,6 +21,16 @@ class ParsedChunk:
     structured: dict | None
 
 
+def is_bold_paragraph(paragraph: Paragraph) -> bool:
+    """Toàn bộ text trong đoạn đều in đậm — tín hiệu tiêu đề đáng tin hơn viết HOA
+    (nhiều file Global Success dùng tiêu đề in đậm nhưng viết thường/Title Case,
+    ví dụ "New words", "Word form", "Grammar and Structures")."""
+    runs = [r for r in paragraph.runs if r.text.strip()]
+    if not runs:
+        return False
+    return all(r.bold for r in runs)
+
+
 def iter_block_items(document: Document):
     """Duyệt paragraph và table theo đúng thứ tự xuất hiện trong body (python-docx tách
     riêng .paragraphs/.tables nên phải tự duyệt XML để giữ thứ tự thật)."""
