@@ -257,6 +257,32 @@ describe("AdminKnowledgePage", () => {
     expect(screen.getByText("Từ vựng")).toBeInTheDocument();
   });
 
+  it("hiển thị đoạn có bảng dưới dạng bảng thật thay vì gộp dấu |", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1]);
+    vi.mocked(listKnowledgeDocumentChunks).mockResolvedValue([
+      {
+        id: "chunk-table",
+        order_no: 1,
+        chunk_type: "grammar",
+        section_title: "GRAMMAR AND STRUCTURES",
+        raw_text: "Positive | Comparative\ngood | better",
+        structured: { table: [["Positive", "Comparative"], ["good", "better"]] },
+      },
+    ]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    await user.click(screen.getByRole("button", { name: "Xem" }));
+
+    const cell = await screen.findByRole("cell", { name: "Comparative" });
+    expect(cell).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "good" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "better" })).toBeInTheDocument();
+    expect(screen.queryByText("Positive | Comparative")).not.toBeInTheDocument();
+  });
+
   it("mặc định sắp xếp theo Khối / Unit tăng dần", async () => {
     vi.mocked(listKnowledgeDocuments).mockResolvedValue([document2, document1]);
 

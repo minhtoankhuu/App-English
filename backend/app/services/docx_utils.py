@@ -38,3 +38,10 @@ def table_to_text(table: Table) -> str:
         if any(cells):
             lines.append(" | ".join(cells))
     return "\n".join(lines)
+
+
+def table_to_grid(table: Table) -> list[list[str]]:
+    """Giữ đúng cấu trúc hàng/cột thật của bảng — dùng để hiển thị lại đúng bảng thay
+    vì chuỗi đã dồn dấu "|" (một số tài liệu gộp nhiều dòng vào 1 ô, `table_to_text`
+    làm mất ranh giới hàng/cột khi hiển thị, xem docs/superpowers/specs/2026-07-20-grammar-reference-knowledge-design.md)."""
+    return [[cell.text.strip() for cell in row.cells] for row in table.rows]

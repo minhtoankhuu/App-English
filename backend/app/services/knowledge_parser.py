@@ -12,7 +12,7 @@ from docx import Document
 from docx.table import Table
 
 from app.models.knowledge import DocumentChunkType
-from app.services.docx_utils import ParsedChunk, iter_block_items, table_to_text
+from app.services.docx_utils import ParsedChunk, iter_block_items, table_to_grid, table_to_text
 
 # Global Success không đồng nhất định dạng mục từ vựng giữa các khối lớp/Unit:
 # "word /IPA/ (pos): meaning" (đa số G6/G7), "word (pos) /IPA/ – meaning" (G8),
@@ -90,7 +90,13 @@ def parse_lesson_docx(path: Path) -> list[ParsedChunk]:
                 if raw_text:
                     order_no += 1
                     chunks.append(
-                        ParsedChunk(order_no, DocumentChunkType.GRAMMAR, current_section_title, raw_text, None)
+                        ParsedChunk(
+                            order_no,
+                            DocumentChunkType.GRAMMAR,
+                            current_section_title,
+                            raw_text,
+                            {"table": table_to_grid(item)},
+                        )
                     )
             continue
 

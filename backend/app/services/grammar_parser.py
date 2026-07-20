@@ -21,7 +21,7 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 
 from app.models.knowledge import DocumentChunkType
-from app.services.docx_utils import ParsedChunk, iter_block_items, table_to_text
+from app.services.docx_utils import ParsedChunk, iter_block_items, table_to_grid, table_to_text
 
 _HEADER_MAX_LEN = 120
 _NUMBERED_HEADING_RE = re.compile(r"^\d+\.\s+\S")
@@ -53,7 +53,11 @@ def parse_grammar_reference_docx(path: Path) -> list[ParsedChunk]:
             raw_text = table_to_text(item)
             if raw_text:
                 order_no += 1
-                chunks.append(ParsedChunk(order_no, DocumentChunkType.GRAMMAR, current_section_title, raw_text, None))
+                chunks.append(
+                    ParsedChunk(
+                        order_no, DocumentChunkType.GRAMMAR, current_section_title, raw_text, {"table": table_to_grid(item)}
+                    )
+                )
             continue
 
         text = item.text.strip()

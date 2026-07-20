@@ -29,6 +29,11 @@ def test_parses_golden_reference_unit3_grade7():
 
     grammar_table_chunks = [c for c in chunks if c.chunk_type == DocumentChunkType.GRAMMAR and "Simple Past Tense" in c.raw_text]
     assert grammar_table_chunks, "bảng ngữ pháp (Simple Past Tense) phải được trích từ table"
+    table_chunk = grammar_table_chunks[0]
+    assert table_chunk.structured is not None
+    grid = table_chunk.structured["table"]
+    assert isinstance(grid, list) and isinstance(grid[0], list)
+    assert any("Simple Past Tense" in cell for row in grid for cell in row)
 
     order_nos = [c.order_no for c in chunks]
     assert order_nos == sorted(order_nos)

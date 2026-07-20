@@ -23,6 +23,12 @@ const CHUNK_TYPE_LABEL: Record<KnowledgeChunkType, string> = {
   other: "Khác",
 };
 
+function chunkTableGrid(chunk: KnowledgeChunkAdminOut): string[][] | null {
+  const table = chunk.structured?.table;
+  if (!Array.isArray(table) || !table.every((row) => Array.isArray(row))) return null;
+  return table as string[][];
+}
+
 type SortKey = "source" | "file_name" | "chunk_count" | "status";
 
 const SORT_COLUMNS: { key: SortKey; label: string }[] = [
@@ -409,15 +415,42 @@ export function AdminKnowledgePage() {
           {viewChunks && viewChunks.length === 0 && <p style={{ color: "var(--muted)" }}>Tài liệu chưa có đoạn nào.</p>}
           {viewChunks && viewChunks.length > 0 && (
             <div style={{ display: "grid", gap: 10 }}>
-              {viewChunks.map((chunk) => (
-                <div key={chunk.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>
-                  <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--muted)" }}>
-                    <span className="chip">{CHUNK_TYPE_LABEL[chunk.chunk_type]}</span>{" "}
-                    {chunk.section_title && <span>{chunk.section_title}</span>}
-                  </p>
-                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{chunk.raw_text}</p>
-                </div>
-              ))}
+              {viewChunks.map((chunk) => {
+                const grid = chunkTableGrid(chunk);
+                return (
+                  <div key={chunk.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>
+                    <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--muted)" }}>
+                      <span className="chip">{CHUNK_TYPE_LABEL[chunk.chunk_type]}</span>{" "}
+                      {chunk.section_title && <span>{chunk.section_title}</span>}
+                    </p>
+                    {grid ? (
+                      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+                        <tbody>
+                          {grid.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {row.map((cell, cellIndex) => (
+                                <td
+                                  key={cellIndex}
+                                  style={{
+                                    border: "1px solid var(--border)",
+                                    padding: "4px 8px",
+                                    verticalAlign: "top",
+                                    whiteSpace: "pre-wrap",
+                                  }}
+                                >
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{chunk.raw_text}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

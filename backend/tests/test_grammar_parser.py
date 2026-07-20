@@ -55,6 +55,7 @@ def test_keeps_tables_as_chunks_under_current_section(tmp_path):
     assert len(table_chunks) == 1
     assert table_chunks[0].section_title == "Cách dùng:"
     assert "S + am/is/are…" in table_chunks[0].raw_text
+    assert table_chunks[0].structured == {"table": [["be (+)", "S + am/is/are…"], ["V (+)", "S + V…"]]}
 
 
 def test_order_no_is_sequential_and_unique(tmp_path):
