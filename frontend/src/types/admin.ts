@@ -25,6 +25,13 @@ export interface KnowledgeUnitRefOut {
   grade_number: number;
 }
 
+export interface KnowledgeGrammarPointRefOut {
+  id: string;
+  name: string;
+  group_name: string;
+  topic_name: string;
+}
+
 export interface KnowledgeDocumentOut {
   id: string;
   file_name: string;
@@ -32,7 +39,8 @@ export interface KnowledgeDocumentOut {
   chunk_count: number;
   created_at: string;
   updated_at: string;
-  unit: KnowledgeUnitRefOut;
+  unit: KnowledgeUnitRefOut | null;
+  grammar_point: KnowledgeGrammarPointRefOut | null;
 }
 
 export type KnowledgeChunkType = "vocabulary" | "word_form" | "phrase" | "grammar" | "other";
