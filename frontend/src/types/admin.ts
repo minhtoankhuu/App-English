@@ -34,3 +34,14 @@ export interface KnowledgeDocumentOut {
   updated_at: string;
   unit: KnowledgeUnitRefOut;
 }
+
+export type KnowledgeChunkType = "vocabulary" | "word_form" | "phrase" | "grammar" | "other";
+
+export interface KnowledgeChunkAdminOut {
+  id: string;
+  order_no: number;
+  chunk_type: KnowledgeChunkType;
+  section_title: string;
+  raw_text: string;
+  structured: Record<string, unknown> | null;
+}

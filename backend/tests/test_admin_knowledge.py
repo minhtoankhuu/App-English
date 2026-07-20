@@ -168,3 +168,26 @@ def test_update_and_delete_not_found(client, seeded_db):
 
     assert client.patch(f"/admin/knowledge-documents/{missing_id}", json={"is_published": False}).status_code == 404
     assert client.delete(f"/admin/knowledge-documents/{missing_id}").status_code == 404
+
+
+def test_list_document_chunks(client, seeded_db):
+    _login(client, seeded_db)
+    unit3 = _unit3_grade7(seeded_db)
+    document_id = _upload(client, unit3.id).json()["id"]
+
+    resp = client.get(f"/admin/knowledge-documents/{document_id}/chunks")
+
+    assert resp.status_code == 200
+    chunks = resp.json()
+    assert len(chunks) > 0
+    assert chunks == sorted(chunks, key=lambda c: c["order_no"])
+    first = chunks[0]
+    assert set(first.keys()) == {"id", "order_no", "chunk_type", "section_title", "raw_text", "structured"}
+
+
+def test_list_document_chunks_not_found(client, seeded_db):
+    _login(client, seeded_db)
+
+    resp = client.get("/admin/knowledge-documents/00000000-0000-0000-0000-000000000000/chunks")
+
+    assert resp.status_code == 404

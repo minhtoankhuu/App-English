@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   deleteKnowledgeDocument,
+  listKnowledgeDocumentChunks,
   listKnowledgeDocuments,
   updateKnowledgeDocument,
   uploadKnowledgeDocument,
@@ -8,14 +9,23 @@ import {
 import { listGrades, listUnitsForGrade } from "../api/catalog";
 import { ApiError } from "../api/client";
 import { Modal } from "../components/Modal";
-import type { KnowledgeDocumentOut } from "../types/admin";
+import type { KnowledgeChunkAdminOut, KnowledgeChunkType, KnowledgeDocumentOut } from "../types/admin";
 import type { GradeOut, UnitOut } from "../types/catalog";
+
+const CHUNK_TYPE_LABEL: Record<KnowledgeChunkType, string> = {
+  vocabulary: "Từ vựng",
+  word_form: "Word form",
+  phrase: "Cụm từ/giới từ",
+  grammar: "Ngữ pháp",
+  other: "Khác",
+};
 
 export function AdminKnowledgePage() {
   const [documents, setDocuments] = useState<KnowledgeDocumentOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filterGradeNumber, setFilterGradeNumber] = useState("");
 
   const [showUpload, setShowUpload] = useState(false);
   const [grades, setGrades] = useState<GradeOut[]>([]);
@@ -25,6 +35,10 @@ export function AdminKnowledgePage() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  const [viewingDocument, setViewingDocument] = useState<KnowledgeDocumentOut | null>(null);
+  const [viewChunks, setViewChunks] = useState<KnowledgeChunkAdminOut[] | null>(null);
+  const [viewError, setViewError] = useState<string | null>(null);
+
   function reload() {
     listKnowledgeDocuments()
       .then(setDocuments)
@@ -32,6 +46,13 @@ export function AdminKnowledgePage() {
   }
 
   useEffect(reload, []);
+
+  const availableGradeNumbers = Array.from(new Set((documents ?? []).map((d) => d.unit.grade_number))).sort(
+    (a, b) => a - b,
+  );
+  const filteredDocuments = (documents ?? []).filter(
+    (d) => !filterGradeNumber || d.unit.grade_number === Number(filterGradeNumber),
+  );
 
   useEffect(() => {
     listGrades().then((g) => {
@@ -85,6 +106,18 @@ export function AdminKnowledgePage() {
     }
   }
 
+  async function handleView(document: KnowledgeDocumentOut) {
+    setViewingDocument(document);
+    setViewChunks(null);
+    setViewError(null);
+    try {
+      const chunks = await listKnowledgeDocumentChunks(document.id);
+      setViewChunks(chunks);
+    } catch (err) {
+      setViewError(err instanceof ApiError ? err.message : "Không tải được nội dung tài liệu");
+    }
+  }
+
   async function handleDelete(document: KnowledgeDocumentOut) {
     if (!window.confirm(`Xóa vĩnh viễn tài liệu "${document.file_name}"? Không thể hoàn tác.`)) return;
     setDeletingId(document.id);
@@ -113,7 +146,20 @@ export function AdminKnowledgePage() {
       {documents && documents.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có tài liệu nào.</p>}
 
       {documents && documents.length > 0 && (
-        <table className="data-table">
+        <>
+          <label style={{ maxWidth: 220 }}>
+            Lọc theo khối lớp
+            <select value={filterGradeNumber} onChange={(e) => setFilterGradeNumber(e.target.value)}>
+              <option value="">Tất cả khối</option>
+              {availableGradeNumbers.map((number) => (
+                <option key={number} value={number}>
+                  Lớp {number}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <table className="data-table">
           <thead>
             <tr>
               <th>Khối / Unit</th>
@@ -124,7 +170,7 @@ export function AdminKnowledgePage() {
             </tr>
           </thead>
           <tbody>
-            {documents.map((document) => (
+            {filteredDocuments.map((document) => (
               <tr key={document.id}>
                 <td>
                   Lớp {document.unit.grade_number} · Unit {document.unit.order_no} — {document.unit.title}
@@ -137,6 +183,9 @@ export function AdminKnowledgePage() {
                   </span>
                 </td>
                 <td className="actions">
+                  <button type="button" className="button secondary compact" onClick={() => handleView(document)}>
+                    Xem
+                  </button>
                   <button
                     type="button"
                     className="button secondary compact"
@@ -157,7 +206,8 @@ export function AdminKnowledgePage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </>
       )}
 
       <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Nhập tài liệu">
@@ -202,6 +252,37 @@ export function AdminKnowledgePage() {
             disabled={uploading || !unitId || !file}
           >
             {uploading ? "Đang nhập..." : "Nhập tài liệu"}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={viewingDocument !== null}
+        onClose={() => setViewingDocument(null)}
+        title={viewingDocument ? `Nội dung — ${viewingDocument.file_name}` : "Nội dung"}
+        size="lg"
+      >
+        <div className="app-modal-body" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+          {viewError && <p style={{ color: "var(--danger)" }}>{viewError}</p>}
+          {!viewChunks && !viewError && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
+          {viewChunks && viewChunks.length === 0 && <p style={{ color: "var(--muted)" }}>Tài liệu chưa có đoạn nào.</p>}
+          {viewChunks && viewChunks.length > 0 && (
+            <div style={{ display: "grid", gap: 10 }}>
+              {viewChunks.map((chunk) => (
+                <div key={chunk.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>
+                  <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--muted)" }}>
+                    <span className="chip">{CHUNK_TYPE_LABEL[chunk.chunk_type]}</span>{" "}
+                    {chunk.section_title && <span>{chunk.section_title}</span>}
+                  </p>
+                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{chunk.raw_text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setViewingDocument(null)}>
+            Đóng
           </button>
         </div>
       </Modal>

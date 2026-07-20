@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiRequest, apiUpload } from "./client";
 import type {
+  KnowledgeChunkAdminOut,
   KnowledgeDocumentOut,
   TeacherCreateRequest,
   TeacherOut,
@@ -34,3 +35,6 @@ export const updateKnowledgeDocument = (documentId: string, isPublished: boolean
 
 export const deleteKnowledgeDocument = (documentId: string): Promise<void> =>
   apiRequest(`/admin/knowledge-documents/${documentId}`, { method: "DELETE" });
+
+export const listKnowledgeDocumentChunks = (documentId: string): Promise<KnowledgeChunkAdminOut[]> =>
+  apiGet(`/admin/knowledge-documents/${documentId}/chunks`);

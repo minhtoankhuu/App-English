@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteKnowledgeDocument,
+  listKnowledgeDocumentChunks,
   listKnowledgeDocuments,
   updateKnowledgeDocument,
   uploadKnowledgeDocument,
@@ -16,6 +17,7 @@ vi.mock("../api/admin", () => ({
   uploadKnowledgeDocument: vi.fn(),
   updateKnowledgeDocument: vi.fn(),
   deleteKnowledgeDocument: vi.fn(),
+  listKnowledgeDocumentChunks: vi.fn(),
 }));
 
 vi.mock("../api/catalog", () => ({
@@ -33,12 +35,23 @@ const document1: KnowledgeDocumentOut = {
   unit: { id: "unit-3", order_no: 3, title: "Community Service", grade_number: 7 },
 };
 
+const document2: KnowledgeDocumentOut = {
+  id: "doc-2",
+  file_name: "GS8 - UNIT 1 - LESSON.docx",
+  is_published: true,
+  chunk_count: 40,
+  created_at: "2026-07-20T00:00:00Z",
+  updated_at: "2026-07-20T00:00:00Z",
+  unit: { id: "unit-8-1", order_no: 1, title: "Leisure Time", grade_number: 8 },
+};
+
 describe("AdminKnowledgePage", () => {
   beforeEach(() => {
     vi.mocked(listKnowledgeDocuments).mockReset();
     vi.mocked(uploadKnowledgeDocument).mockReset();
     vi.mocked(updateKnowledgeDocument).mockReset();
     vi.mocked(deleteKnowledgeDocument).mockReset();
+    vi.mocked(listKnowledgeDocumentChunks).mockReset();
     vi.mocked(listGrades).mockReset();
     vi.mocked(listUnitsForGrade).mockReset();
     vi.mocked(listGrades).mockResolvedValue([
@@ -137,5 +150,56 @@ describe("AdminKnowledgePage", () => {
     render(<AdminKnowledgePage />);
 
     expect(await screen.findByText("Không tải được danh sách tài liệu")).toBeInTheDocument();
+  });
+
+  it("lọc danh sách theo khối lớp", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1, document2]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+    expect(screen.getByText("GS8 - UNIT 1 - LESSON.docx")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Lọc theo khối lớp"), "Lớp 8");
+
+    expect(screen.queryByText("GS7 - UNIT 3 - LESSON.docx")).not.toBeInTheDocument();
+    expect(screen.getByText("GS8 - UNIT 1 - LESSON.docx")).toBeInTheDocument();
+  });
+
+  it("xem nội dung đoạn của tài liệu", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1]);
+    vi.mocked(listKnowledgeDocumentChunks).mockResolvedValue([
+      {
+        id: "chunk-1",
+        order_no: 1,
+        chunk_type: "vocabulary",
+        section_title: "VOCABULARY",
+        raw_text: "volunteer /ˈvɒləntɪə/ (n): a person who helps others without being paid",
+        structured: null,
+      },
+    ]);
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    await user.click(screen.getByRole("button", { name: "Xem" }));
+
+    expect(listKnowledgeDocumentChunks).toHaveBeenCalledWith("doc-1");
+    expect(await screen.findByText(/volunteer/)).toBeInTheDocument();
+    expect(screen.getByText("Từ vựng")).toBeInTheDocument();
+  });
+
+  it("hiển thị lỗi khi tải nội dung đoạn thất bại", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([document1]);
+    vi.mocked(listKnowledgeDocumentChunks).mockRejectedValue(new Error("network down"));
+
+    render(<AdminKnowledgePage />);
+    await screen.findByText("GS7 - UNIT 3 - LESSON.docx");
+
+    await user.click(screen.getByRole("button", { name: "Xem" }));
+
+    expect(await screen.findByText("Không tải được nội dung tài liệu")).toBeInTheDocument();
   });
 });

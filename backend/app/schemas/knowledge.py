@@ -43,3 +43,14 @@ class KnowledgeDocumentAdminOut(BaseModel):
 
 class KnowledgeDocumentUpdateRequest(BaseModel):
     is_published: bool
+
+
+class KnowledgeChunkAdminOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    order_no: int
+    chunk_type: DocumentChunkType
+    section_title: str
+    raw_text: str
+    structured: dict | None

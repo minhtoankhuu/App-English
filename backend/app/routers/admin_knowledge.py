@@ -18,7 +18,11 @@ from app.db import get_db
 from app.deps import require_admin
 from app.models.academic import Unit
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
-from app.schemas.knowledge import KnowledgeDocumentAdminOut, KnowledgeDocumentUpdateRequest
+from app.schemas.knowledge import (
+    KnowledgeChunkAdminOut,
+    KnowledgeDocumentAdminOut,
+    KnowledgeDocumentUpdateRequest,
+)
 from app.services.knowledge_parser import parse_lesson_docx
 
 router = APIRouter(prefix="/admin/knowledge-documents", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -113,6 +117,12 @@ async def upload_document(
         )
     db.commit()
     return _document_out(_get_document(db, document.id))
+
+
+@router.get("/{document_id}/chunks", response_model=list[KnowledgeChunkAdminOut])
+def list_document_chunks(document_id: uuid.UUID, db: Session = Depends(get_db)) -> list[KnowledgeChunk]:
+    document = _get_document(db, document_id)
+    return sorted(document.chunks, key=lambda chunk: chunk.order_no)
 
 
 @router.patch("/{document_id}", response_model=KnowledgeDocumentAdminOut)
