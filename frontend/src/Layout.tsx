@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { logout } from "./api/auth";
 import type { UserOut } from "./types/auth";
 import { UsageProvider, useUsage } from "./usage/UsageContext";
-import { BankIcon, BrandLogoIcon, DocIcon, LayersIcon, PlusIcon, UsersIcon } from "./icons/Icon";
+import { BankIcon, BrandLogoIcon, DocIcon, GearIcon, LayersIcon, PlusIcon, UsersIcon } from "./icons/Icon";
 
 interface LayoutProps {
   user: UserOut;
@@ -26,6 +26,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: "/admin/knowledge", label: "Kho kiến thức", Icon: BankIcon },
   { to: "/admin/teachers", label: "Quản lý giáo viên", Icon: UsersIcon },
   { to: "/admin/audit-logs", label: "Audit log", Icon: DocIcon },
+  { to: "/admin/ai-config", label: "Cấu hình AI", Icon: GearIcon },
 ];
 
 function isNavActive(pathname: string, to: string): boolean {

@@ -42,6 +42,7 @@ describe("Layout", () => {
     expect(screen.getByRole("link", { name: "Kho kiến thức" })).toHaveAttribute("href", "/admin/knowledge");
     expect(screen.getByRole("link", { name: "Quản lý giáo viên" })).toHaveAttribute("href", "/admin/teachers");
     expect(screen.getByRole("link", { name: "Audit log" })).toHaveAttribute("href", "/admin/audit-logs");
+    expect(screen.getByRole("link", { name: "Cấu hình AI" })).toHaveAttribute("href", "/admin/ai-config");
     expect(screen.queryByRole("link", { name: "Đề của tôi" })).not.toBeInTheDocument();
   });
 

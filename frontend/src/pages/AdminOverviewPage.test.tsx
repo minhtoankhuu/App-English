@@ -1,15 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { listKnowledgeDocuments, listTeachers } from "../api/admin";
+import { getAIConfig, listKnowledgeDocuments, listTeachers } from "../api/admin";
 import { listAuditLogs } from "../api/audit";
 import type { AuditLogPage } from "../types/audit";
-import type { KnowledgeDocumentOut, TeacherOut } from "../types/admin";
+import type { AIProviderConfigOut, KnowledgeDocumentOut, TeacherOut } from "../types/admin";
 import { AdminOverviewPage } from "./AdminOverviewPage";
 
 vi.mock("../api/admin", () => ({
   listTeachers: vi.fn(),
   listKnowledgeDocuments: vi.fn(),
+  getAIConfig: vi.fn(),
 }));
 
 vi.mock("../api/audit", () => ({
@@ -36,6 +37,18 @@ const knowledgeDocuments: KnowledgeDocumentOut[] = [
 
 const emptyAuditPage: AuditLogPage = { items: [], total: 0, limit: 5, offset: 0 };
 
+const aiConfig: AIProviderConfigOut = {
+  id: "config-1",
+  provider: "openai",
+  model: "gpt-4o-mini",
+  embedding_model: "text-embedding-3-small",
+  temperature: 0.7,
+  duplicate_similarity_threshold: 0.9,
+  is_active: true,
+  api_key_masked: "sk-...ab12",
+  updated_at: "2026-07-21T00:00:00Z",
+};
+
 function renderPage() {
   render(
     <MemoryRouter>
@@ -48,8 +61,10 @@ describe("AdminOverviewPage", () => {
   beforeEach(() => {
     vi.mocked(listTeachers).mockReset();
     vi.mocked(listKnowledgeDocuments).mockReset();
+    vi.mocked(getAIConfig).mockReset();
     vi.mocked(listAuditLogs).mockReset();
     vi.mocked(listAuditLogs).mockResolvedValue(emptyAuditPage);
+    vi.mocked(getAIConfig).mockResolvedValue(null);
   });
 
   it("hiển thị trạng thái đang tải", () => {
@@ -135,6 +150,26 @@ describe("AdminOverviewPage", () => {
 
     expect(await screen.findByText("Danh mục học thuật")).toBeInTheDocument();
     expect(screen.getByText("Dạng bài & template chuẩn")).toBeInTheDocument();
-    expect(screen.getByText("Cấu hình AI")).toBeInTheDocument();
+  });
+
+  it("hiển thị model AI đang dùng và liên kết tới trang cấu hình", async () => {
+    vi.mocked(listTeachers).mockResolvedValue([]);
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([]);
+    vi.mocked(getAIConfig).mockResolvedValue(aiConfig);
+
+    renderPage();
+
+    expect(await screen.findByText("gpt-4o-mini")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Cấu hình AI \(OpenAI\)/ })).toHaveAttribute("href", "/admin/ai-config");
+  });
+
+  it("hiển thị 'Chưa cấu hình' khi chưa thiết lập AI", async () => {
+    vi.mocked(listTeachers).mockResolvedValue([]);
+    vi.mocked(listKnowledgeDocuments).mockResolvedValue([]);
+    vi.mocked(getAIConfig).mockResolvedValue(null);
+
+    renderPage();
+
+    expect(await screen.findByText("Chưa cấu hình")).toBeInTheDocument();
   });
 });

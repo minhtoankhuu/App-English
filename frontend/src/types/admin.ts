@@ -53,3 +53,23 @@ export interface KnowledgeChunkAdminOut {
   raw_text: string;
   structured: Record<string, unknown> | null;
 }
+
+export interface AIProviderConfigOut {
+  id: string;
+  provider: string;
+  model: string;
+  embedding_model: string;
+  temperature: number;
+  duplicate_similarity_threshold: number;
+  is_active: boolean;
+  api_key_masked: string;
+  updated_at: string;
+}
+
+export interface AIProviderConfigUpdateRequest {
+  model: string;
+  embedding_model: string;
+  temperature: number;
+  duplicate_similarity_threshold: number;
+  api_key: string | null;
+}
