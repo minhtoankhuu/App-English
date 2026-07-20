@@ -26,16 +26,7 @@ function extractErrorMessage(body: unknown): string {
   return "Đã có lỗi xảy ra";
 }
 
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
+async function _parseResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) {
     return undefined as T;
   }
@@ -50,8 +41,30 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return body as T;
 }
 
+export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+  return _parseResponse<T>(response);
+}
+
 export function apiGet<T>(path: string): Promise<T> {
   return apiRequest<T>(path, { method: "GET" });
+}
+
+// Không set Content-Type — trình duyệt tự set multipart/form-data kèm boundary đúng chuẩn.
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  return _parseResponse<T>(response);
 }
 
 export function apiPost<T>(path: string, payload?: unknown): Promise<T> {

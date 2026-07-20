@@ -17,3 +17,31 @@ export interface TeacherUpdateRequest {
   is_active?: boolean;
   password?: string;
 }
+
+export interface KnowledgeUnitRefOut {
+  id: string;
+  order_no: number;
+  title: string;
+  grade_number: number;
+}
+
+export interface KnowledgeDocumentOut {
+  id: string;
+  file_name: string;
+  is_published: boolean;
+  chunk_count: number;
+  created_at: string;
+  updated_at: string;
+  unit: KnowledgeUnitRefOut;
+}
+
+export type KnowledgeChunkType = "vocabulary" | "word_form" | "phrase" | "grammar" | "other";
+
+export interface KnowledgeChunkAdminOut {
+  id: string;
+  order_no: number;
+  chunk_type: KnowledgeChunkType;
+  section_title: string;
+  raw_text: string;
+  structured: Record<string, unknown> | null;
+}
