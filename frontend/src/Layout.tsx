@@ -23,8 +23,9 @@ const TEACHER_NAV: NavItem[] = [
 
 const ADMIN_NAV: NavItem[] = [
   { to: "/admin", label: "Tổng quan", Icon: LayersIcon },
+  { to: "/admin/knowledge", label: "Kho kiến thức", Icon: BankIcon },
   { to: "/admin/teachers", label: "Quản lý giáo viên", Icon: UsersIcon },
-  { to: "/admin/audit-logs", label: "Audit log", Icon: BankIcon },
+  { to: "/admin/audit-logs", label: "Audit log", Icon: DocIcon },
 ];
 
 function isNavActive(pathname: string, to: string): boolean {

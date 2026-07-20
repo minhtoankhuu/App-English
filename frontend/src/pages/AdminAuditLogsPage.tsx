@@ -1,16 +1,9 @@
 import { useEffect, useState } from "react";
 import { listAuditLogs } from "../api/audit";
+import { ACTION_LABELS } from "../types/audit";
 import type { AuditLogOut, AuditLogPage } from "../types/audit";
 
 const PAGE_SIZE = 20;
-
-const ACTION_LABELS: Record<string, string> = {
-  "teacher.created": "Tạo giáo viên",
-  "teacher.updated": "Cập nhật giáo viên",
-  "teacher.activated": "Mở tài khoản",
-  "teacher.deactivated": "Khóa tài khoản",
-  "teacher.password_reset": "Đặt lại mật khẩu",
-};
 
 function describeDetails(log: AuditLogOut): string {
   const changedFields = log.details.changed_fields;

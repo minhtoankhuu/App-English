@@ -1,153 +1,102 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listKnowledgeDocuments, listTeachers } from "../api/admin";
+import { listAuditLogs } from "../api/audit";
+import { ACTION_LABELS } from "../types/audit";
+import type { AuditLogOut } from "../types/audit";
 
-interface AdminCardData {
-  title: string;
-  description: string;
-  chip: string;
-  to?: string;
-  implemented: boolean;
+type Stat = { status: "loading" } | { status: "success"; value: number } | { status: "error" };
+
+const UPCOMING_SECTIONS = [
+  { title: "Danh mục học thuật", description: "Khối lớp, cấp học, bộ sách, Unit và bảng ánh xạ trình độ — đã seed sẵn, chưa có màn chỉnh sửa." },
+  { title: "Dạng bài & template chuẩn", description: "Schema, prompt, validation rule và renderer của từng dạng — chờ Giai đoạn 1D." },
+  { title: "Cấu hình AI", description: "Provider, model, API key, embedding và reranker — chờ Giai đoạn 1D." },
+];
+
+function StatCard({ label, stat, suffix }: { label: string; stat: Stat; suffix: string }) {
+  const text =
+    stat.status === "loading" ? "Đang tải..." : stat.status === "error" ? "Không tải được dữ liệu" : `${stat.value} ${suffix}`;
+  return (
+    <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
+      <p style={{ margin: "0 0 6px", fontSize: 12.5, color: "var(--muted)" }}>{label}</p>
+      <p style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{text}</p>
+    </div>
+  );
 }
 
-type TeacherStat =
-  | { status: "loading" }
-  | { status: "success"; activeCount: number }
-  | { status: "error" };
-
-type KnowledgeStat =
-  | { status: "loading" }
-  | { status: "success"; publishedCount: number }
-  | { status: "error" };
-
 export function AdminOverviewPage() {
-  const [teacherStat, setTeacherStat] = useState<TeacherStat>({ status: "loading" });
-  const [knowledgeStat, setKnowledgeStat] = useState<KnowledgeStat>({ status: "loading" });
+  const [teacherStat, setTeacherStat] = useState<Stat>({ status: "loading" });
+  const [knowledgeStat, setKnowledgeStat] = useState<Stat>({ status: "loading" });
+  const [recentLogs, setRecentLogs] = useState<AuditLogOut[] | null>(null);
+  const [logsError, setLogsError] = useState<string | null>(null);
 
   useEffect(() => {
     listTeachers()
-      .then((teachers) =>
-        setTeacherStat({ status: "success", activeCount: teachers.filter((teacher) => teacher.is_active).length }),
-      )
+      .then((teachers) => setTeacherStat({ status: "success", value: teachers.filter((t) => t.is_active).length }))
       .catch(() => setTeacherStat({ status: "error" }));
   }, []);
 
   useEffect(() => {
     listKnowledgeDocuments()
-      .then((documents) =>
-        setKnowledgeStat({
-          status: "success",
-          publishedCount: documents.filter((document) => document.is_published).length,
-        }),
-      )
+      .then((documents) => setKnowledgeStat({ status: "success", value: documents.filter((d) => d.is_published).length }))
       .catch(() => setKnowledgeStat({ status: "error" }));
   }, []);
 
-  const teacherChip =
-    teacherStat.status === "loading"
-      ? "Đang tải..."
-      : teacherStat.status === "error"
-        ? "Không tải được dữ liệu"
-        : `${teacherStat.activeCount} giáo viên hoạt động`;
-
-  const knowledgeChip =
-    knowledgeStat.status === "loading"
-      ? "Đang tải..."
-      : knowledgeStat.status === "error"
-        ? "Không tải được dữ liệu"
-        : `${knowledgeStat.publishedCount} tài liệu đã xuất bản`;
-
-  const cards: AdminCardData[] = [
-    {
-      title: "Kho kiến thức & RAG",
-      description: "Nhập .docx, xuất bản/ẩn và xóa tài liệu theo Unit.",
-      chip: knowledgeChip,
-      to: "/admin/knowledge",
-      implemented: true,
-    },
-    {
-      title: "Danh mục học thuật",
-      description: "Khối lớp, cấp học, bộ sách, Unit và bảng ánh xạ trình độ.",
-      chip: "Đã seed sẵn — chưa có màn chỉnh sửa",
-      implemented: false,
-    },
-    {
-      title: "Dạng bài & template chuẩn",
-      description: "Schema, prompt, validation rule và renderer của từng dạng.",
-      chip: "10 dạng bài đã seed — chưa có màn chỉnh sửa",
-      implemented: false,
-    },
-    {
-      title: "Cấu hình AI",
-      description: "Provider, model, API key, embedding và reranker.",
-      chip: "Chưa triển khai — chờ Giai đoạn 1D",
-      implemented: false,
-    },
-    {
-      title: "Audit log",
-      description: "Lịch sử thao tác quản trị tài khoản giáo viên.",
-      chip: "Lịch sử thao tác quản trị",
-      to: "/admin/audit-logs",
-      implemented: true,
-    },
-    {
-      title: "Tài khoản & phân quyền",
-      description: "Tài khoản giáo viên, trạng thái và quyền truy cập.",
-      chip: teacherChip,
-      to: "/admin/teachers",
-      implemented: true,
-    },
-  ];
+  useEffect(() => {
+    listAuditLogs(5, 0)
+      .then((page) => setRecentLogs(page.items))
+      .catch(() => setLogsError("Không tải được hoạt động gần đây"));
+  }, []);
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
+      <div>
+        <h2 style={{ margin: "0 0 4px" }}>Quản trị hệ thống</h2>
+        <p style={{ color: "var(--muted)", fontSize: 13, margin: 0 }}>Tổng quan hoạt động — dùng menu bên trái để vào từng phân hệ.</p>
+      </div>
+
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+        <StatCard label="Giáo viên đang hoạt động" stat={teacherStat} suffix="giáo viên" />
+        <StatCard label="Tài liệu kho kiến thức đã xuất bản" stat={knowledgeStat} suffix="tài liệu" />
+      </div>
+
       <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Quản trị hệ thống</h2>
-        <p style={{ color: "var(--muted)", fontSize: 13 }}>3 khối bên dưới đã có chức năng thật.</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h3 style={{ margin: 0 }}>Hoạt động gần đây</h3>
+          <Link to="/admin/audit-logs" className="button secondary compact">
+            Xem tất cả
+          </Link>
+        </div>
 
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
-          {cards.map((card) => {
-            const content = (
-              <>
-                <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>{card.title}</h3>
-                <p style={{ margin: "0 0 10px", fontSize: 12.5, color: "var(--muted)" }}>{card.description}</p>
-                <span
-                  style={{
-                    display: "inline-block",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: "3px 9px",
-                    borderRadius: 999,
-                    background: card.implemented ? "#ecf1fe" : "#f1f2f5",
-                    color: card.implemented ? "var(--primary-dark)" : "var(--muted)",
-                  }}
-                >
-                  {card.chip}
+        {logsError && <p style={{ color: "var(--danger)" }}>{logsError}</p>}
+        {!recentLogs && !logsError && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
+        {recentLogs && recentLogs.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có hoạt động nào.</p>}
+        {recentLogs && recentLogs.length > 0 && (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+            {recentLogs.map((log) => (
+              <li key={log.id} style={{ fontSize: 13, display: "flex", gap: 8, justifyContent: "space-between" }}>
+                <span>
+                  <strong>{log.actor_email}</strong> — {ACTION_LABELS[log.action] ?? log.action}
+                  {log.target_label ? ` (${log.target_label})` : ""}
                 </span>
-              </>
-            );
+                <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>
+                  {new Date(log.created_at).toLocaleString("vi-VN")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-            const cardStyle: React.CSSProperties = {
-              display: "block",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              padding: 16,
-              textDecoration: "none",
-              color: "inherit",
-              cursor: card.implemented ? "pointer" : "default",
-              opacity: card.implemented ? 1 : 0.75,
-            };
-
-            return card.to ? (
-              <Link key={card.title} to={card.to} style={cardStyle}>
-                {content}
-              </Link>
-            ) : (
-              <div key={card.title} style={cardStyle}>
-                {content}
-              </div>
-            );
-          })}
+      <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
+        <h3 style={{ margin: "0 0 10px" }}>Sắp triển khai</h3>
+        <div style={{ display: "grid", gap: 10 }}>
+          {UPCOMING_SECTIONS.map((section) => (
+            <div key={section.title}>
+              <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: 13.5 }}>{section.title}</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: "var(--muted)" }}>{section.description}</p>
+            </div>
+          ))}
         </div>
       </section>
     </div>
