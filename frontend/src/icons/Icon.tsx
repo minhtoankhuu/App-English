@@ -8,6 +8,42 @@ function Svg({ children }: { children: ReactNode }) {
   );
 }
 
+export function BrandLogoIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M6.5 7.5C8.8 6.5 11.5 6.8 14 8C16.5 6.8 19.2 6.5 21.5 7.5V21.5C19.2 20.5 16.5 20.8 14 22C11.5 20.8 8.8 20.5 6.5 21.5V7.5Z"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="rgba(255, 255, 255, 0.18)"
+      />
+      <path
+        d="M14 8V22"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M21.5 3L22.2 4.8L24 5.5L22.2 6.2L21.5 8L20.8 6.2L19 5.5L20.8 4.8L21.5 3Z"
+        fill="#60a5fa"
+      />
+      <path
+        d="M7 3.5L7.4 4.5L8.4 4.9L7.4 5.3L7 6.3L6.6 5.3L5.6 4.9L6.6 4.5L7 3.5Z"
+        fill="#bfdbfe"
+      />
+    </svg>
+  );
+}
+
 export function PlusIcon() {
   return (
     <Svg>

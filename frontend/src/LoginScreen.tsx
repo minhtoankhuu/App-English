@@ -1,5 +1,6 @@
 import { LoginForm } from "./LoginForm";
 import type { UserOut } from "./types/auth";
+import { BrandLogoIcon } from "./icons/Icon";
 
 const FEATURES = [
   "Sinh đề bám đúng Unit và trình độ CEFR của học sinh",
@@ -15,7 +16,9 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
   return (
     <div className="login-shell">
       <div className="login-brand-panel">
-        <span className="brand-mark login-brand-mark">E</span>
+        <span className="brand-mark login-brand-mark">
+          <BrandLogoIcon size={34} />
+        </span>
         <h1 className="login-brand-title">
           ExamCraft <em>AI</em>
         </h1>

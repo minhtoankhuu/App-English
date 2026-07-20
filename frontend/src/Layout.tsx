@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { logout } from "./api/auth";
 import type { UserOut } from "./types/auth";
 import { UsageProvider, useUsage } from "./usage/UsageContext";
-import { BankIcon, DocIcon, LayersIcon, PlusIcon, UsersIcon } from "./icons/Icon";
+import { BankIcon, BrandLogoIcon, DocIcon, LayersIcon, PlusIcon, UsersIcon } from "./icons/Icon";
 
 interface LayoutProps {
   user: UserOut;
@@ -53,7 +53,9 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
     <div className="app-shell">
       <aside className="sidebar">
         <Link className="brand" to={homePath} aria-label="ExamCraft AI">
-          <span className="brand-mark">E</span>
+          <span className="brand-mark">
+            <BrandLogoIcon size={22} />
+          </span>
           <span className="brand-name">
             ExamCraft <em>AI</em>
           </span>
