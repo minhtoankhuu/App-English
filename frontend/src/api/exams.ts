@@ -26,6 +26,8 @@ export const createExam = (payload: ExamCreateRequest): Promise<ExamDetailOut> =
 export const updateExam = (examId: string, payload: ExamUpdateRequest): Promise<ExamDetailOut> =>
   apiRequest(`/exams/${examId}`, { method: "PATCH", body: JSON.stringify(payload) });
 
+export const deleteExam = (examId: string): Promise<void> => apiRequest(`/exams/${examId}`, { method: "DELETE" });
+
 export const setGrammarSelection = (examId: string, grammarPointIds: string[]): Promise<ExamDetailOut> =>
   apiRequest(`/exams/${examId}/grammar-selection`, {
     method: "PUT",

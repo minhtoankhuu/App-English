@@ -227,6 +227,15 @@ def update_exam(
     return _exam_detail(_get_owned_exam(db, exam_id, current_user))
 
 
+@router.delete("/{exam_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_exam(
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
+) -> None:
+    exam = _get_owned_exam(db, exam_id, current_user)
+    db.delete(exam)
+    db.commit()
+
+
 @router.put("/{exam_id}/grammar-selection", response_model=ExamDetailOut)
 def set_grammar_selection(
     exam_id: uuid.UUID,

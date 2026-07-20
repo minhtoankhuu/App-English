@@ -390,3 +390,41 @@ def test_list_exams_returns_only_own_exams_with_summary(client, seeded_db):
         assert e["grade_number"] == 7
         assert e["level_code"] == "A2"
         assert e["total_questions"] == 0
+
+
+def test_delete_exam(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    client.post(
+        f"/exams/{exam['id']}/blocks",
+        json={"exercise_type_id": str(ex_type.id), "title": "II", "question_count": 1, "points": "1.0"},
+    )
+
+    resp = client.delete(f"/exams/{exam['id']}")
+    assert resp.status_code == 204
+
+    assert client.get(f"/exams/{exam['id']}").status_code == 404
+    assert client.get("/exams").json() == []
+
+
+def test_delete_exam_not_found_and_not_owned(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+
+    resp = client.delete(f"/exams/{uuid.uuid4()}")
+    assert resp.status_code == 404
+
+    other = User(
+        email="other-delete@examcraft.dev",
+        password_hash=hash_password("Secret123!"),
+        full_name="Other",
+        role=UserRole.TEACHER,
+    )
+    seeded_db.add(other)
+    seeded_db.commit()
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"email": "other-delete@examcraft.dev", "password": "Secret123!"})
+
+    resp = client.delete(f"/exams/{exam['id']}")
+    assert resp.status_code == 403
