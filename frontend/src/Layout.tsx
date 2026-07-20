@@ -1,11 +1,37 @@
+import type { ComponentType } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { logout } from "./api/auth";
 import type { UserOut } from "./types/auth";
 import { UsageProvider, useUsage } from "./usage/UsageContext";
+import { BankIcon, DocIcon, LayersIcon, PlusIcon, UsersIcon } from "./icons/Icon";
 
 interface LayoutProps {
   user: UserOut;
   onLogout: () => void;
+}
+
+interface NavItem {
+  to: string;
+  label: string;
+  Icon: ComponentType;
+}
+
+const TEACHER_NAV: NavItem[] = [
+  { to: "/exams/new", label: "Tạo đề", Icon: PlusIcon },
+  { to: "/exams", label: "Đề của tôi", Icon: DocIcon },
+];
+
+const ADMIN_NAV: NavItem[] = [
+  { to: "/admin", label: "Tổng quan", Icon: LayersIcon },
+  { to: "/admin/teachers", label: "Quản lý giáo viên", Icon: UsersIcon },
+  { to: "/admin/audit-logs", label: "Audit log", Icon: BankIcon },
+];
+
+function isNavActive(pathname: string, to: string): boolean {
+  if (to === "/exams") {
+    return pathname === "/exams" || (pathname.startsWith("/exams/") && !pathname.startsWith("/exams/new"));
+  }
+  return pathname === to || pathname.startsWith(`${to}/`);
 }
 
 function LayoutContent({ user, onLogout }: LayoutProps) {
@@ -19,68 +45,51 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
 
   const isAdmin = user.role === "admin";
   const homePath = isAdmin ? "/admin" : "/exams";
-  const navLinks = isAdmin
-    ? [{ to: "/admin", label: "Quản trị" }]
-    : [{ to: "/exams", label: "Đề của tôi" }];
+  const navItems = isAdmin ? ADMIN_NAV : TEACHER_NAV;
+  const avatarLetter = user.full_name.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <div style={{ width: "100%", maxWidth: 960, margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "14px 20px",
-          background: "var(--surface)",
-          borderRadius: 12,
-          marginBottom: 18,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <Link to={homePath} style={{ fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
-            ExamCraft AI
-          </Link>
-          <nav style={{ display: "flex", gap: 14 }}>
-            {navLinks.map((link) => {
-              const active = location.pathname.startsWith(link.to);
-              return (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  style={{
-                    fontSize: 13,
-                    fontWeight: active ? 700 : 500,
-                    color: active ? "var(--primary)" : "var(--ink)",
-                    textDecoration: "none",
-                  }}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {user.role === "teacher" && status && (
-            <span style={{ fontSize: 13, color: "var(--primary)", fontWeight: 600 }}>
-              Còn {status.remaining}/{status.limit} lượt hôm nay
-            </span>
-          )}
-          <span style={{ fontSize: 13, color: "var(--muted)" }}>
-            {user.full_name} · {user.role === "admin" ? "Quản trị viên" : "Giáo viên"}
+    <div className="app-shell">
+      <aside className="sidebar">
+        <Link className="brand" to={homePath} aria-label="ExamCraft AI">
+          <span className="brand-mark">E</span>
+          <span className="brand-name">
+            ExamCraft <em>AI</em>
           </span>
-          <button
-            onClick={handleLogout}
-            style={{ border: "1px solid var(--border)", background: "#fff", borderRadius: 8, padding: "6px 12px" }}
-          >
-            Đăng xuất
-          </button>
+        </Link>
+
+        <nav className="main-nav" aria-label={isAdmin ? "Điều hướng quản trị" : "Điều hướng giáo viên"}>
+          {navItems.map(({ to, label, Icon }) => (
+            <Link key={to} to={to} className={`nav-item${isNavActive(location.pathname, to) ? " active" : ""}`}>
+              <Icon />
+              <span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+
+        {!isAdmin && status && (
+          <p className="usage-badge">
+            Còn {status.remaining}/{status.limit} lượt hôm nay
+          </p>
+        )}
+
+        <div className="user-card">
+          <span className="avatar">{avatarLetter}</span>
+          <span className="user-meta">
+            <strong>{user.full_name}</strong>
+            <small>{isAdmin ? "Quản trị viên" : "Giáo viên"}</small>
+          </span>
         </div>
-      </header>
-      <main>
-        <Outlet />
+
+        <button type="button" className="sidebar-logout" onClick={handleLogout}>
+          Đăng xuất
+        </button>
+      </aside>
+
+      <main className="main-content">
+        <div className="workspace">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

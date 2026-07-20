@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { fetchCurrentUser } from "./api/auth";
-import { LoginForm } from "./LoginForm";
+import { LoginScreen } from "./LoginScreen";
 import { Layout } from "./Layout";
 import { ExamListPage } from "./pages/ExamListPage";
+import { ExamCreatePage } from "./pages/ExamCreatePage";
 import { ExamBuilderPage } from "./pages/ExamBuilderPage";
 import { ExamReviewPage } from "./pages/ExamReviewPage";
 import { ExamExportPage } from "./pages/ExamExportPage";
@@ -33,11 +34,7 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <div className="center-screen">
-        <LoginForm onSuccess={setUser} />
-      </div>
-    );
+    return <LoginScreen onSuccess={setUser} />;
   }
 
   const isAdmin = user.role === "admin";
@@ -50,6 +47,7 @@ function App() {
         <Route element={<Layout user={user} onLogout={() => setUser(null)} />}>
           <Route path="/" element={<Navigate to={homePath} replace />} />
           <Route path="/exams" element={teacherOnly(<ExamListPage />)} />
+          <Route path="/exams/new" element={teacherOnly(<ExamCreatePage />)} />
           <Route path="/exams/:examId/builder" element={teacherOnly(<ExamBuilderPage />)} />
           <Route path="/exams/:examId/review" element={teacherOnly(<ExamReviewPage />)} />
           <Route path="/exams/:examId/export" element={teacherOnly(<ExamExportPage />)} />

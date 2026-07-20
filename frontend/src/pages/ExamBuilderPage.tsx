@@ -10,13 +10,15 @@ import {
   setGrammarSelection,
   updateBlock,
 } from "../api/exams";
-import { listExerciseTypes, listGrammarTopics } from "../api/catalog";
+import { listExerciseTypes, listGrades, listGrammarTopics, listPassageLengthRules, listProficiencyLevels } from "../api/catalog";
 import { ApiError } from "../api/client";
-import type { ExamDetailOut, BlockOut } from "../types/exam";
-import type { ExerciseTypeOut, GrammarTopicOut } from "../types/catalog";
+import type { ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
+import type { ExerciseTypeOut, GradeOut, GrammarTopicOut, PassageLengthRuleOut, ProficiencyLevelOut } from "../types/catalog";
 import type { ExamPreviewOut } from "../types/examPreview";
 import { SortableBlockList } from "../exam-builder/SortableBlockList";
 import { ExamPreview } from "../exam-preview/ExamPreview";
+import { StepsIndicator } from "../components/StepsIndicator";
+import { Modal } from "../components/Modal";
 import { useUsage } from "../usage/UsageContext";
 
 interface RouteToken {
@@ -58,9 +60,21 @@ export function ExamBuilderPage() {
   const nextOperationId = useRef(0);
   const activeMutationRef = useRef<MutationToken | null>(null);
 
-  const [newTypeId, setNewTypeId] = useState("");
-  const [newCount, setNewCount] = useState(5);
-  const [newPoints, setNewPoints] = useState(1);
+  const [levels, setLevels] = useState<ProficiencyLevelOut[]>([]);
+  const [grades, setGrades] = useState<GradeOut[]>([]);
+  const [passageLengthRules, setPassageLengthRules] = useState<PassageLengthRuleOut[]>([]);
+
+  const [editingBlock, setEditingBlock] = useState<BlockOut | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editInstruction, setEditInstruction] = useState("");
+  const [editDifficulty, setEditDifficulty] = useState<Difficulty>("hon_hop");
+  const [editCount, setEditCount] = useState(1);
+  const [editPoints, setEditPoints] = useState(1);
+  const [editPassageWordTarget, setEditPassageWordTarget] = useState(100);
+  const [editLevelOverrideId, setEditLevelOverrideId] = useState("");
+  const [editShuffleQuestions, setEditShuffleQuestions] = useState(true);
+  const [editShuffleAnswers, setEditShuffleAnswers] = useState(true);
+  const [editPromptOverride, setEditPromptOverride] = useState("");
 
   function isActiveRoute(target: RouteToken) {
     return routeRef.current.examId === target.examId && routeRef.current.generation === target.generation;
@@ -160,10 +174,18 @@ export function ExamBuilderPage() {
     void listExerciseTypes().then((types) => {
       if (!isActiveRoute(target)) return;
       setExerciseTypes(types);
-      if (types.length > 0) setNewTypeId(types[0]!.id);
     });
     void listGrammarTopics().then((topics) => {
       if (isActiveRoute(target)) setGrammarTopics(topics);
+    });
+    void listProficiencyLevels().then((data) => {
+      if (isActiveRoute(target)) setLevels(data);
+    });
+    void listGrades().then((data) => {
+      if (isActiveRoute(target)) setGrades(data);
+    });
+    void listPassageLengthRules().then((data) => {
+      if (isActiveRoute(target)) setPassageLengthRules(data);
     });
     return () => {
       examRequestId.current += 1;
@@ -191,38 +213,42 @@ export function ExamBuilderPage() {
 
   if (!exam) {
     return (
-      <div className="exam-builder-layout">
-        <section className="exam-builder-editor" style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-          <p style={{ margin: 0, color: activeError ? "var(--danger)" : "var(--muted)" }}>
-            {activeError ?? "Đang tải..."}
-          </p>
-        </section>
-        <aside className="exam-builder-preview">
+      <>
+        <StepsIndicator current={2} />
+        <div className="builder-grid">
+          <section className="configuration">
+            <p style={{ margin: 0, color: activeError ? "var(--danger)" : "var(--muted)" }}>
+              {activeError ?? "Đang tải..."}
+            </p>
+          </section>
           <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
-        </aside>
-      </div>
+        </div>
+      </>
     );
   }
 
-  async function handleAddBlock() {
-    if (!newTypeId || mutationSaving) return;
-    const type = exerciseTypes.find((t) => t.id === newTypeId);
+  async function handleToggleType(type: ExerciseTypeOut, existingBlocks: BlockOut[]) {
+    if (mutationSaving) return;
     const target = beginMutation();
     if (!target) return;
     try {
-      await addBlock(target.examId, {
-        exercise_type_id: newTypeId,
-        title: type ? type.name : "Phần mới",
-        question_count: newCount,
-        points: newPoints,
-      });
+      if (existingBlocks.length > 0) {
+        await Promise.all(existingBlocks.map((block) => deleteBlock(target.examId, block.id)));
+      } else {
+        await addBlock(target.examId, {
+          exercise_type_id: type.id,
+          title: type.name,
+          question_count: 5,
+          points: 1,
+        });
+      }
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({
           generation: target.generation,
-          value: err instanceof ApiError ? err.message : "Không thêm được phần",
+          value: err instanceof ApiError ? err.message : "Không cập nhật được dạng bài",
         });
       }
     } finally {
@@ -275,14 +301,48 @@ export function ExamBuilderPage() {
     }
   }
 
-  async function handleBlockField(block: BlockOut, field: "question_count" | "points", value: number) {
-    if (mutationSaving) return;
+  function openEditBlock(block: BlockOut) {
+    const gradeNumber = exam ? grades.find((g) => g.id === exam.grade_id)?.number : undefined;
+    const range = passageRangeFor(gradeNumber);
+    setEditingBlock(block);
+    setEditTitle(block.title);
+    setEditInstruction(block.instruction ?? "");
+    setEditDifficulty(block.difficulty);
+    setEditCount(block.question_count);
+    setEditPoints(Number(block.points));
+    setEditPassageWordTarget(block.passage_word_target ?? (range ? Math.round((range[0] + range[1]) / 2 / 10) * 10 : 100));
+    setEditLevelOverrideId(block.level_override?.id ?? "");
+    setEditShuffleQuestions(block.shuffle_questions);
+    setEditShuffleAnswers(block.shuffle_answers);
+    setEditPromptOverride(block.prompt_override ?? "");
+  }
+
+  function passageRangeFor(gradeNumber: number | undefined): [number, number] | null {
+    if (!gradeNumber) return null;
+    const rule = passageLengthRules.find((r) => gradeNumber >= r.grade_min && gradeNumber <= r.grade_max);
+    return rule ? [rule.min_words, rule.max_words] : null;
+  }
+
+  async function handleSaveBlockEdit() {
+    if (!editingBlock || mutationSaving || !editTitle.trim()) return;
     const target = beginMutation();
     if (!target) return;
     try {
-      await updateBlock(target.examId, block.id, { [field]: value });
+      await updateBlock(target.examId, editingBlock.id, {
+        title: editTitle.trim(),
+        instruction: editInstruction.trim() || null,
+        difficulty: editDifficulty,
+        question_count: editCount,
+        points: editPoints,
+        level_override_id: editLevelOverrideId || null,
+        shuffle_questions: editShuffleQuestions,
+        shuffle_answers: editShuffleAnswers,
+        prompt_override: editPromptOverride.trim() || null,
+        passage_word_target: editingBlock.exercise_type.has_passage ? editPassageWordTarget : null,
+      });
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
+      setEditingBlock(null);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({
@@ -348,153 +408,254 @@ export function ExamBuilderPage() {
   const orderedBlocks = [...exam.blocks].sort((a, b) => a.order_no - b.order_no);
 
   return (
-    <div className="exam-builder-layout">
-      <section className="exam-builder-editor" style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>{exam.title}</h2>
-        {activeError && <p style={{ color: "var(--danger)" }}>{activeError}</p>}
+    <>
+      <StepsIndicator current={2} />
+      <div className="builder-grid">
+        <section className="configuration">
+          <h2>{exam.title}</h2>
+          {activeError && <p style={{ color: "var(--danger)" }}>{activeError}</p>}
 
-        {activeTopic && (
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ marginBottom: 8, fontSize: 15 }}>Chọn {activeTopic.name.split(" — ")[0]}</h3>
-            {activeTopic.groups.map((group) => (
-              <div key={group.id} style={{ marginBottom: 8 }}>
-                <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>
-                  {group.name}
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {group.points.map((point) => (
-                    <label
-                      key={point.id}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        border: "1px solid var(--border)",
-                        fontSize: 12,
-                        background: selectedPoints.has(point.id) ? "#ecf1fe" : "#fff",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedPoints.has(point.id)}
-                        disabled={mutationSaving}
-                        onChange={() => togglePoint(point.id)}
-                      />
-                      {point.name} ({point.min_level.code})
-                    </label>
-                  ))}
+          {activeTopic && (
+            <div style={{ marginBottom: 16 }}>
+              <div className="section-heading block-heading">
+                <div>
+                  <h3>Chọn {activeTopic.name.split(" — ")[0]}</h3>
                 </div>
               </div>
-            ))}
-            <button onClick={handleSaveGrammarSelection} disabled={mutationSaving} style={secondaryButtonStyle}>
-              Lưu lựa chọn
+              {activeTopic.groups.map((group) => (
+                <div key={group.id} style={{ marginTop: 12 }}>
+                  <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>
+                    {group.name}
+                  </p>
+                  <div className="type-grid">
+                    {group.points.map((point) => (
+                      <label key={point.id} className="type-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedPoints.has(point.id)}
+                          disabled={mutationSaving}
+                          onChange={() => togglePoint(point.id)}
+                        />
+                        {point.name} ({point.min_level.code})
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleSaveGrammarSelection}
+                disabled={mutationSaving}
+                className="button secondary compact"
+                style={{ marginTop: 12 }}
+              >
+                Lưu lựa chọn
+              </button>
+            </div>
+          )}
+
+          <div className="section-heading block-heading">
+            <div>
+              <h2>Dạng bài tập</h2>
+              <p>Tick để thêm block dạng đó (5 câu/1 điểm mặc định); bỏ tick sẽ xóa block tương ứng.</p>
+            </div>
+          </div>
+          <div className="type-grid">
+            {exerciseTypes.map((type) => {
+              const blocksOfType = exam.blocks.filter((block) => block.exercise_type.id === type.id);
+              return (
+                <label key={type.id} className="type-option">
+                  <input
+                    type="checkbox"
+                    checked={blocksOfType.length > 0}
+                    disabled={mutationSaving}
+                    onChange={() => handleToggleType(type, blocksOfType)}
+                  />
+                  {type.name}
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="section-heading block-heading">
+            <div>
+              <h2>Các phần của đề</h2>
+              <p>Kéo thả, sửa số câu/điểm hoặc xóa riêng từng khối.</p>
+            </div>
+          </div>
+          <SortableBlockList
+            blocks={orderedBlocks}
+            saving={mutationSaving}
+            onReorder={handleReorder}
+            onDelete={handleDeleteBlock}
+            onEdit={openEditBlock}
+          />
+
+          <div className="config-footer">
+            <button
+              type="button"
+              onClick={() => navigate("/exams")}
+              disabled={mutationSaving}
+              className="button secondary"
+            >
+              Lưu vào nháp
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating || mutationSaving || exam.blocks.length === 0}
+              className="button primary large"
+            >
+              {generating ? "Đang sinh đề..." : "✦ Sinh đề bằng AI"}
             </button>
           </div>
+        </section>
+        <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
+      </div>
+
+      <Modal open={editingBlock !== null} onClose={() => setEditingBlock(null)} title="Chỉnh sửa phần" size="lg">
+        {editingBlock && (
+          <div className="app-modal-body">
+            <p style={{ margin: 0 }}>
+              <span className="chip">{editingBlock.exercise_type.name}</span>
+              <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: 12.5 }}>
+                — dạng bài chọn ở checklist bên ngoài. Câu đã khóa không bị sinh lại.
+              </span>
+            </p>
+
+            <label>
+              Tiêu đề phần
+              <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+            </label>
+
+            <label>
+              Hướng dẫn làm bài
+              <input
+                type="text"
+                placeholder="Ví dụ: Choose the best answer A, B, C or D."
+                value={editInstruction}
+                onChange={(e) => setEditInstruction(e.target.value)}
+              />
+            </label>
+
+            <div className="editor-grid">
+              <label>
+                Độ khó
+                <select value={editDifficulty} onChange={(e) => setEditDifficulty(e.target.value as Difficulty)}>
+                  <option value="nhan_biet">Nhận biết</option>
+                  <option value="thong_hieu">Thông hiểu</option>
+                  <option value="van_dung">Vận dụng</option>
+                  <option value="hon_hop">Hỗn hợp</option>
+                </select>
+              </label>
+              <label>
+                Số câu
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={editCount}
+                  onChange={(e) => setEditCount(Number(e.target.value))}
+                />
+              </label>
+              <label>
+                Điểm
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  step={0.5}
+                  value={editPoints}
+                  onChange={(e) => setEditPoints(Number(e.target.value))}
+                />
+              </label>
+            </div>
+
+            {editingBlock.exercise_type.has_passage &&
+              (() => {
+                const gradeNumber = grades.find((g) => g.id === exam.grade_id)?.number;
+                const range = passageRangeFor(gradeNumber);
+                return (
+                  <div>
+                    <label>
+                      Số từ bài đọc (≈)
+                      <input
+                        type="number"
+                        min={10}
+                        max={500}
+                        step={10}
+                        value={editPassageWordTarget}
+                        onChange={(e) => setEditPassageWordTarget(Number(e.target.value))}
+                      />
+                    </label>
+                    {range && (
+                      <small className="field-hint">
+                        Gợi ý {range[0]}–{range[1]} từ cho Lớp {gradeNumber} — theo bảng độ dài bài đọc.
+                      </small>
+                    )}
+                  </div>
+                );
+              })()}
+
+            <div>
+              <label>
+                Trình độ của phần này
+                <select value={editLevelOverrideId} onChange={(e) => setEditLevelOverrideId(e.target.value)}>
+                  <option value="">Theo trình độ của đề</option>
+                  {levels.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <small className="field-hint">Chỉ ghi đè khi phần này cần khác với trình độ chung.</small>
+            </div>
+
+            <div className="editor-checks">
+              <label className="type-option">
+                <input
+                  type="checkbox"
+                  checked={editShuffleQuestions}
+                  onChange={(e) => setEditShuffleQuestions(e.target.checked)}
+                />
+                Cho phép đảo thứ tự câu
+              </label>
+              <label className="type-option">
+                <input
+                  type="checkbox"
+                  checked={editShuffleAnswers}
+                  onChange={(e) => setEditShuffleAnswers(e.target.checked)}
+                />
+                Cho phép đảo đáp án
+              </label>
+            </div>
+
+            <label>
+              Prompt bổ sung cho phần này
+              <textarea
+                rows={2}
+                placeholder="Ví dụ: Ưu tiên từ vựng về hoạt động tình nguyện trong Unit 3."
+                value={editPromptOverride}
+                onChange={(e) => setEditPromptOverride(e.target.value)}
+              />
+            </label>
+          </div>
         )}
-
-        <h3 style={{ fontSize: 15 }}>Các phần của đề</h3>
-        <SortableBlockList
-          blocks={orderedBlocks}
-          saving={mutationSaving}
-          onReorder={handleReorder}
-          onDelete={handleDeleteBlock}
-          onUpdateField={handleBlockField}
-        />
-
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
-          <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-            Dạng bài
-            <select
-              value={newTypeId}
-              disabled={mutationSaving}
-              onChange={(e) => setNewTypeId(e.target.value)}
-              style={inputStyle}
-            >
-              {exerciseTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-            Số câu
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={newCount}
-              disabled={mutationSaving}
-              onChange={(e) => setNewCount(Number(e.target.value))}
-              style={{ ...inputStyle, width: 70 }}
-            />
-          </label>
-          <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-            Điểm
-            <input
-              type="number"
-              min={0}
-              max={10}
-              step={0.5}
-              value={newPoints}
-              disabled={mutationSaving}
-              onChange={(e) => setNewPoints(Number(e.target.value))}
-              style={{ ...inputStyle, width: 70 }}
-            />
-          </label>
-          <button onClick={handleAddBlock} disabled={mutationSaving} style={secondaryButtonStyle}>
-            + Thêm phần
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setEditingBlock(null)}>
+            Hủy
           </button>
-        </div>
-
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
           <button
-            onClick={handleGenerate}
-            disabled={generating || mutationSaving || exam.blocks.length === 0}
-            style={primaryButtonStyle}
+            type="button"
+            className="button primary"
+            onClick={handleSaveBlockEdit}
+            disabled={mutationSaving || !editTitle.trim()}
           >
-            {generating ? "Đang sinh đề..." : "✦ Sinh đề bằng AI"}
+            Lưu
           </button>
         </div>
-      </section>
-      <aside className="exam-builder-preview">
-        <ExamPreview
-          preview={preview}
-          loading={previewLoading}
-          error={activePreviewError}
-          onRetry={retryPreview}
-        />
-      </aside>
-    </div>
+      </Modal>
+    </>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  height: 34,
-  padding: "0 8px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  fontSize: 13,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  height: 42,
-  padding: "0 18px",
-  borderRadius: 8,
-  border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 600,
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  height: 34,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  fontWeight: 600,
-  fontSize: 13,
-};

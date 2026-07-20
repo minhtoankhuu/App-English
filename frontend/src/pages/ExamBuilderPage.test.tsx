@@ -23,6 +23,9 @@ const examApi = vi.hoisted(() => ({
 const catalogApi = vi.hoisted(() => ({
   listExerciseTypes: vi.fn(),
   listGrammarTopics: vi.fn(),
+  listProficiencyLevels: vi.fn(),
+  listGrades: vi.fn(),
+  listPassageLengthRules: vi.fn(),
 }));
 
 vi.mock("../api/exams", () => examApi);
@@ -111,6 +114,15 @@ const preview: ExamPreviewOut = {
   ],
 };
 
+const wordFormType: ExerciseTypeOut = {
+  id: "type-2",
+  code: "word_form",
+  name: "Word form",
+  default_instruction: "",
+  has_passage: false,
+  order_no: 2,
+};
+
 const examTwo: ExamDetailOut = {
   ...exam,
   id: "exam-2",
@@ -179,7 +191,7 @@ describe("ExamBuilderPage", () => {
     examApi.updateBlock.mockResolvedValue(blocks[0]);
     examApi.setGrammarSelection.mockResolvedValue(exam);
     examApi.reorderBlocks.mockResolvedValue(exam);
-    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type]);
+    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType]);
     catalogApi.listGrammarTopics.mockResolvedValue([
       {
         id: "topic-1",
@@ -193,6 +205,11 @@ describe("ExamBuilderPage", () => {
         ],
       },
     ]);
+    catalogApi.listProficiencyLevels.mockResolvedValue([{ id: "level-1", code: "A2", rank: 2 }]);
+    catalogApi.listGrades.mockResolvedValue([
+      { id: "grade-1", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-1", code: "A2", rank: 2 } },
+    ]);
+    catalogApi.listPassageLengthRules.mockResolvedValue([{ grade_min: 6, grade_max: 7, min_words: 80, max_words: 150 }]);
   });
 
   it("loads exam and preview together", async () => {
@@ -276,14 +293,14 @@ describe("ExamBuilderPage", () => {
     renderBuilder();
     await screen.findByRole("heading", { name: "Đề kiểm tra" });
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
     await act(async () => resolveRefreshedPreview({ ...preview, title: "Bản mới" }));
-    expect(await screen.findAllByText("Bản mới")).toHaveLength(2);
+    expect(await screen.findAllByText("Bản mới")).toHaveLength(1);
 
     await act(async () => resolveInitialPreview({ ...preview, title: "Bản cũ" }));
     await waitFor(() => expect(screen.queryByText("Bản cũ")).not.toBeInTheDocument());
-    expect(screen.getAllByText("Bản mới")).toHaveLength(2);
+    expect(screen.getAllByText("Bản mới")).toHaveLength(1);
   });
 
   it("ignores deferred exam and preview responses from the previous route", async () => {
@@ -370,7 +387,7 @@ describe("ExamBuilderPage", () => {
         },
       ]);
     });
-    expect(await screen.findByRole("option", { name: "Dạng mới" })).toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: "Dạng mới" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
 
     await act(async () => {
@@ -384,8 +401,8 @@ describe("ExamBuilderPage", () => {
         },
       ]);
     });
-    expect(screen.queryByRole("option", { name: "Dạng cũ" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Dạng mới" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Dạng cũ" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Dạng mới" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
   });
 
@@ -423,13 +440,13 @@ describe("ExamBuilderPage", () => {
 
     expect(blockOrder()).toEqual(["block-b", "block-a"]);
     expect(screen.getByRole("button", { name: "Lên A" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Lưu lựa chọn" })).toBeDisabled();
     expect(examApi.reorderBlocks).toHaveBeenCalledWith("exam-1", ["b", "a"]);
 
     await act(async () => resolveReorder(reorderedExam));
 
-    expect(await screen.findByText("1. B đã lưu")).toBeInTheDocument();
+    expect(await screen.findByText("B đã lưu")).toBeInTheDocument();
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
   });
 
@@ -477,18 +494,18 @@ describe("ExamBuilderPage", () => {
       resolveExamTwo(examTwo);
     });
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
-    expect(await screen.findAllByText("Đề số hai")).toHaveLength(3);
+    expect(await screen.findAllByText("Đề số hai")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Xuống C" }));
-    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 
     await act(async () => resolveOldReorder({ ...exam, blocks: [...blocks].reverse() }));
 
     expect(screen.getByTestId("block-c")).toBeInTheDocument();
     expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 
     await act(async () => resolveNewReorder(examTwo));
-    await waitFor(() => expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeEnabled());
     expect(screen.getByTestId("block-c")).toBeInTheDocument();
   });
 
@@ -505,7 +522,7 @@ describe("ExamBuilderPage", () => {
     await user.click(await screen.findByRole("button", { name: "Xuống A" }));
     expect(await screen.findByText("Không lưu được thứ tự")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
 
     await act(async () => resolveAdd(blocks[0]!));
@@ -519,7 +536,7 @@ describe("ExamBuilderPage", () => {
     renderBuilder();
     await screen.findByTestId("block-a");
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
 
     expect(await screen.findByText("Không tải được đề")).toBeInTheDocument();
     expect(screen.getByTestId("block-a")).toBeInTheDocument();
@@ -531,16 +548,17 @@ describe("ExamBuilderPage", () => {
     renderBuilder();
     await screen.findByText("Trang 1/1");
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
 
     await user.click(screen.getByRole("button", { name: "Xóa A" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(3));
 
-    const questionCount = screen.getByLabelText("Số câu A");
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    const questionCount = screen.getByLabelText("Số câu");
     await user.clear(questionCount);
     await user.type(questionCount, "8");
-    act(() => questionCount.blur());
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(4));
 
     await user.click(screen.getByRole("checkbox", { name: /Hiện tại đơn/ }));
@@ -548,7 +566,84 @@ describe("ExamBuilderPage", () => {
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(5));
 
     expect(examApi.getExam).toHaveBeenCalledTimes(5);
-    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", { question_count: 8 });
+    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", {
+      title: "A",
+      instruction: null,
+      difficulty: "nhan_biet",
+      question_count: 8,
+      points: 1,
+      level_override_id: null,
+      shuffle_questions: false,
+      shuffle_answers: false,
+      prompt_override: null,
+      passage_word_target: null,
+    });
     expect(examApi.setGrammarSelection).toHaveBeenCalledWith("exam-1", ["point-1"]);
+  });
+
+  it("ticking an exercise type without a block adds one with default count and points", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
+
+    expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
+      exercise_type_id: "type-2",
+      title: "Word form",
+      question_count: 5,
+      points: 1,
+    });
+  });
+
+  it("unticking an exercise type deletes every block of that type", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("checkbox", { name: "Trắc nghiệm" }));
+
+    expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "a");
+    expect(examApi.deleteBlock).toHaveBeenCalledWith("exam-1", "b");
+  });
+
+  it("shows passage word hint for passage-based types and saves full block edit", async () => {
+    const user = userEvent.setup();
+    const readingType = { id: "type-read", code: "reading_true_false", name: "Đọc hiểu True/False", has_passage: true };
+    const readingBlock = {
+      ...blocks[0]!,
+      id: "r",
+      title: "Đọc hiểu True/False",
+      exercise_type: readingType,
+      instruction: null,
+      difficulty: "hon_hop" as const,
+      level_override: null,
+      passage_word_target: null,
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [readingBlock] });
+    renderBuilder();
+    await screen.findByTestId("block-r");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa Đọc hiểu True/False" }));
+
+    expect(screen.getByText(/Gợi ý 80–150 từ cho Lớp 7/)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Tiêu đề phần"));
+    await user.type(screen.getByLabelText("Tiêu đề phần"), "III. Reading");
+    await user.selectOptions(screen.getByLabelText("Trình độ của phần này"), "A2");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "r", {
+      title: "III. Reading",
+      instruction: null,
+      difficulty: "hon_hop",
+      question_count: 5,
+      points: 1,
+      level_override_id: "level-1",
+      shuffle_questions: false,
+      shuffle_answers: false,
+      prompt_override: null,
+      passage_word_target: 120,
+    });
   });
 });

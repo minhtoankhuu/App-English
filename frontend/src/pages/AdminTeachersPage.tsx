@@ -1,17 +1,28 @@
 import { useEffect, useState } from "react";
-import { createTeacher, listTeachers, updateTeacher } from "../api/admin";
+import { createTeacher, deleteTeacher, listTeachers, updateTeacher } from "../api/admin";
 import { ApiError } from "../api/client";
+import { Modal } from "../components/Modal";
 import type { TeacherOut } from "../types/admin";
 
 export function AdminTeachersPage() {
   const [teachers, setTeachers] = useState<TeacherOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function reload() {
     listTeachers()
@@ -29,6 +40,7 @@ export function AdminTeachersPage() {
       setEmail("");
       setFullName("");
       setPassword("");
+      setShowCreate(false);
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không tạo được tài khoản");
@@ -47,139 +59,198 @@ export function AdminTeachersPage() {
     }
   }
 
-  async function handleResetPassword(teacherId: string) {
+  async function handleResetPassword() {
+    if (!resettingId) return;
     if (newPassword.length < 8) {
       setError("Mật khẩu mới phải từ 8 ký tự");
       return;
     }
+    setSaving(true);
     setError(null);
     try {
-      await updateTeacher(teacherId, { password: newPassword });
+      await updateTeacher(resettingId, { password: newPassword });
       setResettingId(null);
       setNewPassword("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không đặt lại được mật khẩu");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEditFullName() {
+    if (!editingId) return;
+    if (!editFullName.trim()) {
+      setError("Họ tên không được để trống");
+      return;
+    }
+    setEditSaving(true);
+    setError(null);
+    try {
+      await updateTeacher(editingId, { full_name: editFullName.trim() });
+      setEditingId(null);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không cập nhật được họ tên");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleDelete(teacher: TeacherOut) {
+    if (!window.confirm(`Xóa vĩnh viễn tài khoản "${teacher.full_name}"? Không thể hoàn tác.`)) return;
+    setDeletingId(teacher.id);
+    setError(null);
+    try {
+      await deleteTeacher(teacher.id);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không xóa được tài khoản");
+    } finally {
+      setDeletingId(null);
     }
   }
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Thêm tài khoản giáo viên</h2>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label style={fieldStyle}>
-            Email
-            <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} type="email" />
-          </label>
-          <label style={fieldStyle}>
-            Họ tên
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
-          </label>
-          <label style={fieldStyle}>
-            Mật khẩu ban đầu
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-              type="password"
-              minLength={8}
-            />
-          </label>
-          <button
-            onClick={handleCreate}
-            disabled={creating || !email || !fullName || password.length < 8}
-            style={primaryButtonStyle}
-          >
-            {creating ? "Đang tạo..." : "+ Tạo tài khoản"}
-          </button>
-        </div>
-      </section>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>Tài khoản giáo viên</h2>
+        <button type="button" className="button primary" onClick={() => setShowCreate(true)}>
+          + Thêm tài khoản
+        </button>
+      </div>
 
-      <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Tài khoản giáo viên</h2>
-        {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
-        {!teachers && !error && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
-        {teachers && teachers.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có giáo viên nào.</p>}
+      {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+      {!teachers && !error && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
+      {teachers && teachers.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có giáo viên nào.</p>}
 
-        <div style={{ display: "grid", gap: 10 }}>
-          {teachers?.map((teacher) => (
-            <article key={teacher.id} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                <div>
-                  <strong>{teacher.full_name}</strong>
-                  <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--muted)" }}>{teacher.email}</p>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      padding: "3px 10px",
-                      borderRadius: 999,
-                      background: teacher.is_active ? "#e2f6ee" : "#fdecec",
-                      color: teacher.is_active ? "#0f8a62" : "#c0392b",
-                    }}
-                  >
+      {teachers && teachers.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Họ tên</th>
+              <th>Email</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {teachers.map((teacher) => (
+              <tr key={teacher.id}>
+                <td>{teacher.full_name}</td>
+                <td>{teacher.email}</td>
+                <td>
+                  <span className={`status-pill ${teacher.is_active ? "active" : "locked"}`}>
                     {teacher.is_active ? "Đang hoạt động" : "Đã khóa"}
                   </span>
-                  <button onClick={() => handleToggleActive(teacher)} style={smallButtonStyle}>
-                    {teacher.is_active ? "Khóa tài khoản" : "Mở lại"}
+                </td>
+                <td className="actions">
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={() => {
+                      setEditingId(teacher.id);
+                      setEditFullName(teacher.full_name);
+                    }}
+                  >
+                    Chỉnh sửa
+                  </button>
+                  <button type="button" className="button secondary compact" onClick={() => handleToggleActive(teacher)}>
+                    {teacher.is_active ? "Khóa" : "Mở lại"}
                   </button>
                   <button
-                    onClick={() => setResettingId(resettingId === teacher.id ? null : teacher.id)}
-                    style={smallButtonStyle}
+                    type="button"
+                    className="button secondary compact"
+                    onClick={() => {
+                      setResettingId(teacher.id);
+                      setNewPassword("");
+                    }}
                   >
                     Đặt lại mật khẩu
                   </button>
-                </div>
-              </div>
-
-              {resettingId === teacher.id && (
-                <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
-                  <input
-                    type="password"
-                    placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <button onClick={() => handleResetPassword(teacher.id)} style={primaryButtonStyle}>
-                    Lưu
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={() => handleDelete(teacher)}
+                    disabled={deletingId === teacher.id}
+                  >
+                    Xóa
                   </button>
-                </div>
-              )}
-            </article>
-          ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Thêm tài khoản giáo viên">
+        <div className="app-modal-body">
+          <label>
+            Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label>
+            Họ tên
+            <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </label>
+          <label>
+            Mật khẩu
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+            />
+          </label>
         </div>
-      </section>
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setShowCreate(false)}>
+            Hủy
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            onClick={handleCreate}
+            disabled={creating || !email || !fullName || password.length < 8}
+          >
+            {creating ? "Đang tạo..." : "Tạo tài khoản"}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={editingId !== null} onClose={() => setEditingId(null)} title="Chỉnh sửa giáo viên">
+        <div className="app-modal-body">
+          <label>
+            Họ tên
+            <input type="text" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} />
+          </label>
+        </div>
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setEditingId(null)}>
+            Hủy
+          </button>
+          <button type="button" className="button primary" onClick={handleEditFullName} disabled={editSaving}>
+            {editSaving ? "Đang lưu..." : "Lưu"}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={resettingId !== null} onClose={() => setResettingId(null)} title="Đặt lại mật khẩu">
+        <div className="app-modal-body">
+          <label>
+            Mật khẩu mới (tối thiểu 8 ký tự)
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+          </label>
+        </div>
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setResettingId(null)}>
+            Hủy
+          </button>
+          <button type="button" className="button primary" onClick={handleResetPassword} disabled={saving}>
+            {saving ? "Đang lưu..." : "Lưu"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
-
-const fieldStyle: React.CSSProperties = { display: "grid", gap: 4, fontSize: 13, fontWeight: 600 };
-
-const inputStyle: React.CSSProperties = {
-  height: 38,
-  padding: "0 10px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  fontSize: 13,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  height: 38,
-  padding: "0 16px",
-  borderRadius: 8,
-  border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 600,
-};
-
-const smallButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  fontSize: 12,
-  fontWeight: 600,
-};

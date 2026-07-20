@@ -38,7 +38,9 @@ describe("Layout", () => {
     renderLayout();
 
     expect(screen.getByRole("link", { name: "ExamCraft AI" })).toHaveAttribute("href", "/admin");
-    expect(screen.getByRole("link", { name: "Quản trị" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Tổng quan" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Quản lý giáo viên" })).toHaveAttribute("href", "/admin/teachers");
+    expect(screen.getByRole("link", { name: "Audit log" })).toHaveAttribute("href", "/admin/audit-logs");
     expect(screen.queryByRole("link", { name: "Đề của tôi" })).not.toBeInTheDocument();
   });
 
@@ -46,8 +48,9 @@ describe("Layout", () => {
     renderLayout(teacherUser);
 
     expect(screen.getByRole("link", { name: "ExamCraft AI" })).toHaveAttribute("href", "/exams");
+    expect(screen.getByRole("link", { name: "Tạo đề" })).toHaveAttribute("href", "/exams/new");
     expect(screen.getByRole("link", { name: "Đề của tôi" })).toHaveAttribute("href", "/exams");
-    expect(screen.queryByRole("link", { name: "Quản trị" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Tổng quan" })).not.toBeInTheDocument();
   });
 
   it("hiển thị số lượt còn lại cho giáo viên", async () => {

@@ -2,7 +2,9 @@ import json
 
 from sqlalchemy import func, select
 
+from app.models.academic import Grade, ProficiencyLevel, Unit
 from app.models.audit import AuditLog
+from app.models.exam import Exam, SourceType
 from app.models.user import User, UserRole
 from app.security import hash_password
 
@@ -191,3 +193,66 @@ def test_duplicate_teacher_does_not_write_extra_audit_log(client, db):
 
     assert response.status_code == 409
     assert db.scalar(select(func.count()).select_from(AuditLog)) == count_before
+
+
+def test_delete_teacher_without_exams_succeeds_and_writes_audit_log(client, db):
+    admin = _login_as_admin(client, db)
+    created = client.post(
+        "/admin/teachers",
+        json={"email": "delete-me@examcraft.dev", "full_name": "Xóa Được", "password": "Secret123!"},
+    ).json()
+
+    response = client.delete(f"/admin/teachers/{created['id']}")
+
+    assert response.status_code == 204
+    assert db.scalar(select(User).where(User.id == created["id"])) is None
+    log = db.scalar(
+        select(AuditLog).where(AuditLog.target_id == created["id"], AuditLog.action == "teacher.deleted")
+    )
+    assert log is not None
+    assert log.actor_user_id == admin.id
+    assert log.target_label == created["email"]
+
+
+def test_delete_teacher_with_exams_returns_409_and_keeps_teacher(seeded_db, client):
+    # seeded_db đã seed sẵn 1 admin qua settings — dùng email khác để tránh trùng.
+    admin = _login_as(
+        client, seeded_db, email="admin-busy@examcraft.dev", password="Secret123!", role=UserRole.ADMIN
+    )
+    created = client.post(
+        "/admin/teachers",
+        json={"email": "busy-teacher@examcraft.dev", "full_name": "Bận Rộn", "password": "Secret123!"},
+    ).json()
+    grade7 = seeded_db.scalar(select(Grade).where(Grade.number == 7))
+    unit3 = seeded_db.scalar(select(Unit).where(Unit.grade_id == grade7.id, Unit.order_no == 3))
+    level_a2 = seeded_db.scalar(select(ProficiencyLevel).where(ProficiencyLevel.code == "A2"))
+    seeded_db.add(
+        Exam(
+            teacher_id=created["id"],
+            title="Đề của giáo viên bận rộn",
+            grade_id=grade7.id,
+            level_id=level_a2.id,
+            source_type=SourceType.GLOBAL_SUCCESS,
+            unit_id=unit3.id,
+        )
+    )
+    seeded_db.commit()
+
+    response = client.delete(f"/admin/teachers/{created['id']}")
+
+    assert response.status_code == 409
+    assert "1 đề thi" in response.json()["detail"]
+    assert seeded_db.scalar(select(User).where(User.id == created["id"])) is not None
+    _ = admin
+
+
+def test_delete_teacher_not_found_returns_404(client, db):
+    _login_as_admin(client, db)
+    response = client.delete("/admin/teachers/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 404
+
+
+def test_teacher_cannot_delete_via_admin_endpoint(client, db):
+    _login_as_teacher(client, db)
+    response = client.delete("/admin/teachers/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 403

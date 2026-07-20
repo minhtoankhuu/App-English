@@ -58,14 +58,14 @@ const blocks: BlockOut[] = [
 
 const onReorder = vi.fn();
 const onDelete = vi.fn();
-const onUpdateField = vi.fn();
+const onEdit = vi.fn();
 
 const defaultProps = {
   blocks,
   saving: false,
   onReorder,
   onDelete,
-  onUpdateField,
+  onEdit,
 };
 
 describe("SortableBlockList", () => {
@@ -117,17 +117,14 @@ describe("SortableBlockList", () => {
     expect(onReorder).toHaveBeenCalledWith(["b", "a", "c"]);
   });
 
-  it("preserves delete and field update callbacks", async () => {
+  it("preserves delete and edit callbacks", async () => {
     const user = userEvent.setup();
     render(<SortableBlockList {...defaultProps} />);
 
-    const questionCount = screen.getByLabelText("Số câu A");
-    await user.clear(questionCount);
-    await user.type(questionCount, "8");
-    fireEvent.blur(questionCount);
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
     await user.click(screen.getByRole("button", { name: "Xóa A" }));
 
-    expect(onUpdateField).toHaveBeenCalledWith(blocks[0], "question_count", 8);
+    expect(onEdit).toHaveBeenCalledWith(blocks[0]);
     expect(onDelete).toHaveBeenCalledWith("a");
   });
 
