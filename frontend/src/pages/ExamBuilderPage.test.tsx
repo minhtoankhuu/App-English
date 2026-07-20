@@ -546,10 +546,11 @@ describe("ExamBuilderPage", () => {
     await user.click(screen.getByRole("button", { name: "Xóa A" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(3));
 
-    const questionCount = screen.getByLabelText("Số câu A");
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+    const questionCount = screen.getByLabelText("Số câu");
     await user.clear(questionCount);
     await user.type(questionCount, "8");
-    act(() => questionCount.blur());
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(4));
 
     await user.click(screen.getByRole("checkbox", { name: /Hiện tại đơn/ }));
@@ -557,7 +558,7 @@ describe("ExamBuilderPage", () => {
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(5));
 
     expect(examApi.getExam).toHaveBeenCalledTimes(5);
-    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", { question_count: 8 });
+    expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", { question_count: 8, points: 1 });
     expect(examApi.setGrammarSelection).toHaveBeenCalledWith("exam-1", ["point-1"]);
   });
 

@@ -18,6 +18,7 @@ import type { ExamPreviewOut } from "../types/examPreview";
 import { SortableBlockList } from "../exam-builder/SortableBlockList";
 import { ExamPreview } from "../exam-preview/ExamPreview";
 import { StepsIndicator } from "../components/StepsIndicator";
+import { Modal } from "../components/Modal";
 import { useUsage } from "../usage/UsageContext";
 
 interface RouteToken {
@@ -58,6 +59,10 @@ export function ExamBuilderPage() {
   const previewRequestId = useRef(0);
   const nextOperationId = useRef(0);
   const activeMutationRef = useRef<MutationToken | null>(null);
+
+  const [editingBlock, setEditingBlock] = useState<BlockOut | null>(null);
+  const [editCount, setEditCount] = useState(1);
+  const [editPoints, setEditPoints] = useState(1);
 
   function isActiveRoute(target: RouteToken) {
     return routeRef.current.examId === target.examId && routeRef.current.generation === target.generation;
@@ -275,14 +280,21 @@ export function ExamBuilderPage() {
     }
   }
 
-  async function handleBlockField(block: BlockOut, field: "question_count" | "points", value: number) {
-    if (mutationSaving) return;
+  function openEditBlock(block: BlockOut) {
+    setEditingBlock(block);
+    setEditCount(block.question_count);
+    setEditPoints(Number(block.points));
+  }
+
+  async function handleSaveBlockEdit() {
+    if (!editingBlock || mutationSaving) return;
     const target = beginMutation();
     if (!target) return;
     try {
-      await updateBlock(target.examId, block.id, { [field]: value });
+      await updateBlock(target.examId, editingBlock.id, { question_count: editCount, points: editPoints });
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
+      setEditingBlock(null);
     } catch (err) {
       if (isActiveOperation(target)) {
         setError({
@@ -428,7 +440,7 @@ export function ExamBuilderPage() {
             saving={mutationSaving}
             onReorder={handleReorder}
             onDelete={handleDeleteBlock}
-            onUpdateField={handleBlockField}
+            onEdit={openEditBlock}
           />
 
           <div className="config-footer">
@@ -452,6 +464,40 @@ export function ExamBuilderPage() {
         </section>
         <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
       </div>
+
+      <Modal open={editingBlock !== null} onClose={() => setEditingBlock(null)} title="Chỉnh sửa phần">
+        <div className="app-modal-body">
+          <label>
+            Số câu
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={editCount}
+              onChange={(e) => setEditCount(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            Điểm
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step={0.5}
+              value={editPoints}
+              onChange={(e) => setEditPoints(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <div className="app-modal-footer">
+          <button type="button" className="button secondary" onClick={() => setEditingBlock(null)}>
+            Hủy
+          </button>
+          <button type="button" className="button primary" onClick={handleSaveBlockEdit} disabled={mutationSaving}>
+            Lưu
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }

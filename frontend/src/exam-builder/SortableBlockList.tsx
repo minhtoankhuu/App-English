@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { DragEvent } from "react";
 import type { BlockOut, Difficulty } from "../types/exam";
 import { moveBlock } from "./blockOrder";
+import { PencilIcon } from "../icons/Icon";
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   nhan_biet: "Nhận biết",
@@ -12,14 +13,12 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
-type EditableField = "question_count" | "points";
-
 interface SortableBlockListProps {
   blocks: BlockOut[];
   saving: boolean;
   onReorder: (blockIds: string[]) => void;
   onDelete: (blockId: string) => void;
-  onUpdateField: (block: BlockOut, field: EditableField, value: number) => void;
+  onEdit: (block: BlockOut) => void;
 }
 
 export function SortableBlockList({
@@ -27,7 +26,7 @@ export function SortableBlockList({
   saving,
   onReorder,
   onDelete,
-  onUpdateField,
+  onEdit,
 }: SortableBlockListProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -104,27 +103,9 @@ export function SortableBlockList({
           </div>
 
           <div className="item-actions">
-            <input
-              type="number"
-              min={1}
-              max={50}
-              defaultValue={block.question_count}
-              disabled={saving}
-              aria-label={`Số câu ${block.title}`}
-              className="field-input"
-              onBlur={(event) => onUpdateField(block, "question_count", Number(event.target.value))}
-            />
-            <input
-              type="number"
-              min={0}
-              max={10}
-              step={0.5}
-              defaultValue={block.points}
-              disabled={saving}
-              aria-label={`Điểm ${block.title}`}
-              className="field-input"
-              onBlur={(event) => onUpdateField(block, "points", Number(event.target.value))}
-            />
+            <button type="button" aria-label={`Chỉnh sửa ${block.title}`} disabled={saving} onClick={() => onEdit(block)}>
+              <PencilIcon />
+            </button>
             <button
               type="button"
               aria-label={`Lên ${block.title}`}

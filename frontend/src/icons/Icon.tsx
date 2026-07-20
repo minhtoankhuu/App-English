@@ -16,6 +16,15 @@ export function PlusIcon() {
   );
 }
 
+export function PencilIcon() {
+  return (
+    <Svg>
+      <path d="M4 20l4-1L20 7l-3-3L5 16l-1 4z" />
+      <path d="M14 6l3 3" />
+    </Svg>
+  );
+}
+
 export function DocIcon() {
   return (
     <Svg>
