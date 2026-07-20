@@ -25,6 +25,13 @@ _VOCAB_RE_POS_FIRST = re.compile(
 _VOCAB_RE_NO_IPA = re.compile(r"^(?P<word>.+)\((?P<pos>[^()]{1,15})\)\s*:\s*(?P<meaning>.+)$")
 _PHRASE_RE = re.compile(r"^(?P<phrase>.+?):\s*(?P<meaning>.+)$")
 
+# Một số Unit đánh số thứ tự thủ công cho danh sách từ vựng/word form (vd "7. responsible
+# (adj): có trách nhiệm", "10. harm (v/n): gây hại") — số này chỉ là marker liệt kê, không
+# phải nội dung, và WORD_FORM không có structured parser riêng nên nếu không bỏ sẽ hiện
+# nguyên số ở đầu chữ trong khung "Xem". re.MULTILINE để bắt cả số nằm sau dấu xuống dòng
+# giữa 1 chunk gộp nhiều mục (vd raw_text "...\n25. please (v): làm hài lòng...").
+_LEADING_ENUM_RE = re.compile(r"^\d+[.)]\s+", re.MULTILINE)
+
 _SECTION_KEYWORDS: list[tuple[str, DocumentChunkType]] = [
     ("VOCABULARY", DocumentChunkType.VOCABULARY),
     ("NEW WORD", DocumentChunkType.VOCABULARY),
@@ -120,6 +127,10 @@ def parse_lesson_docx(path: Path) -> list[ParsedChunk]:
             classified = _classify_header(text)
             if classified is not None:
                 current_type = classified
+            continue
+
+        text = _LEADING_ENUM_RE.sub("", text).strip()
+        if not text:
             continue
 
         order_no += 1

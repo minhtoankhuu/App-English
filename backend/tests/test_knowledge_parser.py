@@ -107,6 +107,31 @@ def test_recognizes_bold_title_case_headers_not_just_all_caps(tmp_path):
     assert grammar_chunks[0].section_title == "Grammar and Structures"
 
 
+def _build_numbered_word_form_doc(tmp_path) -> Path:
+    doc = Document()
+    doc.add_paragraph("UNIT 99: TEST UNIT")
+    header = doc.add_paragraph()
+    header.add_run("WORD FORM").bold = True
+    doc.add_paragraph("7. responsible (adj): có trách nhiệm")
+    doc.add_paragraph("10. harm (v/n): gây hại / sự tổn hại\n11. effective (adj): hiệu quả")
+    path = tmp_path / "numbered-word-form.docx"
+    doc.save(str(path))
+    return path
+
+
+def test_strips_manual_list_numbering_from_word_form_entries(tmp_path):
+    """Một số Unit đánh số thủ công cho danh sách WORD FORM ("7. responsible (adj): ...",
+    có khi 2 mục gộp trong 1 đoạn văn nối bằng xuống dòng mềm "...\n11. effective..."). Số
+    này chỉ là marker liệt kê, không phải nội dung — phải bị bỏ khỏi raw_text."""
+    path = _build_numbered_word_form_doc(tmp_path)
+
+    chunks = parse_lesson_docx(path)
+    word_form_chunks = [c for c in chunks if c.chunk_type == DocumentChunkType.WORD_FORM]
+
+    assert word_form_chunks[0].raw_text == "responsible (adj): có trách nhiệm"
+    assert word_form_chunks[1].raw_text == "harm (v/n): gây hại / sự tổn hại\neffective (adj): hiệu quả"
+
+
 def test_parser_never_raises_on_any_unit_file():
     for file_path in _all_lesson_files():
         chunks = parse_lesson_docx(file_path)
