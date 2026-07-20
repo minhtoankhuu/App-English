@@ -19,13 +19,14 @@ import type {
 } from "../types/catalog";
 import { StepsIndicator } from "../components/StepsIndicator";
 
-type ExamCategory = "unit_revision" | "midterm1" | "final1" | "semester2";
+type ExamCategory = "unit_revision" | "midterm1" | "final1" | "midterm2" | "final2";
 
 const EXAM_CATEGORY_LABEL: Record<ExamCategory, string> = {
   unit_revision: "Ôn tập theo Unit",
   midterm1: "Kiểm tra giữa kì 1",
   final1: "Kiểm tra cuối kì 1",
-  semester2: "Kiểm tra học kì 2",
+  midterm2: "Kiểm tra giữa kì 2",
+  final2: "Kiểm tra cuối kì 2",
 };
 
 export function ExamCreatePage() {
