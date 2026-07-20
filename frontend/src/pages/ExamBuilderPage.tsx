@@ -59,10 +59,6 @@ export function ExamBuilderPage() {
   const nextOperationId = useRef(0);
   const activeMutationRef = useRef<MutationToken | null>(null);
 
-  const [newTypeId, setNewTypeId] = useState("");
-  const [newCount, setNewCount] = useState(5);
-  const [newPoints, setNewPoints] = useState(1);
-
   function isActiveRoute(target: RouteToken) {
     return routeRef.current.examId === target.examId && routeRef.current.generation === target.generation;
   }
@@ -161,7 +157,6 @@ export function ExamBuilderPage() {
     void listExerciseTypes().then((types) => {
       if (!isActiveRoute(target)) return;
       setExerciseTypes(types);
-      if (types.length > 0) setNewTypeId(types[0]!.id);
     });
     void listGrammarTopics().then((topics) => {
       if (isActiveRoute(target)) setGrammarTopics(topics);
@@ -228,32 +223,6 @@ export function ExamBuilderPage() {
         setError({
           generation: target.generation,
           value: err instanceof ApiError ? err.message : "Không cập nhật được dạng bài",
-        });
-      }
-    } finally {
-      finishMutation(target);
-    }
-  }
-
-  async function handleAddBlock() {
-    if (!newTypeId || mutationSaving) return;
-    const type = exerciseTypes.find((t) => t.id === newTypeId);
-    const target = beginMutation();
-    if (!target) return;
-    try {
-      await addBlock(target.examId, {
-        exercise_type_id: newTypeId,
-        title: type ? type.name : "Phần mới",
-        question_count: newCount,
-        points: newPoints,
-      });
-      if (!isActiveOperation(target)) return;
-      await refreshBuilder(target);
-    } catch (err) {
-      if (isActiveOperation(target)) {
-        setError({
-          generation: target.generation,
-          value: err instanceof ApiError ? err.message : "Không thêm được phần",
         });
       }
     } finally {
@@ -462,48 +431,15 @@ export function ExamBuilderPage() {
             onUpdateField={handleBlockField}
           />
 
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
-            <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-              Dạng bài
-              <select value={newTypeId} disabled={mutationSaving} onChange={(e) => setNewTypeId(e.target.value)}>
-                {exerciseTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-              Số câu
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={newCount}
-                disabled={mutationSaving}
-                onChange={(e) => setNewCount(Number(e.target.value))}
-                style={{ width: 70 }}
-              />
-            </label>
-            <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-              Điểm
-              <input
-                type="number"
-                min={0}
-                max={10}
-                step={0.5}
-                value={newPoints}
-                disabled={mutationSaving}
-                onChange={(e) => setNewPoints(Number(e.target.value))}
-                style={{ width: 70 }}
-              />
-            </label>
-            <button type="button" onClick={handleAddBlock} disabled={mutationSaving} className="button secondary compact">
-              + Thêm phần
-            </button>
-          </div>
-
           <div className="config-footer">
+            <button
+              type="button"
+              onClick={() => navigate("/exams")}
+              disabled={mutationSaving}
+              className="button secondary"
+            >
+              Lưu vào nháp
+            </button>
             <button
               type="button"
               onClick={handleGenerate}

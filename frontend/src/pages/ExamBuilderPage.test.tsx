@@ -111,6 +111,15 @@ const preview: ExamPreviewOut = {
   ],
 };
 
+const wordFormType: ExerciseTypeOut = {
+  id: "type-2",
+  code: "word_form",
+  name: "Word form",
+  default_instruction: "",
+  has_passage: false,
+  order_no: 2,
+};
+
 const examTwo: ExamDetailOut = {
   ...exam,
   id: "exam-2",
@@ -179,7 +188,7 @@ describe("ExamBuilderPage", () => {
     examApi.updateBlock.mockResolvedValue(blocks[0]);
     examApi.setGrammarSelection.mockResolvedValue(exam);
     examApi.reorderBlocks.mockResolvedValue(exam);
-    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type]);
+    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType]);
     catalogApi.listGrammarTopics.mockResolvedValue([
       {
         id: "topic-1",
@@ -276,7 +285,7 @@ describe("ExamBuilderPage", () => {
     renderBuilder();
     await screen.findByRole("heading", { name: "Đề kiểm tra" });
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
     await act(async () => resolveRefreshedPreview({ ...preview, title: "Bản mới" }));
     expect(await screen.findAllByText("Bản mới")).toHaveLength(1);
@@ -370,7 +379,7 @@ describe("ExamBuilderPage", () => {
         },
       ]);
     });
-    expect(await screen.findByRole("option", { name: "Dạng mới" })).toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: "Dạng mới" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
 
     await act(async () => {
@@ -384,8 +393,8 @@ describe("ExamBuilderPage", () => {
         },
       ]);
     });
-    expect(screen.queryByRole("option", { name: "Dạng cũ" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Dạng mới" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Dạng cũ" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Dạng mới" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
   });
 
@@ -423,7 +432,7 @@ describe("ExamBuilderPage", () => {
 
     expect(blockOrder()).toEqual(["block-b", "block-a"]);
     expect(screen.getByRole("button", { name: "Lên A" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Lưu lựa chọn" })).toBeDisabled();
     expect(examApi.reorderBlocks).toHaveBeenCalledWith("exam-1", ["b", "a"]);
 
@@ -479,16 +488,16 @@ describe("ExamBuilderPage", () => {
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
     expect(await screen.findAllByText("Đề số hai")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Xuống C" }));
-    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 
     await act(async () => resolveOldReorder({ ...exam, blocks: [...blocks].reverse() }));
 
     expect(screen.getByTestId("block-c")).toBeInTheDocument();
     expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 
     await act(async () => resolveNewReorder(examTwo));
-    await waitFor(() => expect(screen.getByRole("button", { name: "+ Thêm phần" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeEnabled());
     expect(screen.getByTestId("block-c")).toBeInTheDocument();
   });
 
@@ -505,7 +514,7 @@ describe("ExamBuilderPage", () => {
     await user.click(await screen.findByRole("button", { name: "Xuống A" }));
     expect(await screen.findByText("Không lưu được thứ tự")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
 
     await act(async () => resolveAdd(blocks[0]!));
@@ -519,7 +528,7 @@ describe("ExamBuilderPage", () => {
     renderBuilder();
     await screen.findByTestId("block-a");
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
 
     expect(await screen.findByText("Không tải được đề")).toBeInTheDocument();
     expect(screen.getByTestId("block-a")).toBeInTheDocument();
@@ -531,7 +540,7 @@ describe("ExamBuilderPage", () => {
     renderBuilder();
     await screen.findByText("Trang 1/1");
 
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần" }));
+    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
     await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
 
     await user.click(screen.getByRole("button", { name: "Xóa A" }));
@@ -554,15 +563,6 @@ describe("ExamBuilderPage", () => {
 
   it("ticking an exercise type without a block adds one with default count and points", async () => {
     const user = userEvent.setup();
-    const wordFormType: ExerciseTypeOut = {
-      id: "type-2",
-      code: "word_form",
-      name: "Word form",
-      default_instruction: "",
-      has_passage: false,
-      order_no: 2,
-    };
-    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType]);
     renderBuilder();
     await screen.findByText("Trang 1/1");
 
