@@ -82,3 +82,22 @@ def test_import_replaces_chunks_when_file_content_changes(seeded_db, tmp_path):
     assert stats.documents_updated == 1
     assert document.checksum != original_checksum
     assert _chunk_count(seeded_db, document.id) > 0
+
+
+def test_import_force_reparses_even_when_checksum_unchanged(seeded_db, tmp_path):
+    base_path = _copy_unit3_grade7(tmp_path)
+
+    import_global_success(seeded_db, base_path)
+    seeded_db.commit()
+    unit3 = _unit3_grade7(seeded_db)
+    document = seeded_db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.unit_id == unit3.id))
+    original_checksum = document.checksum
+
+    stats = import_global_success(seeded_db, base_path, force=True)
+    seeded_db.commit()
+    seeded_db.refresh(document)
+
+    assert stats.documents_updated == 1
+    assert stats.documents_unchanged == 0
+    assert document.checksum == original_checksum
+    assert _chunk_count(seeded_db, document.id) == stats.chunks_written

@@ -31,12 +31,32 @@ def iter_block_items(document: Document):
             yield Table(child, document)
 
 
+def _row_to_lines(cells: list[str]) -> list[str]:
+    """Một số bảng gộp nhiều mục song song vào 1 ô (ví dụ ô "Positive" chứa cả 5 dòng
+    good/bad/far/many-much/little, ô "Comparative" chứa 5 dòng tương ứng) — nếu ghép
+    thẳng bằng " | " sẽ lẫn cả cột với nhau, đọc sai cặp (LLM cũng hiểu sai y như
+    người đọc). Khi mọi ô trong hàng có cùng số dòng con, ghép theo đúng vị trí dòng
+    ("good → better → the best") thay vì gộp cả cột. Ngược lại (số dòng lệch nhau,
+    trường hợp thường gặp nhất — mỗi ô chỉ có 1 dòng) giữ nguyên cách ghép " | " cũ."""
+    split_cells = [cell.split("\n") for cell in cells]
+    max_lines = max((len(c) for c in split_cells), default=0)
+    if max_lines <= 1:
+        return [" | ".join(cell.strip() for cell in cells)]
+
+    lines = []
+    for i in range(max_lines):
+        parts = [split_cells[j][i].strip() if i < len(split_cells[j]) else "" for j in range(len(cells))]
+        if any(parts):
+            lines.append(" → ".join(p for p in parts if p))
+    return lines
+
+
 def table_to_text(table: Table) -> str:
     lines = []
     for row in table.rows:
         cells = [cell.text.strip() for cell in row.cells]
         if any(cells):
-            lines.append(" | ".join(cells))
+            lines.extend(_row_to_lines(cells))
     return "\n".join(lines)
 
 
