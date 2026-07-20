@@ -53,12 +53,6 @@ export function AdminOverviewPage() {
       implemented: false,
     },
     {
-      title: "Thư viện hình ảnh",
-      description: "Biển báo, thông báo và minh họa cho dạng bài có hình.",
-      chip: "Chưa triển khai — chờ Giai đoạn 1D",
-      implemented: false,
-    },
-    {
       title: "Cấu hình AI",
       description: "Provider, model, API key, embedding và reranker.",
       chip: "Chưa triển khai — chờ Giai đoạn 1D",
