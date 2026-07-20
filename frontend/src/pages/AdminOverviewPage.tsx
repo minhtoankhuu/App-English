@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { listTeachers } from "../api/admin";
+import { listKnowledgeDocuments, listTeachers } from "../api/admin";
 
 interface AdminCardData {
   title: string;
@@ -15,8 +15,14 @@ type TeacherStat =
   | { status: "success"; activeCount: number }
   | { status: "error" };
 
+type KnowledgeStat =
+  | { status: "loading" }
+  | { status: "success"; publishedCount: number }
+  | { status: "error" };
+
 export function AdminOverviewPage() {
   const [teacherStat, setTeacherStat] = useState<TeacherStat>({ status: "loading" });
+  const [knowledgeStat, setKnowledgeStat] = useState<KnowledgeStat>({ status: "loading" });
 
   useEffect(() => {
     listTeachers()
@@ -26,6 +32,17 @@ export function AdminOverviewPage() {
       .catch(() => setTeacherStat({ status: "error" }));
   }, []);
 
+  useEffect(() => {
+    listKnowledgeDocuments()
+      .then((documents) =>
+        setKnowledgeStat({
+          status: "success",
+          publishedCount: documents.filter((document) => document.is_published).length,
+        }),
+      )
+      .catch(() => setKnowledgeStat({ status: "error" }));
+  }, []);
+
   const teacherChip =
     teacherStat.status === "loading"
       ? "Đang tải..."
@@ -33,12 +50,20 @@ export function AdminOverviewPage() {
         ? "Không tải được dữ liệu"
         : `${teacherStat.activeCount} giáo viên hoạt động`;
 
+  const knowledgeChip =
+    knowledgeStat.status === "loading"
+      ? "Đang tải..."
+      : knowledgeStat.status === "error"
+        ? "Không tải được dữ liệu"
+        : `${knowledgeStat.publishedCount} tài liệu đã xuất bản`;
+
   const cards: AdminCardData[] = [
     {
       title: "Kho kiến thức & RAG",
-      description: "Nhập PDF/DOCX, kiểm tra, xuất bản và lập phiên bản tài liệu.",
-      chip: "Chưa triển khai — chờ Giai đoạn 1D",
-      implemented: false,
+      description: "Nhập .docx, xuất bản/ẩn và xóa tài liệu theo Unit.",
+      chip: knowledgeChip,
+      to: "/admin/knowledge",
+      implemented: true,
     },
     {
       title: "Danh mục học thuật",
@@ -78,7 +103,7 @@ export function AdminOverviewPage() {
     <div style={{ display: "grid", gap: 18 }}>
       <section style={{ background: "var(--surface)", borderRadius: 14, padding: 20 }}>
         <h2 style={{ marginTop: 0 }}>Quản trị hệ thống</h2>
-        <p style={{ color: "var(--muted)", fontSize: 13 }}>2 khối bên dưới đã có chức năng thật.</p>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>3 khối bên dưới đã có chức năng thật.</p>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
           {cards.map((card) => {

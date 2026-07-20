@@ -12,6 +12,7 @@ import { ExamExportPage } from "./pages/ExamExportPage";
 import { AdminOverviewPage } from "./pages/AdminOverviewPage";
 import { AdminAuditLogsPage } from "./pages/AdminAuditLogsPage";
 import { AdminTeachersPage } from "./pages/AdminTeachersPage";
+import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
 import type { UserOut } from "./types/auth";
 
 function App() {
@@ -59,6 +60,10 @@ function App() {
           <Route
             path="/admin/teachers"
             element={isAdmin ? <AdminTeachersPage /> : <Navigate to="/exams" replace />}
+          />
+          <Route
+            path="/admin/knowledge"
+            element={isAdmin ? <AdminKnowledgePage /> : <Navigate to="/exams" replace />}
           />
           <Route path="*" element={<Navigate to={homePath} replace />} />
         </Route>
