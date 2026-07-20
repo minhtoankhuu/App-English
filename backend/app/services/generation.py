@@ -8,12 +8,43 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.academic import Grade, ProficiencyLevel, Unit
+from app.models.ai_config import AIProviderConfig
 from app.models.exam import Exam, ExamBlock, ExamBlockPart, Question
 from app.models.exercise import ExerciseType
-from app.services.ai_provider import AIProvider, BlockSpec, GenerationContext, MockAIProvider
+from app.services.ai_provider import BlockSpec, GenerationContext, QuestionDraft
+from app.services.ai_provider_factory import get_active_provider
+from app.services.crypto import decrypt_api_key
+from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.validation import validate_draft
 
-_provider: AIProvider = MockAIProvider()
+
+def _active_embedding_client(db: Session) -> OpenAIEmbeddingClient | None:
+    """`None` khi chưa cấu hình AI (vẫn dùng MockAIProvider) — Validation Engine bỏ
+    qua kiểm tra trùng lặp theo embedding, chỉ còn fuzzy-match như trước Giai đoạn 1D."""
+    config = db.scalar(select(AIProviderConfig).where(AIProviderConfig.is_active.is_(True)))
+    if config is None:
+        return None
+    return OpenAIEmbeddingClient(decrypt_api_key(config.api_key_encrypted), config.embedding_model)
+
+
+def _embed_drafts(client: OpenAIEmbeddingClient | None, drafts: list[QuestionDraft]) -> list[list[float] | None]:
+    """Embed theo batch 1 lần cho cả danh sách — tránh N round-trip OpenAI cho N câu
+    trong 1 block (xem docs/superpowers/specs/2026-07-21-llm-rag-integration-design.md mục 7)."""
+    if client is None or not drafts:
+        return [None] * len(drafts)
+    return client.embed_batch([d.prompt_text for d in drafts])
+
+
+def embed_questions_for_bank(db: Session, questions: list[Question]) -> None:
+    """Embed theo batch các câu chuyển vào ngân hàng (`is_in_bank=True`) để Validation
+    Engine so trùng lặp bằng cosine cho các lần sinh sau (PRD 11). Không làm gì nếu
+    chưa cấu hình AI — `Question.embedding` giữ NULL, cosine check tự bỏ qua câu đó."""
+    client = _active_embedding_client(db)
+    if client is None or not questions:
+        return
+    vectors = client.embed_batch([q.prompt_text for q in questions])
+    for question, vector in zip(questions, vectors):
+        question.embedding = vector
 
 
 def _build_context(db: Session, exam: Exam, grade: Grade) -> GenerationContext:
@@ -31,6 +62,8 @@ def _build_context(db: Session, exam: Exam, grade: Grade) -> GenerationContext:
         exam_level_code=exam_level.code if exam_level else "",
         unit_title=unit_title,
         unit_order_no=unit_order_no,
+        unit_id=exam.unit_id,
+        grammar_point_ids=[sel.grammar_point_id for sel in exam.grammar_selections],
     )
 
 
@@ -55,6 +88,8 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
     exam_level = db.get(ProficiencyLevel, exam.level_id)
     effective_level = _effective_level(db, exam, block)
     context = _build_context(db, exam, grade)
+    provider = get_active_provider(db)
+    embedding_client = _active_embedding_client(db)
 
     for existing in list(block.questions):
         if not existing.is_locked:
@@ -77,9 +112,10 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             passage_word_target=block.passage_word_target,
             prompt_override=prompt_override,
         )
-        drafts = _provider.generate(spec, context)
+        drafts = provider.generate(spec, context)
+        draft_embeddings = _embed_drafts(embedding_client, drafts)
 
-        for draft in drafts:
+        for draft, draft_embedding in zip(drafts, draft_embeddings):
             order_no += 1
             while order_no in locked_orders:
                 order_no += 1
@@ -91,6 +127,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
                 grade_number=grade.number,
                 school_stage_id=grade.school_stage_id,
                 exam_level_rank=exam_level.rank,
+                draft_embedding=draft_embedding,
             )
             question = Question(
                 block_id=block.id,
@@ -125,7 +162,8 @@ def regenerate_question(db: Session, exam: Exam, block: ExamBlock, question: Que
         passage_word_target=block.passage_word_target,
         prompt_override=prompt_override,
     )
-    draft = _provider.regenerate_one(spec, context, exclude_prompt=question.prompt_text)
+    draft = get_active_provider(db).regenerate_one(spec, context, exclude_prompt=question.prompt_text)
+    draft_embedding = _embed_drafts(_active_embedding_client(db), [draft])[0]
     level = db.scalar(select(ProficiencyLevel).where(ProficiencyLevel.code == draft.level_code)) or exam_level
     warnings = validate_draft(
         db,
@@ -134,6 +172,7 @@ def regenerate_question(db: Session, exam: Exam, block: ExamBlock, question: Que
         grade_number=grade.number,
         school_stage_id=grade.school_stage_id,
         exam_level_rank=exam_level.rank,
+        draft_embedding=draft_embedding,
     )
 
     question.prompt_text = draft.prompt_text
