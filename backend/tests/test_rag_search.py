@@ -110,6 +110,23 @@ def test_excludes_unpublished_documents(seeded_db):
     assert result == []
 
 
+def test_falls_back_to_scope_chunks_when_query_matches_nothing(seeded_db):
+    """Bug thật gặp phải: query_text không khớp từ nào (vd nhét literal exercise_type_code
+    như "multiple_choice" — không xuất hiện trong nội dung sách) và chưa embed (embedding=None)
+    khiến cả FTS lẫn vector đều rỗng — trước fix này hybrid_search trả [] dù Unit có
+    kiến thức thật, khiến OpenAI sinh 0 câu (đã xảy ra thật khi verify qua Docker)."""
+    unit = _unit3_grade7(seeded_db)
+    doc = _make_document(seeded_db, unit_id=unit.id)
+    chunk = _make_chunk(seeded_db, doc, raw_text="ability /əˈbɪləti/ (n): khả năng")
+    seeded_db.flush()
+
+    client = FakeEmbeddingClient({})  # không có vector nào khớp query
+    result = hybrid_search(seeded_db, client, query_text="multiple_choice", unit_id=unit.id)
+
+    assert len(result) == 1
+    assert result[0].chunk_id == chunk.id
+
+
 def test_scopes_by_grammar_point_ids(seeded_db):
     point = seeded_db.scalar(select(GrammarPoint).where(GrammarPoint.name == "Present Simple"))
     other_point = seeded_db.scalar(select(GrammarPoint).where(GrammarPoint.name != "Present Simple"))

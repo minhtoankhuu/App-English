@@ -83,6 +83,24 @@ def hybrid_search(
             scores[chunk.id] = scores.get(chunk.id, 0.0) + 1.0 / (RRF_K + rank)
             chunk_by_id[chunk.id] = chunk
 
+    if not scores:
+        # Cả FTS lẫn vector đều rỗng — thường do query_text không khớp từ nào trong
+        # chunk (plainto_tsquery AND toàn bộ từ, dễ trật với entry ngắn kiểu từ vựng)
+        # hoặc chunk trong phạm vi chưa được embed (embed_knowledge.py chưa chạy).
+        # Phạm vi (Unit/GrammarPoint) vẫn có thể có kiến thức thật — lấy tạm theo
+        # order_no thay vì trả rỗng, để LLM luôn có ngữ cảnh khi phạm vi không trống.
+        fallback_chunks = list(db.scalars(base.order_by(KnowledgeChunk.order_no).limit(top_k)))
+        return [
+            RetrievedChunk(
+                chunk_id=chunk.id,
+                raw_text=chunk.raw_text,
+                section_title=chunk.section_title,
+                chunk_type=chunk.chunk_type,
+                fused_score=0.0,
+            )
+            for chunk in fallback_chunks
+        ]
+
     ranked_ids = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
     return [
         RetrievedChunk(
