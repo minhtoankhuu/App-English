@@ -25,7 +25,14 @@ PAGE_WIDTH_CM = 21.0
 MARGIN_CM = 1.27
 USABLE_WIDTH_CM = PAGE_WIDTH_CM - 2 * MARGIN_CM
 ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
-LONG_OPTION_THRESHOLD = 24
+# Ngưỡng để chuyển 4 lựa chọn/dòng xuống 2 lựa chọn/dòng. Cột 4 lựa chọn rộng
+# ~4.6cm — để dư biên an toàn (chữ đậm/gạch chân của đáp án tô đỏ rộng hơn chữ
+# thường) vì lựa chọn sát ngưỡng cũ (24) từng bị tràn cột, kéo cả dòng xuống
+# dòng dưới trong Word (báo cáo giáo viên 21/07/2026).
+LONG_OPTION_THRESHOLD = 18
+# Thụt lề nội dung câu hỏi thuộc 1 Phần con (vd "1. Đuôi -s/-es" trong khối
+# "I. PRONUNCIATION") để phân cấp rõ I. > 1. > câu hỏi, khớp mẫu đề tham khảo.
+PART_CONTENT_INDENT_CM = 0.5
 
 
 def _set_font(run, size: float = 11.5, bold: bool = False, color: RGBColor | None = None) -> None:
@@ -82,14 +89,16 @@ def _visible_length(text: str) -> int:
     return len(_UNDERLINE_MARKUP_RE.sub(r"\1", text))
 
 
-def _render_options(doc: Document, options: list[dict], with_key: bool) -> None:
+def _render_options(doc: Document, options: list[dict], with_key: bool, *, indent_cm: float = 0.0) -> None:
     max_len = max(_visible_length(opt["text"]) for opt in options)
     per_line = 2 if max_len > LONG_OPTION_THRESHOLD else 4
-    step_cm = USABLE_WIDTH_CM / per_line
+    step_cm = (USABLE_WIDTH_CM - indent_cm) / per_line
 
     for i in range(0, len(options), per_line):
         row = options[i : i + per_line]
         p = _new_paragraph(doc)
+        if indent_cm:
+            p.paragraph_format.left_indent = Cm(indent_cm)
         for k in range(1, len(row)):
             p.paragraph_format.tab_stops.add_tab_stop(Cm(step_cm * k))
         for j, opt in enumerate(row):
@@ -144,6 +153,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
 
         current_part_id = None
         started = False
+        indent_cm = 0.0
         # Nhiều câu cùng khối (vd dạng phát âm/trọng âm) thường lặp lại y hệt 1 câu
         # dẫn/hướng dẫn — chỉ in 1 lần cho lần đầu xuất hiện, các câu sau chỉ còn số
         # thứ tự + lựa chọn (đúng format đề tham khảo giáo viên gửi). Reset khi sang
@@ -155,12 +165,15 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                 current_part_id = question.part_id
                 last_prompt_text = None
                 part = parts_by_id.get(current_part_id) if current_part_id else None
+                # Câu hỏi thuộc 1 Phần con được thụt lề để phân cấp I. > 1. > câu hỏi.
+                indent_cm = PART_CONTENT_INDENT_CM if part is not None else 0.0
                 if part is not None:
                     part_heading_p = _new_paragraph(doc)
                     part_heading_run = part_heading_p.add_run(f"{part.order_no}. {part.title}")
                     _set_font(part_heading_run, bold=True)
                     if part.instruction:
                         part_instruction_p = _new_paragraph(doc)
+                        part_instruction_p.paragraph_format.left_indent = Cm(indent_cm)
                         part_instruction_run = part_instruction_p.add_run(part.instruction)
                         _set_font(part_instruction_run)
 
@@ -168,10 +181,12 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
 
             if question.passage_text:
                 passage_p = _new_paragraph(doc, justify=True)
+                passage_p.paragraph_format.left_indent = Cm(indent_cm)
                 passage_run = passage_p.add_run(question.passage_text)
                 _set_font(passage_run)
 
             prompt_p = _new_paragraph(doc)
+            prompt_p.paragraph_format.left_indent = Cm(indent_cm)
             no_run = prompt_p.add_run(f"{question_no}.")
             _set_font(no_run, bold=True)
             if question.prompt_text and question.prompt_text != last_prompt_text:
@@ -181,7 +196,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                 last_prompt_text = question.prompt_text
 
             if question.options:
-                _render_options(doc, question.options, with_key)
+                _render_options(doc, question.options, with_key, indent_cm=indent_cm)
             elif with_key:
                 answer_p = _new_paragraph(doc)
                 answer_run = answer_p.add_run(f"Đáp án: {question.answer_text}")
