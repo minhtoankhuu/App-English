@@ -224,8 +224,14 @@ export function ExamReviewPage() {
                         <span className="q-status">{q.is_approved ? "Đã duyệt" : "Chờ duyệt"}</span>
                       </header>
 
-                      {q.passage_text && <p className="q-passage">{q.passage_text}</p>}
-                      <p className="q-text">{q.prompt_text}</p>
+                      {q.passage_text && (
+                        <p className="q-passage">
+                          <UnderlineText text={q.passage_text} />
+                        </p>
+                      )}
+                      <p className="q-text">
+                        <UnderlineText text={q.prompt_text} />
+                      </p>
                       {q.options && (
                         <ul className="q-options">
                           {q.options.map((opt) => (

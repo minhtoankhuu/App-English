@@ -30,9 +30,13 @@ ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 # thường) vì lựa chọn sát ngưỡng cũ (24) từng bị tràn cột, kéo cả dòng xuống
 # dòng dưới trong Word (báo cáo giáo viên 21/07/2026).
 LONG_OPTION_THRESHOLD = 18
-# Thụt lề nội dung câu hỏi thuộc 1 Phần con (vd "1. Đuôi -s/-es" trong khối
-# "I. PRONUNCIATION") để phân cấp rõ I. > 1. > câu hỏi, khớp mẫu đề tham khảo.
-PART_CONTENT_INDENT_CM = 0.5
+# Thụt lề tiêu đề + nội dung câu hỏi thuộc 1 Phần con (vd "1. Đuôi -s/-es" trong
+# khối "I. PRONUNCIATION") để phân cấp rõ I. > 1. > câu hỏi, khớp mẫu đề tham khảo
+# (chủ dự án yêu cầu thụt sâu hơn mức 0.5cm ban đầu — 21/07/2026).
+PART_CONTENT_INDENT_CM = 0.9
+# Khoảng chừa cho số thứ tự câu hỏi ("6.", "11.") khi in chung dòng với lựa chọn
+# (xem _render_options) — đủ rộng cho số 2 chữ số + dấu chấm ở cỡ chữ 11.5pt.
+NUMBER_GUTTER_CM = 0.9
 
 
 def _set_font(run, size: float = 11.5, bold: bool = False, color: RGBColor | None = None) -> None:
@@ -89,18 +93,31 @@ def _visible_length(text: str) -> int:
     return len(_UNDERLINE_MARKUP_RE.sub(r"\1", text))
 
 
-def _render_options(doc: Document, options: list[dict], with_key: bool, *, indent_cm: float = 0.0) -> None:
+def _render_options(
+    doc: Document, options: list[dict], with_key: bool, *, indent_cm: float = 0.0, number: str | None = None
+) -> None:
+    """`number` (vd "6.") in ngay đầu dòng lựa chọn đầu tiên, cùng 1 dòng — dùng khi
+    câu không có câu dẫn riêng để hiện (đã in ở câu trước đó cùng phần/khối), tránh
+    số thứ tự đứng 1 mình 1 dòng rồi lựa chọn "xuống dòng" tách rời bên dưới (báo
+    cáo giáo viên 21/07/2026)."""
     max_len = max(_visible_length(opt["text"]) for opt in options)
     per_line = 2 if max_len > LONG_OPTION_THRESHOLD else 4
-    step_cm = (USABLE_WIDTH_CM - indent_cm) / per_line
+    gutter_cm = NUMBER_GUTTER_CM if number else 0.0
+    step_cm = (USABLE_WIDTH_CM - indent_cm - gutter_cm) / per_line
 
     for i in range(0, len(options), per_line):
         row = options[i : i + per_line]
         p = _new_paragraph(doc)
         if indent_cm:
             p.paragraph_format.left_indent = Cm(indent_cm)
+        if gutter_cm:
+            p.paragraph_format.tab_stops.add_tab_stop(Cm(gutter_cm))
+            if i == 0:
+                no_run = p.add_run(number)
+                _set_font(no_run, bold=True)
+            p.add_run().add_tab()
         for k in range(1, len(row)):
-            p.paragraph_format.tab_stops.add_tab_stop(Cm(step_cm * k))
+            p.paragraph_format.tab_stops.add_tab_stop(Cm(gutter_cm + step_cm * k))
         for j, opt in enumerate(row):
             if j > 0:
                 p.add_run().add_tab()
@@ -169,6 +186,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                 indent_cm = PART_CONTENT_INDENT_CM if part is not None else 0.0
                 if part is not None:
                     part_heading_p = _new_paragraph(doc)
+                    part_heading_p.paragraph_format.left_indent = Cm(indent_cm)
                     part_heading_run = part_heading_p.add_run(f"{part.order_no}. {part.title}")
                     _set_font(part_heading_run, bold=True)
                     if part.instruction:
@@ -182,25 +200,43 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
             if question.passage_text:
                 passage_p = _new_paragraph(doc, justify=True)
                 passage_p.paragraph_format.left_indent = Cm(indent_cm)
-                passage_run = passage_p.add_run(question.passage_text)
-                _set_font(passage_run)
+                _add_runs_with_underline(passage_p, question.passage_text)
 
-            prompt_p = _new_paragraph(doc)
-            prompt_p.paragraph_format.left_indent = Cm(indent_cm)
-            no_run = prompt_p.add_run(f"{question_no}.")
-            _set_font(no_run, bold=True)
-            if question.prompt_text and question.prompt_text != last_prompt_text:
+            # Câu dẫn/hướng dẫn giống câu trước (cùng phần) chỉ in 1 lần — các câu sau
+            # không có dòng câu dẫn riêng nên số thứ tự được in gộp cùng dòng lựa chọn
+            # đầu tiên (qua `_render_options(number=...)`) thay vì đứng 1 mình 1 dòng
+            # rồi lựa chọn tách xuống dòng dưới (báo cáo giáo viên 21/07/2026).
+            show_prompt_text = bool(question.prompt_text) and question.prompt_text != last_prompt_text
+            if show_prompt_text:
+                prompt_p = _new_paragraph(doc)
+                prompt_p.paragraph_format.left_indent = Cm(indent_cm)
+                no_run = prompt_p.add_run(f"{question_no}.")
+                _set_font(no_run, bold=True)
                 prompt_p.add_run(" ")
-                text_run = prompt_p.add_run(question.prompt_text)
-                _set_font(text_run)
+                _add_runs_with_underline(prompt_p, question.prompt_text)
                 last_prompt_text = question.prompt_text
 
             if question.options:
-                _render_options(doc, question.options, with_key, indent_cm=indent_cm)
+                _render_options(
+                    doc,
+                    question.options,
+                    with_key,
+                    indent_cm=indent_cm,
+                    number=None if show_prompt_text else f"{question_no}.",
+                )
             elif with_key:
                 answer_p = _new_paragraph(doc)
-                answer_run = answer_p.add_run(f"Đáp án: {question.answer_text}")
+                answer_p.paragraph_format.left_indent = Cm(indent_cm)
+                prefix = "" if show_prompt_text else f"{question_no}. "
+                answer_run = answer_p.add_run(f"{prefix}Đáp án: {question.answer_text}")
                 _set_font(answer_run, bold=True, color=RED)
+            elif not show_prompt_text:
+                # Câu không có lựa chọn, không hiện đáp án (không with_key), và không
+                # có câu dẫn mới — vẫn phải in số thứ tự để không mất dấu vết câu hỏi.
+                fallback_p = _new_paragraph(doc)
+                fallback_p.paragraph_format.left_indent = Cm(indent_cm)
+                no_run = fallback_p.add_run(f"{question_no}.")
+                _set_font(no_run, bold=True)
 
     buffer = io.BytesIO()
     doc.save(buffer)
