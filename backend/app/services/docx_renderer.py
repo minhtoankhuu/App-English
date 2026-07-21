@@ -3,6 +3,7 @@
 LLM — dữ liệu đến từ Question đã qua Validation Engine và được giáo viên duyệt."""
 
 import io
+import re
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -15,6 +16,11 @@ from app.models.exam import Exam, ExamVariant, ExportMode
 
 RED = RGBColor(0xC0, 0x00, 0x00)
 FONT_NAME = "Times New Roman"
+# LLM đánh dấu phần cần gạch chân bằng <u>...</u> trong text lựa chọn (dạng phát âm/
+# trọng âm — PRD 7.3 yêu cầu gạch chân âm/trọng âm khác biệt trong đề in ra, xem
+# app/services/prompts.py). Không dùng docx run.underline trực tiếp từ LLM vì output
+# LLM là JSON text thuần, không phải OOXML.
+_UNDERLINE_MARKUP_RE = re.compile(r"<u>(.*?)</u>")
 PAGE_WIDTH_CM = 21.0
 MARGIN_CM = 1.27
 USABLE_WIDTH_CM = PAGE_WIDTH_CM - 2 * MARGIN_CM
@@ -37,6 +43,24 @@ def _set_font(run, size: float = 11.5, bold: bool = False, color: RGBColor | Non
     r_fonts.set(qn("w:hAnsi"), FONT_NAME)
 
 
+def _add_runs_with_underline(p, text: str, *, bold: bool = False, color: RGBColor | None = None) -> None:
+    """Tách `text` theo marker `<u>...</u>` thành nhiều run — phần trong marker được
+    `run.font.underline = True`, phần còn lại giữ nguyên. Không có marker thì y hệt
+    hành vi cũ (1 run duy nhất)."""
+    pos = 0
+    for match in _UNDERLINE_MARKUP_RE.finditer(text):
+        if match.start() > pos:
+            run = p.add_run(text[pos : match.start()])
+            _set_font(run, bold=bold, color=color)
+        underline_run = p.add_run(match.group(1))
+        _set_font(underline_run, bold=bold, color=color)
+        underline_run.font.underline = True
+        pos = match.end()
+    if pos < len(text):
+        run = p.add_run(text[pos:])
+        _set_font(run, bold=bold, color=color)
+
+
 def _new_paragraph(doc: Document, *, justify: bool = False, center: bool = False):
     p = doc.add_paragraph()
     pf = p.paragraph_format
@@ -50,8 +74,14 @@ def _new_paragraph(doc: Document, *, justify: bool = False, center: bool = False
     return p
 
 
+def _visible_length(text: str) -> int:
+    """Độ dài không tính marker <u></u> (14 ký tự không hiển thị) — tránh option ngắn
+    có gạch chân bị tính nhầm là dài, kéo cả hàng xuống 2 lựa chọn/dòng."""
+    return len(_UNDERLINE_MARKUP_RE.sub(r"\1", text))
+
+
 def _render_options(doc: Document, options: list[dict], with_key: bool) -> None:
-    max_len = max(len(opt["text"]) for opt in options)
+    max_len = max(_visible_length(opt["text"]) for opt in options)
     per_line = 2 if max_len > LONG_OPTION_THRESHOLD else 4
     step_cm = USABLE_WIDTH_CM / per_line
 
@@ -66,8 +96,7 @@ def _render_options(doc: Document, options: list[dict], with_key: bool) -> None:
             highlight = with_key and bool(opt.get("is_correct"))
             label_run = p.add_run(f"{opt['label']}. ")
             _set_font(label_run, bold=True, color=RED if highlight else None)
-            text_run = p.add_run(opt["text"])
-            _set_font(text_run, bold=highlight, color=RED if highlight else None)
+            _add_runs_with_underline(p, opt["text"], bold=highlight, color=RED if highlight else None)
 
 
 def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
