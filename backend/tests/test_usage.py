@@ -1,12 +1,10 @@
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import func, select
 
 from app.config import Settings
-from app.models.usage import DailyUsage
 from app.models.user import User, UserRole
 from app.security import hash_password
-from app.services.usage import UsageLimitExceeded, get_usage_status, reserve_usage
+from app.services.usage import get_usage_status, reserve_usage
 
 
 BANGKOK_NOON = __import__("datetime").datetime(2026, 7, 19, 12, 0, tzinfo=__import__("zoneinfo").ZoneInfo("Asia/Bangkok"))
@@ -38,15 +36,17 @@ def test_teacher_usage_starts_at_zero_and_reserves_amount(db):
     assert (reserved.used, reserved.remaining) == (3, 7)
 
 
-def test_reserve_rejects_whole_amount_without_increment(db):
+def test_reserve_never_blocks_even_past_configured_limit(db):
+    """Không giới hạn số lượt sinh đề (quyết định chủ dự án 21/07/2026, sau khi nối
+    OpenAI thật) — used_count vẫn cộng dồn để theo dõi chi phí, chỉ không còn chặn."""
     teacher = _create_user(db)
     reserve_usage(db, teacher, 8, now=BANGKOK_NOON)
 
-    with pytest.raises(UsageLimitExceeded) as error:
-        reserve_usage(db, teacher, 3, now=BANGKOK_NOON)
+    reserved = reserve_usage(db, teacher, 3, now=BANGKOK_NOON)
 
-    assert error.value.status.remaining == 2
-    assert get_usage_status(db, teacher, now=BANGKOK_NOON).used == 8
+    assert reserved.used == 11
+    assert reserved.is_unlimited is True
+    assert get_usage_status(db, teacher, now=BANGKOK_NOON).used == 11
 
 
 def test_usage_resets_on_next_bangkok_day(db):
@@ -57,13 +57,12 @@ def test_usage_resets_on_next_bangkok_day(db):
     assert get_usage_status(db, teacher, now=tomorrow).used == 0
 
 
-def test_admin_is_unlimited_without_daily_row(db):
+def test_admin_is_unlimited(db):
     admin = _create_user(db, role=UserRole.ADMIN, email="usage-admin@examcraft.dev")
 
     status = reserve_usage(db, admin, 99, now=BANGKOK_NOON)
 
     assert status.is_unlimited is True
-    assert db.scalar(select(func.count(DailyUsage.id))) == 0
 
 
 def test_usage_me_requires_login(client):
@@ -79,6 +78,4 @@ def test_usage_me_returns_teacher_status(client, db):
     response = client.get("/usage/me")
 
     assert response.status_code == 200
-    assert response.json()["limit"] == 10
-    assert response.json()["remaining"] == 10
-    assert response.json()["is_unlimited"] is False
+    assert response.json()["is_unlimited"] is True

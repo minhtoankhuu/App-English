@@ -61,6 +61,20 @@ describe("Layout", () => {
     expect(await screen.findByText("Còn 7/10 lượt hôm nay")).toBeInTheDocument();
   });
 
+  it("hiển thị 'không giới hạn' khi is_unlimited true", async () => {
+    mockedGetMyUsage.mockResolvedValue({
+      limit: 10,
+      used: 15,
+      remaining: 0,
+      usage_date: "2026-07-21",
+      reset_at: "2026-07-22T00:00:00+07:00",
+      is_unlimited: true,
+    });
+    renderLayout(teacherUser);
+
+    expect(await screen.findByText("Không giới hạn lượt sinh đề")).toBeInTheDocument();
+  });
+
   it("không tải hoặc hiển thị hạn mức cho Admin", () => {
     renderLayout(adminUser);
 

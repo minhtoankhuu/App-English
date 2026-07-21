@@ -73,7 +73,7 @@ function LayoutContent({ user, onLogout }: LayoutProps) {
 
         {!isAdmin && status && (
           <p className="usage-badge">
-            Còn {status.remaining}/{status.limit} lượt hôm nay
+            {status.is_unlimited ? "Không giới hạn lượt sinh đề" : `Còn ${status.remaining}/${status.limit} lượt hôm nay`}
           </p>
         )}
 

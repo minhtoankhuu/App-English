@@ -260,7 +260,10 @@ def test_regenerate_blocked_when_locked_or_approved(client, seeded_db):
     _ = block_id
 
 
-def test_generate_rejects_whole_exam_when_remaining_is_insufficient(client, seeded_db):
+def test_generate_succeeds_even_past_configured_daily_limit(client, seeded_db):
+    """Không giới hạn số lượt sinh đề (quyết định chủ dự án 21/07/2026) — used_count
+    vẫn cộng dồn để theo dõi chi phí, nhưng generate không còn bị chặn dù đã vượt
+    ngưỡng cấu hình cũ (10/ngày)."""
     teacher = _login_as_teacher(client, seeded_db)
     exam = _create_golden_exam(client, seeded_db)
     for code, title in [("pronunciation", "I"), ("multiple_choice", "II")]:
@@ -275,10 +278,9 @@ def test_generate_rejects_whole_exam_when_remaining_is_insufficient(client, seed
 
     response = client.post(f"/exams/{exam['id']}/generate")
 
-    assert response.status_code == 429
-    assert response.json()["detail"]["remaining"] == 1
-    assert client.get(f"/exams/{exam['id']}").json()["blocks"][0]["questions"] == []
-    assert client.get("/usage/me").json()["used"] == 9
+    assert response.status_code == 200
+    assert client.get(f"/exams/{exam['id']}").json()["blocks"][0]["questions"] != []
+    assert client.get("/usage/me").json()["used"] == 11
 
 
 def test_reorder_blocks(client, seeded_db):
