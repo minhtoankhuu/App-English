@@ -53,7 +53,9 @@ def _add_runs_with_underline(p, text: str, *, bold: bool = False, color: RGBColo
             run = p.add_run(text[pos : match.start()])
             _set_font(run, bold=bold, color=color)
         underline_run = p.add_run(match.group(1))
-        _set_font(underline_run, bold=bold, color=color)
+        # Phần gạch chân luôn in đậm để dễ nhận ra (yêu cầu chủ dự án 21/07/2026),
+        # bất kể phần còn lại của lựa chọn có đang bold vì là đáp án đúng hay không.
+        _set_font(underline_run, bold=True, color=color)
         underline_run.font.underline = True
         pos = match.end()
     if pos < len(text):
@@ -130,6 +132,10 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
             f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} {point_label})"
         )
         _set_font(heading_run, bold=True)
+        if block.instruction:
+            block_instruction_p = _new_paragraph(doc)
+            block_instruction_run = block_instruction_p.add_run(block.instruction)
+            _set_font(block_instruction_run)
 
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])
         by_id = {str(q.id): q for q in block.questions}
@@ -138,10 +144,16 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
 
         current_part_id = None
         started = False
+        # Nhiều câu cùng khối (vd dạng phát âm/trọng âm) thường lặp lại y hệt 1 câu
+        # dẫn/hướng dẫn — chỉ in 1 lần cho lần đầu xuất hiện, các câu sau chỉ còn số
+        # thứ tự + lựa chọn (đúng format đề tham khảo giáo viên gửi). Reset khi sang
+        # block/phần mới vì mỗi block/phần có thể có câu dẫn khác nhau.
+        last_prompt_text: str | None = None
         for question in ordered_questions:
             if not started or question.part_id != current_part_id:
                 started = True
                 current_part_id = question.part_id
+                last_prompt_text = None
                 part = parts_by_id.get(current_part_id) if current_part_id else None
                 if part is not None:
                     part_heading_p = _new_paragraph(doc)
@@ -160,10 +172,13 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                 _set_font(passage_run)
 
             prompt_p = _new_paragraph(doc)
-            no_run = prompt_p.add_run(f"{question_no}. ")
+            no_run = prompt_p.add_run(f"{question_no}.")
             _set_font(no_run, bold=True)
-            text_run = prompt_p.add_run(question.prompt_text)
-            _set_font(text_run)
+            if question.prompt_text and question.prompt_text != last_prompt_text:
+                prompt_p.add_run(" ")
+                text_run = prompt_p.add_run(question.prompt_text)
+                _set_font(text_run)
+                last_prompt_text = question.prompt_text
 
             if question.options:
                 _render_options(doc, question.options, with_key)

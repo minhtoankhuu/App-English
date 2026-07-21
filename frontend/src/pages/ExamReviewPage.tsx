@@ -33,7 +33,13 @@ function UnderlineText({ text }: { text: string }) {
   return (
     <>
       {parts.map((part, i) =>
-        typeof part === "string" ? <span key={i}>{part}</span> : <u key={i}>{part.underlined}</u>,
+        typeof part === "string" ? (
+          <span key={i}>{part}</span>
+        ) : (
+          <u key={i}>
+            <strong>{part.underlined}</strong>
+          </u>
+        ),
       )}
     </>
   );

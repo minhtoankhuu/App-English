@@ -29,6 +29,16 @@ def test_markup_in_middle_splits_into_three_runs():
     assert runs[2].font.underline is not True
 
 
+def test_underlined_part_is_always_bold_even_without_highlight():
+    """Phần gạch chân luôn in đậm để dễ nhận ra, kể cả khi lựa chọn không phải đáp
+    án đúng (bold=False mặc định) — yêu cầu chủ dự án 21/07/2026."""
+    runs = _paragraph_runs("br<u>ea</u>d")
+    texts = [r.text for r in runs]
+    assert runs[texts.index("ea")].font.bold is True
+    assert runs[texts.index("br")].font.bold is not True
+    assert runs[texts.index("d")].font.bold is not True
+
+
 def test_markup_at_start_has_no_leading_empty_run():
     runs = _paragraph_runs("<u>han</u>dsome")
     texts = [r.text for r in runs]

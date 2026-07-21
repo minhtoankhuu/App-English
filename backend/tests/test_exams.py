@@ -220,6 +220,8 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     # đáp án tô đỏ: chữ "bread" xuất hiện, và có ít nhất 1 run màu đỏ trong file
     red_runs = [r for p in doc.paragraphs for r in p.runs if r.font.color and r.font.color.rgb is not None]
     assert len(red_runs) > 0
+    # 2 câu pronunciation dùng chung 1 câu dẫn (fixture) — chỉ in 1 lần, không lặp lại
+    assert full_text.count("Choose the word whose underlined part is pronounced differently.") == 1
 
     # mã đề không tồn tại (chỉ tạo A, B) -> 404
     resp = client.get(f"/exams/{exam_id}/export.docx", params={"variant": "C"})
@@ -339,6 +341,35 @@ def test_approve_all_rejects_exam_without_questions(client, seeded_db):
     resp = client.post(f"/exams/{exam['id']}/approve-all")
 
     assert resp.status_code == 400
+
+
+def test_export_docx_renders_block_instruction(client, seeded_db):
+    """block.instruction từng bị bỏ sót hoàn toàn khi xuất DOCX (chỉ preview trên web
+    mới hiện) — bug tồn tại từ trước, phát hiện khi sửa bug lặp câu dẫn cùng lúc."""
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    resp = client.post(
+        f"/exams/{exam['id']}/blocks",
+        json={
+            "exercise_type_id": str(ex_type.id),
+            "title": "I",
+            "instruction": "Choose the best answer A, B, C or D.",
+            "question_count": 1,
+            "points": "1.0",
+        },
+    )
+    assert resp.status_code == 201
+    client.post(f"/exams/{exam['id']}/generate")
+    client.post(f"/exams/{exam['id']}/approve-all")
+    client.post(f"/exams/{exam['id']}/export-config", json={"export_mode": "plain", "variant_count": 1})
+
+    resp = client.get(f"/exams/{exam['id']}/export.docx", params={"variant": "A"})
+
+    assert resp.status_code == 200
+    doc = Document(io.BytesIO(resp.content))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Choose the best answer A, B, C or D." in full_text
 
 
 def test_export_before_review_returns_409(client, seeded_db):
