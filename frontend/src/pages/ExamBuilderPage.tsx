@@ -29,6 +29,19 @@ import { useUsage } from "../usage/UsageContext";
 // Tiêu đề mặc định cho phần đề (hiển thị trong đề xuất ra) theo đúng quy ước tiếng Anh
 // của đề thi thật — nhãn tiếng Việt ở lưới chọn dạng bài chỉ dùng cho UI giáo viên.
 // Giáo viên vẫn đổi được qua ô "Tiêu đề phần" trong popup chỉnh sửa.
+// 3 kiểu Pronunciation không trộn được trong cùng 1 lần sinh (xem
+// app/services/prompts.py) — tick "Pronunciation" tạo sẵn 3 block riêng, mỗi block
+// ghim đúng 1 kiểu qua prompt_override thay vì bắt giáo viên tự cấu hình.
+const PRONUNCIATION_BLOCK_PRESETS: { title: string; promptOverride: string }[] = [
+  { title: "PRONUNCIATION (Đuôi -s/-es)", promptOverride: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu." },
+  { title: "PRONUNCIATION (Đuôi -ed)", promptOverride: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu." },
+  {
+    title: "PRONUNCIATION (Âm trong từ)",
+    promptOverride:
+      "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
+  },
+];
+
 const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
   pronunciation: "PRONUNCIATION",
   stress: "STRESS",
@@ -264,6 +277,19 @@ export function ExamBuilderPage() {
     try {
       if (existingBlocks.length > 0) {
         await Promise.all(existingBlocks.map((block) => deleteBlock(target.examId, block.id)));
+      } else if (type.code === "pronunciation") {
+        // Phát âm có 3 kiểu không trộn được trong 1 lần sinh (xem prompts.py) — tách
+        // sẵn 3 block riêng (5 câu/block, tự đánh số I/II/III), mỗi block ghim đúng 1
+        // kiểu qua prompt_override, thay vì bắt giáo viên tự cấu hình Phần con.
+        for (const preset of PRONUNCIATION_BLOCK_PRESETS) {
+          await addBlock(target.examId, {
+            exercise_type_id: type.id,
+            title: preset.title,
+            question_count: 5,
+            points: 1,
+            prompt_override: preset.promptOverride,
+          });
+        }
       } else {
         await addBlock(target.examId, {
           exercise_type_id: type.id,

@@ -139,6 +139,15 @@ const wordFormType: ExerciseTypeOut = {
   order_no: 2,
 };
 
+const pronunciationType: ExerciseTypeOut = {
+  id: "type-pron",
+  code: "pronunciation",
+  name: "Phát âm",
+  default_instruction: "",
+  has_passage: false,
+  order_no: 3,
+};
+
 const examTwo: ExamDetailOut = {
   ...exam,
   id: "exam-2",
@@ -642,6 +651,38 @@ describe("ExamBuilderPage", () => {
       title: "WORD FORM",
       question_count: 5,
       points: 1,
+    });
+  });
+
+  it("ticking Pronunciation creates 3 separate blocks, each pinned to one kiểu", async () => {
+    const user = userEvent.setup();
+    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType, pronunciationType]);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("checkbox", { name: "Phát âm" }));
+
+    await waitFor(() => expect(examApi.addBlock).toHaveBeenCalledTimes(3));
+    expect(examApi.addBlock).toHaveBeenNthCalledWith(1, "exam-1", {
+      exercise_type_id: "type-pron",
+      title: "PRONUNCIATION (Đuôi -s/-es)",
+      question_count: 5,
+      points: 1,
+      prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
+    });
+    expect(examApi.addBlock).toHaveBeenNthCalledWith(2, "exam-1", {
+      exercise_type_id: "type-pron",
+      title: "PRONUNCIATION (Đuôi -ed)",
+      question_count: 5,
+      points: 1,
+      prompt_override: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu.",
+    });
+    expect(examApi.addBlock).toHaveBeenNthCalledWith(3, "exam-1", {
+      exercise_type_id: "type-pron",
+      title: "PRONUNCIATION (Âm trong từ)",
+      question_count: 5,
+      points: 1,
+      prompt_override: "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
     });
   });
 
