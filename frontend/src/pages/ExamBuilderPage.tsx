@@ -30,13 +30,14 @@ import { useUsage } from "../usage/UsageContext";
 // của đề thi thật — nhãn tiếng Việt ở lưới chọn dạng bài chỉ dùng cho UI giáo viên.
 // Giáo viên vẫn đổi được qua ô "Tiêu đề phần" trong popup chỉnh sửa.
 // 3 kiểu Pronunciation không trộn được trong cùng 1 lần sinh (xem
-// app/services/prompts.py) — tick "Pronunciation" tạo sẵn 3 block riêng, mỗi block
-// ghim đúng 1 kiểu qua prompt_override thay vì bắt giáo viên tự cấu hình.
-const PRONUNCIATION_BLOCK_PRESETS: { title: string; promptOverride: string }[] = [
-  { title: "PRONUNCIATION (Đuôi -s/-es)", promptOverride: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu." },
-  { title: "PRONUNCIATION (Đuôi -ed)", promptOverride: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu." },
+// app/services/prompts.py) — tick "Pronunciation" tạo 1 block chung "PRONUNCIATION"
+// (đánh số I/II/III như dạng bài khác) kèm sẵn 3 Phần con đánh số 1/2/3 bên trong,
+// mỗi phần ghim đúng 1 kiểu qua prompt_override, thay vì bắt giáo viên tự thêm.
+const PRONUNCIATION_PART_PRESETS: { title: string; promptOverride: string }[] = [
+  { title: "Đuôi -s/-es", promptOverride: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu." },
+  { title: "Đuôi -ed", promptOverride: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu." },
   {
-    title: "PRONUNCIATION (Âm trong từ)",
+    title: "Âm trong từ",
     promptOverride:
       "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
   },
@@ -278,15 +279,20 @@ export function ExamBuilderPage() {
       if (existingBlocks.length > 0) {
         await Promise.all(existingBlocks.map((block) => deleteBlock(target.examId, block.id)));
       } else if (type.code === "pronunciation") {
-        // Phát âm có 3 kiểu không trộn được trong 1 lần sinh (xem prompts.py) — tách
-        // sẵn 3 block riêng (5 câu/block, tự đánh số I/II/III), mỗi block ghim đúng 1
-        // kiểu qua prompt_override, thay vì bắt giáo viên tự cấu hình Phần con.
-        for (const preset of PRONUNCIATION_BLOCK_PRESETS) {
-          await addBlock(target.examId, {
-            exercise_type_id: type.id,
+        // Phát âm có 3 kiểu không trộn được trong 1 lần sinh (xem prompts.py) — tạo 1
+        // block chung "PRONUNCIATION" kèm sẵn 3 Phần con (5 câu/phần, tự đánh số
+        // 1/2/3), mỗi phần ghim đúng 1 kiểu qua prompt_override — question_count của
+        // block tự đồng bộ theo tổng các phần con sau khi thêm.
+        const created = await addBlock(target.examId, {
+          exercise_type_id: type.id,
+          title: DEFAULT_BLOCK_TITLE_BY_CODE[type.code] ?? type.name,
+          question_count: 5,
+          points: 3,
+        });
+        for (const preset of PRONUNCIATION_PART_PRESETS) {
+          await addBlockPart(target.examId, created.id, {
             title: preset.title,
             question_count: 5,
-            points: 1,
             prompt_override: preset.promptOverride,
           });
         }

@@ -654,7 +654,7 @@ describe("ExamBuilderPage", () => {
     });
   });
 
-  it("ticking Pronunciation creates 3 separate blocks, each pinned to one kiểu", async () => {
+  it("ticking Pronunciation creates 1 block with 3 Phần con, each pinned to one kiểu", async () => {
     const user = userEvent.setup();
     catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType, pronunciationType]);
     renderBuilder();
@@ -662,26 +662,26 @@ describe("ExamBuilderPage", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Phát âm" }));
 
-    await waitFor(() => expect(examApi.addBlock).toHaveBeenCalledTimes(3));
-    expect(examApi.addBlock).toHaveBeenNthCalledWith(1, "exam-1", {
+    await waitFor(() => expect(examApi.addBlockPart).toHaveBeenCalledTimes(3));
+    expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
       exercise_type_id: "type-pron",
-      title: "PRONUNCIATION (Đuôi -s/-es)",
+      title: "PRONUNCIATION",
       question_count: 5,
-      points: 1,
+      points: 3,
+    });
+    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(1, "exam-1", "a", {
+      title: "Đuôi -s/-es",
+      question_count: 5,
       prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
     });
-    expect(examApi.addBlock).toHaveBeenNthCalledWith(2, "exam-1", {
-      exercise_type_id: "type-pron",
-      title: "PRONUNCIATION (Đuôi -ed)",
+    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(2, "exam-1", "a", {
+      title: "Đuôi -ed",
       question_count: 5,
-      points: 1,
       prompt_override: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu.",
     });
-    expect(examApi.addBlock).toHaveBeenNthCalledWith(3, "exam-1", {
-      exercise_type_id: "type-pron",
-      title: "PRONUNCIATION (Âm trong từ)",
+    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(3, "exam-1", "a", {
+      title: "Âm trong từ",
       question_count: 5,
-      points: 1,
       prompt_override: "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
     });
   });
