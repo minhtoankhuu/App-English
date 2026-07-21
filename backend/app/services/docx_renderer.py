@@ -171,6 +171,8 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
         current_part_id = None
         started = False
         indent_cm = 0.0
+        part = None
+        part_question_no = 0
         # Nhiều câu cùng khối (vd dạng phát âm/trọng âm) thường lặp lại y hệt 1 câu
         # dẫn/hướng dẫn — chỉ in 1 lần cho lần đầu xuất hiện, các câu sau chỉ còn số
         # thứ tự + lựa chọn (đúng format đề tham khảo giáo viên gửi). Reset khi sang
@@ -181,6 +183,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                 started = True
                 current_part_id = question.part_id
                 last_prompt_text = None
+                part_question_no = 0
                 part = parts_by_id.get(current_part_id) if current_part_id else None
                 # Câu hỏi thuộc 1 Phần con được thụt lề để phân cấp I. > 1. > câu hỏi.
                 indent_cm = PART_CONTENT_INDENT_CM if part is not None else 0.0
@@ -196,6 +199,15 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                         _set_font(part_instruction_run)
 
             question_no += 1
+            # Câu thuộc 1 Phần con đánh số lại từ 1 riêng cho phần đó (khớp mẫu đề
+            # tham khảo — mỗi phần con là 1 bài tập độc lập, không nối số với các
+            # phần con khác trong cùng khối); câu không thuộc phần nào vẫn đánh số
+            # liên tục xuyên suốt khối như cũ.
+            if part is not None:
+                part_question_no += 1
+                display_no = part_question_no
+            else:
+                display_no = question_no
 
             if question.passage_text:
                 passage_p = _new_paragraph(doc, justify=True)
@@ -210,7 +222,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
             if show_prompt_text:
                 prompt_p = _new_paragraph(doc)
                 prompt_p.paragraph_format.left_indent = Cm(indent_cm)
-                no_run = prompt_p.add_run(f"{question_no}.")
+                no_run = prompt_p.add_run(f"{display_no}.")
                 _set_font(no_run, bold=True)
                 prompt_p.add_run(" ")
                 _add_runs_with_underline(prompt_p, question.prompt_text)
@@ -222,12 +234,12 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                     question.options,
                     with_key,
                     indent_cm=indent_cm,
-                    number=None if show_prompt_text else f"{question_no}.",
+                    number=None if show_prompt_text else f"{display_no}.",
                 )
             elif with_key:
                 answer_p = _new_paragraph(doc)
                 answer_p.paragraph_format.left_indent = Cm(indent_cm)
-                prefix = "" if show_prompt_text else f"{question_no}. "
+                prefix = "" if show_prompt_text else f"{display_no}. "
                 answer_run = answer_p.add_run(f"{prefix}Đáp án: {question.answer_text}")
                 _set_font(answer_run, bold=True, color=RED)
             elif not show_prompt_text:
@@ -235,7 +247,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
                 # có câu dẫn mới — vẫn phải in số thứ tự để không mất dấu vết câu hỏi.
                 fallback_p = _new_paragraph(doc)
                 fallback_p.paragraph_format.left_indent = Cm(indent_cm)
-                no_run = fallback_p.add_run(f"{question_no}.")
+                no_run = fallback_p.add_run(f"{display_no}.")
                 _set_font(no_run, bold=True)
 
     buffer = io.BytesIO()
