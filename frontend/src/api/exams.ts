@@ -78,6 +78,9 @@ export const regenerateQuestion = (examId: string, questionId: string): Promise<
 export const completeReview = (examId: string): Promise<ExamDetailOut> =>
   apiPost(`/exams/${examId}/complete-review`);
 
+export const approveAllQuestions = (examId: string): Promise<ExamDetailOut> =>
+  apiPost(`/exams/${examId}/approve-all`);
+
 export const saveExportConfig = (examId: string, payload: ExportConfigRequest): Promise<ExamDetailOut> =>
   apiPost(`/exams/${examId}/export-config`, payload);
 

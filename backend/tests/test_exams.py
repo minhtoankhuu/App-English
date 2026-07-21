@@ -308,6 +308,39 @@ def test_reorder_blocks(client, seeded_db):
     assert ordered[1]["id"] == b1["id"]
 
 
+def test_approve_all_approves_every_question_and_completes_review(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    exam_id = exam["id"]
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    resp = client.post(
+        f"/exams/{exam_id}/blocks",
+        json={"exercise_type_id": str(ex_type.id), "title": "I", "question_count": 2, "points": "1.0"},
+    )
+    assert resp.status_code == 201
+    resp = client.post(f"/exams/{exam_id}/generate")
+    assert resp.status_code == 200
+    assert all(not q["is_approved"] for b in resp.json()["blocks"] for q in b["questions"])
+
+    resp = client.post(f"/exams/{exam_id}/approve-all")
+
+    assert resp.status_code == 200
+    detail = resp.json()
+    assert detail["status"] == "reviewed"
+    all_questions = [q for b in detail["blocks"] for q in b["questions"]]
+    assert all_questions
+    assert all(q["is_approved"] for q in all_questions)
+
+
+def test_approve_all_rejects_exam_without_questions(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+
+    resp = client.post(f"/exams/{exam['id']}/approve-all")
+
+    assert resp.status_code == 400
+
+
 def test_export_before_review_returns_409(client, seeded_db):
     _login_as_teacher(client, seeded_db)
     exam = _create_golden_exam(client, seeded_db)

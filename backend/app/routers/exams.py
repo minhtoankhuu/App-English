@@ -485,6 +485,13 @@ def regenerate(
     return question
 
 
+def _finalize_review(db: Session, exam: Exam, all_questions: list[Question]) -> None:
+    embed_questions_for_bank(db, all_questions)
+    for q in all_questions:
+        q.is_in_bank = True
+    exam.status = ExamStatus.REVIEWED
+
+
 @router.post("/{exam_id}/complete-review", response_model=ExamDetailOut)
 def complete_review(
     exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
@@ -495,10 +502,25 @@ def complete_review(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Đề chưa có câu hỏi nào")
     if not all(q.is_approved for q in all_questions):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Còn câu chưa được duyệt")
-    embed_questions_for_bank(db, all_questions)
+    _finalize_review(db, exam, all_questions)
+    db.commit()
+    return _exam_detail(_get_owned_exam(db, exam_id, current_user))
+
+
+@router.post("/{exam_id}/approve-all", response_model=ExamDetailOut)
+def approve_all_questions(
+    exam_id: uuid.UUID, current_user: User = Depends(require_teacher), db: Session = Depends(get_db)
+) -> dict:
+    """Duyệt toàn bộ câu hỏi của đề trong 1 lần bấm (thay vì duyệt từng câu ở trang
+    Duyệt câu) rồi hoàn tất kiểm duyệt luôn — dùng khi giáo viên đã xem qua bản xem
+    trước A4 và thấy nội dung ổn, không cần duyệt từng câu."""
+    exam = _get_owned_exam(db, exam_id, current_user)
+    all_questions = [q for b in exam.blocks for q in b.questions]
+    if not all_questions:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Đề chưa có câu hỏi nào")
     for q in all_questions:
-        q.is_in_bank = True
-    exam.status = ExamStatus.REVIEWED
+        q.is_approved = True
+    _finalize_review(db, exam, all_questions)
     db.commit()
     return _exam_detail(_get_owned_exam(db, exam_id, current_user))
 
