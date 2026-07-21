@@ -812,6 +812,7 @@ export function ExamBuilderPage() {
                 </ul>
               )}
 
+              {(editingBlock.exercise_type.code !== "pronunciation" || editingPartId) && (
               <div style={{ display: "grid", gap: 8, padding: 12, borderRadius: 8, background: "var(--surface)" }}>
                 <label>
                   Tiêu đề phần con
@@ -866,6 +867,7 @@ export function ExamBuilderPage() {
                   )}
                 </div>
               </div>
+              )}
             </div>
 
             {editingBlock.exercise_type.has_passage &&

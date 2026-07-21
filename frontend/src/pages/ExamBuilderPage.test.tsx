@@ -808,4 +808,28 @@ describe("ExamBuilderPage", () => {
     await user.click(await screen.findByRole("button", { name: "Xóa" }));
     expect(examApi.deleteBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1");
   });
+
+  it("ẩn form thêm phần con mới ở block Pronunciation nhưng vẫn sửa được phần đã có", async () => {
+    const user = userEvent.setup();
+    const pronunciationPart = {
+      id: "part-1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5,
+      prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
+    };
+    const pronunciationBlock = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 5, parts: [pronunciationPart],
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [pronunciationBlock, blocks[1]!] });
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+
+    expect(screen.queryByRole("button", { name: "+ Thêm phần con" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sửa" }));
+
+    expect(screen.getByLabelText("Tiêu đề phần con")).toHaveValue("Đuôi -s/-es");
+    expect(screen.getByRole("button", { name: "Lưu phần con" })).toBeInTheDocument();
+  });
 });
