@@ -10,9 +10,11 @@ không mất tiến trình đã làm — chạy lại sẽ tiếp tục đúng c
 """
 
 import argparse
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+import requests
 import tiktoken
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -27,6 +29,28 @@ from app.services.rag_search import EmbeddingClient
 # Giá công bố OpenAI (USD/1 triệu token) tại thời điểm viết — chỉ để ước tính sơ bộ
 # trước khi chạy thật, không phải nguồn giá chính thức (có thể đổi theo thời gian).
 _PRICE_PER_1M_TOKENS = {"text-embedding-3-small": 0.02, "text-embedding-3-large": 0.13}
+
+# tiktoken.get_encoding tự tải file BPE (~1.7MB) từ blob Azure lúc gọi lần đầu trong
+# tiến trình nếu chưa có trong cache cục bộ — runner CI ephemeral (không cache giữa
+# các lần chạy nếu không cấu hình riêng) nên thỉnh thoảng gặp lỗi mạng thoáng qua
+# (503 "server is busy") dù không liên quan gì logic ứng dụng (đã gặp thật, CI đỏ
+# dù test dùng FakeEmbeddingClient không gọi OpenAI). Thử lại như các lệnh gọi mạng
+# khác trong codebase (xem OpenAIProvider._call_openai) thay vì để cả suite fail.
+_ENCODING_LOAD_ATTEMPTS = 3
+
+
+def _load_cl100k_encoding() -> tiktoken.Encoding:
+    last_error: requests.exceptions.RequestException | None = None
+    for attempt in range(_ENCODING_LOAD_ATTEMPTS):
+        try:
+            return tiktoken.get_encoding("cl100k_base")
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            if attempt < _ENCODING_LOAD_ATTEMPTS - 1:
+                time.sleep(1)
+    raise RuntimeError(
+        f"Tải file mã hoá tiktoken (cl100k_base) thất bại sau {_ENCODING_LOAD_ATTEMPTS} lần thử: {last_error}"
+    ) from last_error
 
 
 @dataclass
@@ -44,7 +68,7 @@ def _pending_chunks_query(embedding_model: str, force: bool):
 
 
 def estimate_tokens(chunks: list[KnowledgeChunk]) -> int:
-    encoding = tiktoken.get_encoding("cl100k_base")
+    encoding = _load_cl100k_encoding()
     return sum(len(encoding.encode(c.raw_text)) for c in chunks)
 
 
