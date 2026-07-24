@@ -19,6 +19,37 @@ from app.models.knowledge import DocumentChunkType, KnowledgeChunk, KnowledgeDoc
 
 RRF_K = 60  # hằng số chuẩn phổ biến trong tài liệu RRF, không cần tune
 
+_V = DocumentChunkType.VOCABULARY
+_WF = DocumentChunkType.WORD_FORM
+_PH = DocumentChunkType.PHRASE
+_GR = DocumentChunkType.GRAMMAR
+
+DEFAULT_TOP_K = 8
+
+# Truy xuất theo dạng bài: mỗi dạng ưu tiên loại chunk phù hợp + số chunk đưa cho LLM
+# khác nhau, thay vì cùng 1 rổ 8 chunk cho mọi dạng trong Unit (xem đánh giá 21/07/2026).
+# Dạng nhiều từ vựng (phát âm/trọng âm/word form) cần nhiều chất liệu hơn để đủ đa dạng
+# mà vẫn trong phạm vi bài; dạng đọc hiểu để chunk_types=None (lấy mọi loại) vì cần nội
+# dung rộng. chunk nguồn rất ngắn (mỗi mục từ 1 chunk) nên top_k lớn vẫn ít token.
+_RETRIEVAL_PROFILES: dict[str, tuple[tuple[DocumentChunkType, ...] | None, int]] = {
+    "pronunciation": ((_V, _WF), 30),
+    "stress": ((_V, _WF), 30),
+    "word_form": ((_WF, _V), 24),
+    "matching": ((_V, _PH), 20),
+    "gap_fill": ((_V, _PH, _GR), 16),
+    "cloze_test": ((_V, _PH, _GR), 16),
+    "multiple_choice": ((_GR, _V, _PH), 16),
+    "sentence_rewrite": ((_GR, _PH), 12),
+    "sign_reading": ((_PH, _V), 12),
+    "reading_true_false": (None, 12),
+}
+
+
+def retrieval_profile(exercise_type_code: str) -> tuple[list[DocumentChunkType] | None, int]:
+    """(loại chunk ưu tiên, top_k) theo dạng bài; dạng lạ dùng mặc định (mọi loại, 8)."""
+    chunk_types, top_k = _RETRIEVAL_PROFILES.get(exercise_type_code, (None, DEFAULT_TOP_K))
+    return (list(chunk_types) if chunk_types else None, top_k)
+
 
 class EmbeddingClient(Protocol):
     def embed_one(self, text: str) -> list[float]: ...
@@ -35,11 +66,19 @@ class RetrievedChunk:
     fused_score: float
 
 
-def _scoped_base_query(unit_id: uuid.UUID | None, grammar_point_ids: list[uuid.UUID] | None) -> Select:
+def _scoped_base_query(
+    unit_id: uuid.UUID | None,
+    grammar_point_ids: list[uuid.UUID] | None,
+    chunk_types: list[DocumentChunkType] | None = None,
+) -> Select:
     stmt = select(KnowledgeChunk).join(KnowledgeChunk.document).where(KnowledgeDocument.is_published.is_(True))
     if unit_id is not None:
-        return stmt.where(KnowledgeDocument.unit_id == unit_id)
-    return stmt.where(KnowledgeDocument.grammar_point_id.in_(grammar_point_ids))
+        stmt = stmt.where(KnowledgeDocument.unit_id == unit_id)
+    else:
+        stmt = stmt.where(KnowledgeDocument.grammar_point_id.in_(grammar_point_ids))
+    if chunk_types:
+        stmt = stmt.where(KnowledgeChunk.chunk_type.in_(chunk_types))
+    return stmt
 
 
 def hybrid_search(
@@ -49,16 +88,24 @@ def hybrid_search(
     query_text: str,
     unit_id: uuid.UUID | None = None,
     grammar_point_ids: list[uuid.UUID] | None = None,
-    top_k: int = 8,
+    top_k: int = DEFAULT_TOP_K,
     candidate_k: int = 30,
+    chunk_types: list[DocumentChunkType] | None = None,
 ) -> list[RetrievedChunk]:
     """Trả `[]` khi không có phạm vi nguồn nào (vd đề Cambridge — kho kiến thức
     hiện chỉ phủ Global Success + Kiến thức chung, xem app/import_knowledge.py).
-    Caller (OpenAIProvider) phải xử lý tường minh, không coi là lỗi."""
+    Caller (OpenAIProvider) phải xử lý tường minh, không coi là lỗi.
+
+    `chunk_types` giới hạn theo loại chunk hợp với dạng bài (xem retrieval_profile).
+    Nếu Unit không có loại đó (vd thiếu hẳn WORD_FORM) thì bỏ lọc để vẫn có chất liệu
+    chung thay vì trả rỗng."""
     if unit_id is None and not grammar_point_ids:
         return []
 
-    base = _scoped_base_query(unit_id, grammar_point_ids)
+    base = _scoped_base_query(unit_id, grammar_point_ids, chunk_types)
+    if chunk_types and db.scalar(base.limit(1)) is None:
+        base = _scoped_base_query(unit_id, grammar_point_ids)
+    candidate_k = max(candidate_k, top_k)
 
     tsquery = func.plainto_tsquery("simple", query_text)
     fts_stmt = (

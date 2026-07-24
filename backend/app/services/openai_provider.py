@@ -17,9 +17,19 @@ from app.models.generation_log import GenerationLog
 from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, GenerationContext, QuestionDraft
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.prompts import PROMPT_VERSION, build_system_prompt, build_user_prompt
-from app.services.rag_search import RetrievedChunk, hybrid_search
+from app.services.rag_search import RetrievedChunk, hybrid_search, retrieval_profile
+from app.services.text_markup import dedupe_pronunciation_suffix
 
 _MAX_ATTEMPTS = 3  # 1 lần gọi đầu + tối đa 2 lần retry (PRD 17)
+
+
+def _sanitize_options(options: list[dict] | None) -> list[dict] | None:
+    """Chặn lỗi model nhân đôi ký tự đuôi phát âm ngay khi lưu (vd 'cats<u>s</u>' →
+    'cat<u>s</u>') để cả DOCX lẫn preview web đều sạch, không phụ thuộc render (xem
+    app/services/text_markup.py)."""
+    if not options:
+        return options
+    return [{**opt, "text": dedupe_pronunciation_suffix(opt["text"])} if opt.get("text") else opt for opt in options]
 
 # Giá tham khảo gpt-4o-mini (USD/1 triệu token) tại thời điểm viết — chỉ ước tính
 # sơ bộ cho GenerationLog, không phải nguồn giá chính thức.
@@ -90,12 +100,17 @@ class OpenAIProvider(AIProvider):
         # OpenAI embeddings từ chối input rỗng — luôn cần 1 chuỗi có nghĩa, kể cả khi
         # không có unit_title (đề "Kiến thức chung") lẫn prompt_override.
         query_text = block.prompt_override or context.unit_title or "kiến thức bài học"
+        # Truy xuất theo dạng bài: lọc loại chunk phù hợp + top_k riêng cho dạng này,
+        # thay vì cùng 1 rổ cho mọi dạng trong Unit (xem rag_search.retrieval_profile).
+        chunk_types, top_k = retrieval_profile(block.exercise_type_code)
         return hybrid_search(
             self._db,
             self._embed_client,
             query_text=query_text,
             unit_id=context.unit_id,
             grammar_point_ids=context.grammar_point_ids or None,
+            top_k=top_k,
+            chunk_types=chunk_types,
         )
 
     def _call_openai(self, system_prompt: str, user_prompt: str) -> tuple[dict, int | None, int | None]:
@@ -166,7 +181,7 @@ class OpenAIProvider(AIProvider):
             level_code=item.get("level_code") or block.level_code,
             source_ref=source_ref,
             passage_text=item.get("passage_text"),
-            options=item.get("options"),
+            options=_sanitize_options(item.get("options")),
         )
 
     def generate(self, block: BlockSpec, context: GenerationContext) -> list[QuestionDraft]:

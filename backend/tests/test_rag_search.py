@@ -3,7 +3,7 @@ from sqlalchemy import select
 from app.models.academic import Grade, Unit
 from app.models.grammar import GrammarPoint
 from app.models.knowledge import EMBEDDING_DIM, DocumentChunkType, KnowledgeChunk, KnowledgeDocument
-from app.services.rag_search import hybrid_search
+from app.services.rag_search import DEFAULT_TOP_K, hybrid_search, retrieval_profile
 
 
 class FakeEmbeddingClient:
@@ -140,3 +140,60 @@ def test_scopes_by_grammar_point_ids(seeded_db):
     result = hybrid_search(seeded_db, client, query_text="present simple usage", grammar_point_ids=[point.id])
 
     assert all(r.chunk_id in {c.id for c in doc_in_scope.chunks} for r in result)
+
+
+def test_chunk_types_filter_restricts_to_requested_types(seeded_db):
+    """Truy xuất theo dạng bài: chỉ lấy loại chunk yêu cầu, bỏ loại khác trong Unit."""
+    unit = _unit3_grade7(seeded_db)
+    doc = _make_document(seeded_db, unit_id=unit.id)
+    vocab = _make_chunk(seeded_db, doc, raw_text="volunteer (n): tình nguyện viên", chunk_type=DocumentChunkType.VOCABULARY)
+    _make_chunk(seeded_db, doc, raw_text="Present Simple grammar rule", chunk_type=DocumentChunkType.GRAMMAR, order_no=2)
+    seeded_db.flush()
+
+    client = FakeEmbeddingClient({})
+    result = hybrid_search(
+        seeded_db, client, query_text="volunteer", unit_id=unit.id, chunk_types=[DocumentChunkType.VOCABULARY]
+    )
+
+    assert [r.chunk_id for r in result] == [vocab.id]
+    assert all(r.chunk_type == DocumentChunkType.VOCABULARY for r in result)
+
+
+def test_chunk_types_filter_ignored_when_unit_lacks_that_type(seeded_db):
+    """Unit không có loại chunk yêu cầu (vd thiếu hẳn WORD_FORM) → bỏ lọc để vẫn có
+    chất liệu chung thay vì trả rỗng (không được để LLM sinh mà không có nguồn)."""
+    unit = _unit3_grade7(seeded_db)
+    doc = _make_document(seeded_db, unit_id=unit.id)
+    vocab = _make_chunk(seeded_db, doc, raw_text="volunteer (n): tình nguyện viên", chunk_type=DocumentChunkType.VOCABULARY)
+    seeded_db.flush()
+
+    client = FakeEmbeddingClient({})
+    result = hybrid_search(
+        seeded_db, client, query_text="volunteer", unit_id=unit.id, chunk_types=[DocumentChunkType.WORD_FORM]
+    )
+
+    assert [r.chunk_id for r in result] == [vocab.id]
+
+
+def test_top_k_limits_number_of_results(seeded_db):
+    unit = _unit3_grade7(seeded_db)
+    doc = _make_document(seeded_db, unit_id=unit.id)
+    for i in range(6):
+        _make_chunk(seeded_db, doc, raw_text=f"volunteer entry number {i}", order_no=i + 1)
+    seeded_db.flush()
+
+    client = FakeEmbeddingClient({})
+    result = hybrid_search(seeded_db, client, query_text="volunteer", unit_id=unit.id, top_k=3)
+
+    assert len(result) == 3
+
+
+def test_retrieval_profile_maps_exercise_types():
+    # Dạng nhiều từ vựng: ưu tiên VOCABULARY/WORD_FORM + top_k lớn.
+    chunk_types, top_k = retrieval_profile("pronunciation")
+    assert chunk_types == [DocumentChunkType.VOCABULARY, DocumentChunkType.WORD_FORM]
+    assert top_k == 30
+    # Dạng đọc hiểu: không bó loại (cần nội dung rộng).
+    assert retrieval_profile("reading_true_false")[0] is None
+    # Dạng lạ: mặc định (mọi loại, top_k mặc định).
+    assert retrieval_profile("unknown_type") == (None, DEFAULT_TOP_K)
