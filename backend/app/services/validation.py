@@ -16,8 +16,12 @@ from app.models.ai_config import AIProviderConfig
 from app.models.exam import Question
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
 from app.services.ai_provider import QuestionDraft
+from app.services.pronunciation_check import check_pronunciation_options
 
 WORD_COUNT_EXERCISE_TYPES = {"multiple_choice", "word_form"}
+# Hai dạng này có lựa chọn là TỪ ĐƠN kèm markup gạch chân — kiểm tra được bằng máy
+# (xem app/services/pronunciation_check.py).
+MARKUP_CHECKED_EXERCISE_TYPES = {"pronunciation", "stress"}
 DUPLICATE_FUZZY_THRESHOLD = 0.85
 DEFAULT_DUPLICATE_SIMILARITY_THRESHOLD = 0.90
 
@@ -51,6 +55,15 @@ def validate_draft(
                 warnings.append(
                     f"Câu hỏi dài {wc} từ, ngoài khoảng {rule.min_words}-{rule.max_words} từ khuyến nghị."
                 )
+
+    if exercise_type.code in MARKUP_CHECKED_EXERCISE_TYPES and draft.options:
+        warnings.extend(
+            check_pronunciation_options(
+                [option.get("text", "") for option in draft.options],
+                # Dạng trọng âm bọc cả âm tiết nên không áp ngưỡng độ dài/đồng nhất cụm.
+                check_cluster_shape=exercise_type.code == "pronunciation",
+            )
+        )
 
     if exercise_type.has_passage and draft.passage_text:
         rule = db.scalar(

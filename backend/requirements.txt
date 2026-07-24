@@ -14,3 +14,6 @@ openai==1.59.9
 pgvector==0.3.6
 cryptography==43.0.3
 tiktoken==0.8.0
+# Từ điển tiếng Anh offline (không gọi mạng) để phát hiện từ bịa trong lựa chọn
+# phát âm/trọng âm — xem app/services/pronunciation_check.py
+pyspellchecker==0.8.2
