@@ -220,6 +220,8 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     # đáp án tô đỏ: chữ "bread" xuất hiện, và có ít nhất 1 run màu đỏ trong file
     red_runs = [r for p in doc.paragraphs for r in p.runs if r.font.color and r.font.color.rgb is not None]
     assert len(red_runs) > 0
+    # 2 câu pronunciation dùng chung 1 câu dẫn (fixture) — chỉ in 1 lần, không lặp lại
+    assert full_text.count("Choose the word whose underlined part is pronounced differently.") == 1
 
     # mã đề không tồn tại (chỉ tạo A, B) -> 404
     resp = client.get(f"/exams/{exam_id}/export.docx", params={"variant": "C"})
@@ -260,7 +262,10 @@ def test_regenerate_blocked_when_locked_or_approved(client, seeded_db):
     _ = block_id
 
 
-def test_generate_rejects_whole_exam_when_remaining_is_insufficient(client, seeded_db):
+def test_generate_succeeds_even_past_configured_daily_limit(client, seeded_db):
+    """Không giới hạn số lượt sinh đề (quyết định chủ dự án 21/07/2026) — used_count
+    vẫn cộng dồn để theo dõi chi phí, nhưng generate không còn bị chặn dù đã vượt
+    ngưỡng cấu hình cũ (10/ngày)."""
     teacher = _login_as_teacher(client, seeded_db)
     exam = _create_golden_exam(client, seeded_db)
     for code, title in [("pronunciation", "I"), ("multiple_choice", "II")]:
@@ -275,10 +280,9 @@ def test_generate_rejects_whole_exam_when_remaining_is_insufficient(client, seed
 
     response = client.post(f"/exams/{exam['id']}/generate")
 
-    assert response.status_code == 429
-    assert response.json()["detail"]["remaining"] == 1
-    assert client.get(f"/exams/{exam['id']}").json()["blocks"][0]["questions"] == []
-    assert client.get("/usage/me").json()["used"] == 9
+    assert response.status_code == 200
+    assert client.get(f"/exams/{exam['id']}").json()["blocks"][0]["questions"] != []
+    assert client.get("/usage/me").json()["used"] == 11
 
 
 def test_reorder_blocks(client, seeded_db):
@@ -304,6 +308,68 @@ def test_reorder_blocks(client, seeded_db):
     ordered = sorted(blocks, key=lambda b: b["order_no"])
     assert ordered[0]["id"] == b2["id"]
     assert ordered[1]["id"] == b1["id"]
+
+
+def test_approve_all_approves_every_question_and_completes_review(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    exam_id = exam["id"]
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    resp = client.post(
+        f"/exams/{exam_id}/blocks",
+        json={"exercise_type_id": str(ex_type.id), "title": "I", "question_count": 2, "points": "1.0"},
+    )
+    assert resp.status_code == 201
+    resp = client.post(f"/exams/{exam_id}/generate")
+    assert resp.status_code == 200
+    assert all(not q["is_approved"] for b in resp.json()["blocks"] for q in b["questions"])
+
+    resp = client.post(f"/exams/{exam_id}/approve-all")
+
+    assert resp.status_code == 200
+    detail = resp.json()
+    assert detail["status"] == "reviewed"
+    all_questions = [q for b in detail["blocks"] for q in b["questions"]]
+    assert all_questions
+    assert all(q["is_approved"] for q in all_questions)
+
+
+def test_approve_all_rejects_exam_without_questions(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+
+    resp = client.post(f"/exams/{exam['id']}/approve-all")
+
+    assert resp.status_code == 400
+
+
+def test_export_docx_renders_block_instruction(client, seeded_db):
+    """block.instruction từng bị bỏ sót hoàn toàn khi xuất DOCX (chỉ preview trên web
+    mới hiện) — bug tồn tại từ trước, phát hiện khi sửa bug lặp câu dẫn cùng lúc."""
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    resp = client.post(
+        f"/exams/{exam['id']}/blocks",
+        json={
+            "exercise_type_id": str(ex_type.id),
+            "title": "I",
+            "instruction": "Choose the best answer A, B, C or D.",
+            "question_count": 1,
+            "points": "1.0",
+        },
+    )
+    assert resp.status_code == 201
+    client.post(f"/exams/{exam['id']}/generate")
+    client.post(f"/exams/{exam['id']}/approve-all")
+    client.post(f"/exams/{exam['id']}/export-config", json={"export_mode": "plain", "variant_count": 1})
+
+    resp = client.get(f"/exams/{exam['id']}/export.docx", params={"variant": "A"})
+
+    assert resp.status_code == 200
+    doc = Document(io.BytesIO(resp.content))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Choose the best answer A, B, C or D." in full_text
 
 
 def test_export_before_review_returns_409(client, seeded_db):

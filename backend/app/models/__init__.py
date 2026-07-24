@@ -8,6 +8,7 @@ from app.models.academic import (
     SchoolStage,
     Unit,
 )
+from app.models.ai_config import AIProviderConfig
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.exam import (
@@ -23,6 +24,7 @@ from app.models.exam import (
     SourceType,
 )
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
+from app.models.generation_log import GenerationLog
 from app.models.grammar import GrammarGroup, GrammarPoint, GrammarTopic
 from app.models.knowledge import DocumentChunkType, KnowledgeChunk, KnowledgeDocument
 from app.models.user import User, UserRole
@@ -37,6 +39,8 @@ __all__ = [
     "KnowledgeDocument",
     "KnowledgeChunk",
     "DocumentChunkType",
+    "AIProviderConfig",
+    "GenerationLog",
     "SchoolStage",
     "ProficiencyLevel",
     "CambridgeCertificate",

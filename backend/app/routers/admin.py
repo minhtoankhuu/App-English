@@ -16,7 +16,7 @@ from app.models.exam import Exam
 from app.models.user import User, UserRole
 from app.schemas.admin import TeacherCreateRequest, TeacherOut, TeacherUpdateRequest
 from app.security import hash_password
-from app.services.audit import record_audit_log
+from app.services.audit import record_teacher_audit_log
 
 router = APIRouter(prefix="/admin/teachers", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -50,7 +50,7 @@ def create_teacher(
     db.add(teacher)
     try:
         db.flush()
-        record_audit_log(db, actor=actor, action="teacher.created", target=teacher)
+        record_teacher_audit_log(db, actor=actor, action="teacher.created", target=teacher)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -76,7 +76,7 @@ def update_teacher(
     for field_name, value in data.items():
         setattr(teacher, field_name, value)
     if "full_name" in data and data["full_name"] != old_full_name:
-        record_audit_log(
+        record_teacher_audit_log(
             db,
             actor=actor,
             action="teacher.updated",
@@ -84,14 +84,14 @@ def update_teacher(
             details={"changed_fields": ["full_name"]},
         )
     if "is_active" in data and data["is_active"] != was_active:
-        record_audit_log(
+        record_teacher_audit_log(
             db,
             actor=actor,
             action="teacher.activated" if data["is_active"] else "teacher.deactivated",
             target=teacher,
         )
     if password:
-        record_audit_log(db, actor=actor, action="teacher.password_reset", target=teacher)
+        record_teacher_audit_log(db, actor=actor, action="teacher.password_reset", target=teacher)
     db.commit()
     db.refresh(teacher)
     return teacher
@@ -110,6 +110,6 @@ def delete_teacher(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Giáo viên còn {exam_count} đề thi — khóa tài khoản thay vì xóa.",
         )
-    record_audit_log(db, actor=actor, action="teacher.deleted", target=teacher)
+    record_teacher_audit_log(db, actor=actor, action="teacher.deleted", target=teacher)
     db.delete(teacher)
     db.commit()

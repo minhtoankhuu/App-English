@@ -37,6 +37,22 @@ jobs:
         working-directory: backend
         run: pip install -r requirements-dev.txt
 
+      # tiktoken (dùng để ước tính token trong app/embed_knowledge.py) tự tải file BPE
+      # từ blob Azure lúc gọi lần đầu trong tiến trình — runner ephemeral nên không có
+      # sẵn, mỗi lần chạy đều tải lại và có thể dính lỗi mạng thoáng qua (503 "server is
+      # busy", đã gặp thật). Cố định TIKTOKEN_CACHE_DIR (mặc định tiktoken dùng thư mục
+      # tmp ngẫu nhiên, không cache lại được) rồi cache theo đường dẫn đó để hầu hết lần
+      # chạy không cần gọi mạng nữa; app/embed_knowledge.py cũng đã tự retry cho lần
+      # cache-miss đầu.
+      - name: Set tiktoken cache dir
+        run: echo "TIKTOKEN_CACHE_DIR=$HOME/.cache/tiktoken" >> "$GITHUB_ENV"
+
+      - name: Cache tiktoken encoding files
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tiktoken
+          key: tiktoken-cl100k_base
+
       - name: Create test database
         run: PGPASSWORD=examcraft psql -h localhost -U examcraft -d examcraft -c "CREATE DATABASE examcraft_test;"
 

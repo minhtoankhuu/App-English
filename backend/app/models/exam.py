@@ -2,11 +2,13 @@ import enum
 import uuid
 from decimal import Decimal
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+from app.models.knowledge import EMBEDDING_DIM
 
 
 class SourceType(str, enum.Enum):
@@ -166,6 +168,7 @@ class Question(TimestampMixin, Base):
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_in_bank: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
     block = relationship("ExamBlock", back_populates="questions")
     part = relationship("ExamBlockPart", back_populates="questions")

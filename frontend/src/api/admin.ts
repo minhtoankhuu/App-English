@@ -1,5 +1,7 @@
 import { apiGet, apiPost, apiRequest, apiUpload } from "./client";
 import type {
+  AIProviderConfigOut,
+  AIProviderConfigUpdateRequest,
   KnowledgeChunkAdminOut,
   KnowledgeDocumentOut,
   TeacherCreateRequest,
@@ -44,3 +46,11 @@ export const deleteKnowledgeDocument = (documentId: string): Promise<void> =>
 
 export const listKnowledgeDocumentChunks = (documentId: string): Promise<KnowledgeChunkAdminOut[]> =>
   apiGet(`/admin/knowledge-documents/${documentId}/chunks`);
+
+export const getAIConfig = (): Promise<AIProviderConfigOut | null> => apiGet("/admin/ai-config");
+
+export const updateAIConfig = (payload: AIProviderConfigUpdateRequest): Promise<AIProviderConfigOut> =>
+  apiRequest("/admin/ai-config", { method: "PUT", body: JSON.stringify(payload) });
+
+export const testAIConfig = (apiKey: string): Promise<{ ok: boolean; message: string }> =>
+  apiPost("/admin/ai-config/test", { api_key: apiKey });

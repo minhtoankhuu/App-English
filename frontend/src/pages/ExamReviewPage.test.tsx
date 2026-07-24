@@ -25,7 +25,12 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function makeExam(id: string, prompt: string, approved = false): ExamDetailOut {
+function makeExam(
+  id: string,
+  prompt: string,
+  approved = false,
+  options: QuestionOut["options"] = null,
+): ExamDetailOut {
   return {
     id, title: `Exam ${id}`, status: "draft", source_type: "global_success", grade_id: "grade-1",
     level: { id: "level-1", code: "A2" }, unit_id: "unit-1", grammar_topic_id: null,
@@ -39,7 +44,7 @@ function makeExam(id: string, prompt: string, approved = false): ExamDetailOut {
       passage_word_target: null,
       parts: [],
       questions: [{
-        id: `question-${id}`, order_no: 1, prompt_text: prompt, passage_text: null, options: null,
+        id: `question-${id}`, order_no: 1, prompt_text: prompt, passage_text: null, options,
         answer_text: "A", explanation: "Because", target_knowledge: "Grammar",
         level: { id: "level-1", code: "A2" }, source_ref: "fixture", warnings: [],
         is_approved: approved, is_locked: false, part_id: null,
@@ -135,5 +140,25 @@ describe("ExamReviewPage route isolation", () => {
 
     expect(await screen.findByText("Không tải lại được đề")).toBeInTheDocument();
     expect(screen.getByText("Current prompt")).toBeInTheDocument();
+  });
+});
+
+describe("ExamReviewPage underline markup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders <u>...</u> trong option.text thành thẻ <u> thật, không hiện literal markup", async () => {
+    vi.mocked(examApi.getExam).mockResolvedValue(
+      makeExam("exam-1", "Choose the word with different pronunciation", false, [
+        { label: "A", text: "cl<u>ea</u>n", is_correct: false },
+        { label: "B", text: "br<u>ea</u>d", is_correct: true },
+      ]),
+    );
+    renderReview();
+
+    const optionB = await screen.findByText((_, node) => node?.textContent === "B. bread");
+    expect(optionB.querySelector("u")).toHaveTextContent("ea");
+    expect(screen.queryByText(/<u>/)).not.toBeInTheDocument();
   });
 });

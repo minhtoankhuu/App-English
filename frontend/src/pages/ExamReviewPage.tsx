@@ -16,6 +16,35 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
 }
 
+const UNDERLINE_MARKUP_RE = /<u>(.*?)<\/u>/g;
+
+/** LLM đánh dấu phần gạch chân (dạng phát âm/trọng âm) bằng <u>...</u> trong option
+ * text (xem app/services/prompts.py + docx_renderer.py — cùng 1 quy ước render). */
+function UnderlineText({ text }: { text: string }) {
+  const parts: (string | { underlined: string })[] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(UNDERLINE_MARKUP_RE)) {
+    if (match.index! > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    parts.push({ underlined: match[1]! });
+    lastIndex = match.index! + match[0].length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        typeof part === "string" ? (
+          <span key={i}>{part}</span>
+        ) : (
+          <u key={i}>
+            <strong>{part.underlined}</strong>
+          </u>
+        ),
+      )}
+    </>
+  );
+}
+
 export function ExamReviewPage() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
@@ -195,13 +224,19 @@ export function ExamReviewPage() {
                         <span className="q-status">{q.is_approved ? "Đã duyệt" : "Chờ duyệt"}</span>
                       </header>
 
-                      {q.passage_text && <p className="q-passage">{q.passage_text}</p>}
-                      <p className="q-text">{q.prompt_text}</p>
+                      {q.passage_text && (
+                        <p className="q-passage">
+                          <UnderlineText text={q.passage_text} />
+                        </p>
+                      )}
+                      <p className="q-text">
+                        <UnderlineText text={q.prompt_text} />
+                      </p>
                       {q.options && (
                         <ul className="q-options">
                           {q.options.map((opt) => (
                             <li key={opt.label} className={opt.is_correct ? "correct" : undefined}>
-                              {opt.label}. {opt.text}
+                              {opt.label}. <UnderlineText text={opt.text} />
                             </li>
                           ))}
                         </ul>

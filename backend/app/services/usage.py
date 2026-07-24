@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models.usage import DailyUsage
-from app.models.user import User, UserRole
+from app.models.user import User
 
 BANGKOK_TIMEZONE = ZoneInfo("Asia/Bangkok")
 
@@ -60,8 +60,9 @@ def _status(used: int, now: datetime | None, *, is_unlimited: bool = False) -> U
 
 
 def get_usage_status(db: Session, user: User, now: datetime | None = None) -> UsageStatus:
-    if user.role == UserRole.ADMIN:
-        return _status(0, now, is_unlimited=True)
+    """Không giới hạn số lượt sinh đề (quyết định chủ dự án 21/07/2026, sau khi nối
+    OpenAI thật) — vẫn đếm `used_count` để theo dõi mức dùng/chi phí, chỉ không chặn
+    nữa. Trước đó chỉ Admin (không dùng luồng sinh đề) là is_unlimited=True."""
     current = _bangkok_now(now)
     row = db.scalar(
         select(DailyUsage).where(
@@ -69,14 +70,14 @@ def get_usage_status(db: Session, user: User, now: datetime | None = None) -> Us
             DailyUsage.usage_date == current.date(),
         )
     )
-    return _status(row.used_count if row else 0, current)
+    return _status(row.used_count if row else 0, current, is_unlimited=True)
 
 
 def reserve_usage(db: Session, user: User, amount: int, now: datetime | None = None) -> UsageStatus:
+    """Vẫn cộng dồn `used_count` (theo dõi chi phí) nhưng không còn raise
+    UsageLimitExceeded — không giới hạn số lượt (xem get_usage_status)."""
     if amount <= 0:
         raise ValueError("amount must be positive")
-    if user.role == UserRole.ADMIN:
-        return _status(0, now, is_unlimited=True)
 
     current = _bangkok_now(now)
     db.execute(
@@ -91,9 +92,6 @@ def reserve_usage(db: Session, user: User, amount: int, now: datetime | None = N
     )
     if row is None:
         raise RuntimeError("Không thể khởi tạo bộ đếm sử dụng")
-    current_status = _status(row.used_count, current)
-    if row.used_count + amount > current_status.limit:
-        raise UsageLimitExceeded(current_status)
     row.used_count += amount
     db.flush()
-    return _status(row.used_count, current)
+    return _status(row.used_count, current, is_unlimited=True)

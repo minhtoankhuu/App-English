@@ -139,6 +139,15 @@ const wordFormType: ExerciseTypeOut = {
   order_no: 2,
 };
 
+const pronunciationType: ExerciseTypeOut = {
+  id: "type-pron",
+  code: "pronunciation",
+  name: "Phát âm",
+  default_instruction: "",
+  has_passage: false,
+  order_no: 3,
+};
+
 const examTwo: ExamDetailOut = {
   ...exam,
   id: "exam-2",
@@ -645,6 +654,38 @@ describe("ExamBuilderPage", () => {
     });
   });
 
+  it("ticking Pronunciation creates 1 block with 3 Phần con, each pinned to one kiểu", async () => {
+    const user = userEvent.setup();
+    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType, pronunciationType]);
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("checkbox", { name: "Phát âm" }));
+
+    await waitFor(() => expect(examApi.addBlockPart).toHaveBeenCalledTimes(3));
+    expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
+      exercise_type_id: "type-pron",
+      title: "PRONUNCIATION",
+      question_count: 5,
+      points: 3,
+    });
+    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(1, "exam-1", "a", {
+      title: "Đuôi -s/-es",
+      question_count: 5,
+      prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
+    });
+    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(2, "exam-1", "a", {
+      title: "Đuôi -ed",
+      question_count: 5,
+      prompt_override: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu.",
+    });
+    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(3, "exam-1", "a", {
+      title: "Âm trong từ",
+      question_count: 5,
+      prompt_override: "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
+    });
+  });
+
   it("unticking an exercise type deletes every block of that type", async () => {
     const user = userEvent.setup();
     renderBuilder();
@@ -766,5 +807,29 @@ describe("ExamBuilderPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Xóa" }));
     expect(examApi.deleteBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1");
+  });
+
+  it("ẩn form thêm phần con mới ở block Pronunciation nhưng vẫn sửa được phần đã có", async () => {
+    const user = userEvent.setup();
+    const pronunciationPart = {
+      id: "part-1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5,
+      prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
+    };
+    const pronunciationBlock = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 5, parts: [pronunciationPart],
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [pronunciationBlock, blocks[1]!] });
+    renderBuilder();
+    await screen.findByText("Trang 1/1");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+
+    expect(screen.queryByRole("button", { name: "+ Thêm phần con" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sửa" }));
+
+    expect(screen.getByLabelText("Tiêu đề phần con")).toHaveValue("Đuôi -s/-es");
+    expect(screen.getByRole("button", { name: "Lưu phần con" })).toBeInTheDocument();
   });
 });

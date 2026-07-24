@@ -9,10 +9,16 @@ AIProvider — pipeline sinh đề (app/services/generation.py) không phải s�
 from __future__ import annotations
 
 import random
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from app.services import fixtures
+
+
+class AIGenerationError(Exception):
+    """AI thật lỗi sau khi đã retry hết số lần cho phép (PRD 17) — router trả 502.
+    KHÔNG âm thầm rơi về MockAIProvider (tránh giáo viên tưởng nhầm là AI thật)."""
 
 
 @dataclass
@@ -22,6 +28,8 @@ class GenerationContext:
     exam_level_code: str
     unit_title: str | None = None
     unit_order_no: int | None = None
+    unit_id: uuid.UUID | None = None
+    grammar_point_ids: list[uuid.UUID] = field(default_factory=list)
 
 
 @dataclass
