@@ -87,6 +87,14 @@ class QuestionFlagsUpdateRequest(BaseModel):
     is_locked: bool | None = None
 
 
+class ApproveQuestionsRequest(BaseModel):
+    """Duyệt hàng loạt câu theo danh sách (duyệt toàn bộ / duyệt cả 1 phần) mà KHÔNG
+    hoàn tất kiểm duyệt — khác /approve-all (vừa duyệt vừa chốt sang bước Xuất). Giáo
+    viên vẫn ở lại trang Duyệt để chỉnh tiếp trước khi bấm Hoàn tất."""
+
+    question_ids: list[uuid.UUID] = Field(min_length=1)
+
+
 class ExportConfigRequest(BaseModel):
     export_mode: ExportMode
     variant_count: int = Field(ge=1, le=4)

@@ -343,6 +343,48 @@ def test_approve_all_rejects_exam_without_questions(client, seeded_db):
     assert resp.status_code == 400
 
 
+def test_approve_questions_marks_listed_only_without_finalizing(client, seeded_db):
+    """Duyệt theo danh sách (nút Duyệt cả phần) chỉ duyệt đúng câu được liệt kê và
+    KHÔNG hoàn tất kiểm duyệt — đề vẫn ở trạng thái draft để giáo viên chỉnh tiếp."""
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    exam_id = exam["id"]
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    client.post(
+        f"/exams/{exam_id}/blocks",
+        json={"exercise_type_id": str(ex_type.id), "title": "I", "question_count": 2, "points": "1.0"},
+    )
+    detail = client.post(f"/exams/{exam_id}/generate").json()
+    question_ids = [q["id"] for b in detail["blocks"] for q in b["questions"]]
+
+    resp = client.post(f"/exams/{exam_id}/questions/approve", json={"question_ids": question_ids[:1]})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "draft"  # chưa finalize
+    approved = {q["id"]: q["is_approved"] for b in body["blocks"] for q in b["questions"]}
+    assert approved[question_ids[0]] is True
+    assert approved[question_ids[1]] is False
+
+
+def test_approve_questions_rejects_ids_not_in_exam(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_golden_exam(client, seeded_db)
+    ex_type = _exercise_type(seeded_db, "multiple_choice")
+    client.post(
+        f"/exams/{exam['id']}/blocks",
+        json={"exercise_type_id": str(ex_type.id), "title": "I", "question_count": 1, "points": "1.0"},
+    )
+    client.post(f"/exams/{exam['id']}/generate")
+
+    resp = client.post(
+        f"/exams/{exam['id']}/questions/approve",
+        json={"question_ids": ["00000000-0000-0000-0000-000000000000"]},
+    )
+
+    assert resp.status_code == 404
+
+
 def test_export_docx_renders_block_instruction(client, seeded_db):
     """block.instruction từng bị bỏ sót hoàn toàn khi xuất DOCX (chỉ preview trên web
     mới hiện) — bug tồn tại từ trước, phát hiện khi sửa bug lặp câu dẫn cùng lúc."""
