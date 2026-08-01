@@ -13,6 +13,7 @@ vi.mock("../api/exams", () => ({
   updateQuestionFlags: vi.fn(),
   regenerateQuestion: vi.fn(),
   completeReview: vi.fn(),
+  approveQuestions: vi.fn(),
 }));
 
 const refreshUsage = vi.fn();
@@ -140,6 +141,44 @@ describe("ExamReviewPage route isolation", () => {
 
     expect(await screen.findByText("Không tải lại được đề")).toBeInTheDocument();
     expect(screen.getByText("Current prompt")).toBeInTheDocument();
+  });
+});
+
+describe("ExamReviewPage bulk approve", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("nút 'Duyệt toàn bộ' duyệt hết câu chưa duyệt rồi tải lại", async () => {
+    vi.mocked(examApi.getExam)
+      .mockResolvedValueOnce(makeExam("exam-1", "Prompt", false))
+      .mockResolvedValueOnce(makeExam("exam-1", "Prompt", true));
+    vi.mocked(examApi.approveQuestions).mockResolvedValue(makeExam("exam-1", "Prompt", true));
+    const user = userEvent.setup();
+    renderReview();
+
+    await user.click(await screen.findByRole("button", { name: "Duyệt toàn bộ" }));
+
+    expect(examApi.approveQuestions).toHaveBeenCalledWith("exam-1", ["question-exam-1"]);
+    await waitFor(() => expect(examApi.getExam).toHaveBeenCalledTimes(2));
+  });
+
+  it("nút 'Duyệt toàn bộ' bị vô hiệu khi đã duyệt hết", async () => {
+    vi.mocked(examApi.getExam).mockResolvedValue(makeExam("exam-1", "Prompt", true));
+    renderReview();
+
+    expect(await screen.findByRole("button", { name: "Duyệt toàn bộ" })).toBeDisabled();
+  });
+
+  it("nút 'Duyệt cả phần' duyệt các câu chưa duyệt của block", async () => {
+    vi.mocked(examApi.getExam).mockResolvedValue(makeExam("exam-1", "Prompt", false));
+    vi.mocked(examApi.approveQuestions).mockResolvedValue(makeExam("exam-1", "Prompt", true));
+    const user = userEvent.setup();
+    renderReview();
+
+    await user.click(await screen.findByRole("button", { name: "Duyệt cả phần" }));
+
+    expect(examApi.approveQuestions).toHaveBeenCalledWith("exam-1", ["question-exam-1"]);
   });
 });
 

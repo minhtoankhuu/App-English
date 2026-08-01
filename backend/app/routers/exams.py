@@ -25,6 +25,7 @@ from app.schemas.exam import (
     BlockOut,
     BlockPartCreateRequest,
     BlockPartReorderRequest,
+    ApproveQuestionsRequest,
     BlockPartUpdateRequest,
     BlockReorderRequest,
     BlockUpdateRequest,
@@ -448,6 +449,28 @@ def update_question_flags(
     db.commit()
     db.refresh(question)
     return question
+
+
+@router.post("/{exam_id}/questions/approve", response_model=ExamDetailOut)
+def approve_questions(
+    exam_id: uuid.UUID,
+    payload: ApproveQuestionsRequest,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Duyệt hàng loạt câu theo danh sách (nút "Duyệt toàn bộ" / "Duyệt cả phần" ở
+    trang Duyệt câu) mà KHÔNG hoàn tất kiểm duyệt — giáo viên vẫn ở lại để chỉnh tiếp,
+    rồi mới bấm Hoàn tất. Khác /approve-all (vừa duyệt hết vừa chốt sang bước Xuất)."""
+    exam = _get_owned_exam(db, exam_id, current_user)
+    questions_by_id = {q.id: q for b in exam.blocks for q in b.questions}
+    requested = set(payload.question_ids)
+    unknown = requested - questions_by_id.keys()
+    if unknown:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Có câu hỏi không thuộc đề này")
+    for question_id in requested:
+        questions_by_id[question_id].is_approved = True
+    db.commit()
+    return _exam_detail(_get_owned_exam(db, exam_id, current_user))
 
 
 @router.post("/{exam_id}/questions/{question_id}/regenerate", response_model=QuestionOut)

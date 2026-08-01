@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { completeReview, getExam, regenerateQuestion, updateQuestionFlags } from "../api/exams";
+import { approveQuestions, completeReview, getExam, regenerateQuestion, updateQuestionFlags } from "../api/exams";
 import { ApiError } from "../api/client";
 import type { ExamDetailOut, QuestionOut } from "../types/exam";
 import { useUsage } from "../usage/UsageContext";
@@ -165,6 +165,22 @@ export function ExamReviewPage() {
     }
   }
 
+  async function handleApproveMany(questionIds: string[]) {
+    if (!examId || questionIds.length === 0) return;
+    const operation = beginOperation();
+    if (!operation) return;
+    const targetExamId = examId;
+    try {
+      await approveQuestions(targetExamId, questionIds);
+      if (!isCurrentOperation(operation)) return;
+      await reload(targetExamId, operation.route);
+    } catch (err) {
+      if (isCurrentOperation(operation)) setError(errorMessage(err, "Không duyệt được các câu này"));
+    } finally {
+      finishOperation(operation);
+    }
+  }
+
   async function handleFinish() {
     if (!examId) return;
     const operation = beginOperation();
@@ -195,6 +211,14 @@ export function ExamReviewPage() {
           <p className="review-progress">
             <strong>{approvedCount}</strong>/{allQuestions.length} câu đã duyệt
           </p>
+          <button
+            type="button"
+            className="button secondary compact"
+            onClick={() => handleApproveMany(allQuestions.filter((q) => !q.is_approved).map((q) => q.id))}
+            disabled={mutationBusy || approvedCount === allQuestions.length || allQuestions.length === 0}
+          >
+            Duyệt toàn bộ
+          </button>
         </div>
 
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
@@ -204,9 +228,19 @@ export function ExamReviewPage() {
           .sort((a, b) => a.order_no - b.order_no)
           .map((block) => (
             <section key={block.id} className="review-block">
-              <h3 className="review-block-title">
-                {block.title} · {block.questions.length} câu
-              </h3>
+              <div className="review-block-head">
+                <h3 className="review-block-title">
+                  {block.title} · {block.questions.length} câu
+                </h3>
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={() => handleApproveMany(block.questions.filter((q) => !q.is_approved).map((q) => q.id))}
+                  disabled={mutationBusy || block.questions.every((q) => q.is_approved) || block.questions.length === 0}
+                >
+                  Duyệt cả phần
+                </button>
+              </div>
               <div style={{ display: "grid", gap: 10 }}>
                 {block.questions
                   .slice()

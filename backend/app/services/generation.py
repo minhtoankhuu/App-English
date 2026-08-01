@@ -11,11 +11,56 @@ from app.models.academic import Grade, ProficiencyLevel, Unit
 from app.models.ai_config import AIProviderConfig
 from app.models.exam import Exam, ExamBlock, ExamBlockPart, Question
 from app.models.exercise import ExerciseType
-from app.services.ai_provider import BlockSpec, GenerationContext, QuestionDraft
+from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, GenerationContext, QuestionDraft
 from app.services.ai_provider_factory import get_active_provider
 from app.services.crypto import decrypt_api_key
 from app.services.openai_embedding import OpenAIEmbeddingClient
+from app.services.pronunciation_check import check_pronunciation_options
 from app.services.validation import validate_draft
+
+# Dạng phát âm/trọng âm hay bị model sinh sai quy tắc dù prompt đã dặn (bịa từ, sai
+# quy tắc 3 giống - 1 khác...). check_pronunciation_options phát hiện được bằng code,
+# nên tự động sinh lại câu lỗi ngay trong pipeline để giáo viên nhận đề gần như sạch,
+# không phải bấm "Sinh lại" thủ công nhiều lần (báo cáo giáo viên 01/08/2026).
+_PRONUNCIATION_TYPES = {"pronunciation", "stress"}
+_MAX_PRONUNCIATION_REGEN = 2  # tối đa 2 lần sinh lại/câu — chặn vòng lặp + giới hạn chi phí
+
+
+def _pronunciation_warnings(draft: QuestionDraft, exercise_type_code: str) -> list[str]:
+    if exercise_type_code not in _PRONUNCIATION_TYPES or not draft.options:
+        return []
+    return check_pronunciation_options(
+        [opt.get("text", "") for opt in draft.options],
+        is_pronunciation=exercise_type_code == "pronunciation",
+    )
+
+
+def _auto_fix_pronunciation_drafts(
+    provider: AIProvider, spec: BlockSpec, context: GenerationContext, drafts: list[QuestionDraft]
+) -> list[QuestionDraft]:
+    """Với dạng phát âm/trọng âm: câu nào fail kiểm tra bằng code thì sinh lại (kèm
+    cảnh báo làm feedback), tối đa _MAX_PRONUNCIATION_REGEN lần, giữ bản ít lỗi nhất.
+    Câu đạt hoặc dạng khác giữ nguyên. Không finalize/chặn — vẫn để Validation Engine
+    gắn cảnh báo lên câu cuối cùng nếu vẫn còn lỗi."""
+    if spec.exercise_type_code not in _PRONUNCIATION_TYPES:
+        return drafts
+    fixed: list[QuestionDraft] = []
+    for draft in drafts:
+        warnings = _pronunciation_warnings(draft, spec.exercise_type_code)
+        attempts = 0
+        while warnings and attempts < _MAX_PRONUNCIATION_REGEN:
+            attempts += 1
+            try:
+                candidate = provider.regenerate_one(
+                    spec, context, exclude_prompt=draft.prompt_text, feedback="; ".join(warnings)
+                )
+            except AIGenerationError:
+                break
+            candidate_warnings = _pronunciation_warnings(candidate, spec.exercise_type_code)
+            if len(candidate_warnings) < len(warnings):
+                draft, warnings = candidate, candidate_warnings
+        fixed.append(draft)
+    return fixed
 
 
 def _active_embedding_client(db: Session) -> OpenAIEmbeddingClient | None:
@@ -113,6 +158,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             prompt_override=prompt_override,
         )
         drafts = provider.generate(spec, context)
+        drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
         draft_embeddings = _embed_drafts(embedding_client, drafts)
 
         for draft, draft_embedding in zip(drafts, draft_embeddings):

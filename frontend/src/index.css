@@ -506,6 +506,7 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
 .review-progress strong { color: var(--ink); font-size: 16px; }
 
 .review-block { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-card); }
+.review-block-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .review-block-title { margin: 0; font-size: 15px; color: var(--ink); }
 
 .q-card { padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; transition: border-color .15s ease, background .15s ease, opacity .2s ease, transform .15s ease; }
@@ -545,7 +546,7 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
 .review-footer p { margin: 0; color: var(--muted); font-size: 13px; }
 
 @media (max-width: 680px) {
-  .review-head, .review-footer, .export-actions { flex-direction: column; align-items: stretch; }
+  .review-head, .review-block-head, .review-footer, .export-actions { flex-direction: column; align-items: stretch; }
   .q-options { grid-template-columns: 1fr; }
 }
 

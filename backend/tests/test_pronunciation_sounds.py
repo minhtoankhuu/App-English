@@ -4,7 +4,13 @@ và kiểm tra quy tắc "3 từ giống - 1 từ khác". Ca lấy từ đề th
 import pytest
 
 from app.services.pronunciation_check import check_pronunciation_options
-from app.services.pronunciation_sounds import ed_ending_sound, ending_sounds, s_ending_sound
+from app.services.pronunciation_sounds import (
+    ed_ending_sound,
+    ending_sounds,
+    s_ending_sound,
+    underlined_vowel_sound,
+    vowel_sounds,
+)
 
 
 @pytest.mark.parametrize(
@@ -103,16 +109,84 @@ def test_valid_three_one_pattern_has_no_sound_warning(options):
     assert "quy tắc 3 từ giống" not in _joined(_pron(options))
 
 
-def test_vowel_comparison_type_is_not_sound_checked():
-    """Dạng so sánh nguyên âm giữa từ không suy được âm -> không cảnh báo nhầm."""
-    warnings = _pron(["cl<u>ea</u>n", "br<u>ea</u>d", "t<u>ea</u>ch", "t<u>ea</u>m"])
-    assert warnings == []
+@pytest.mark.parametrize(
+    "option, expected",
+    [
+        ("s<u>i</u>lent", "AY"),
+        ("s<u>il</u>houette", "IH"),  # 'i' đầu (âm phụ), không phải trọng âm chính
+        ("h<u>e</u>lp", "EH"),
+        ("cl<u>ea</u>n", "IY"),
+        ("br<u>ea</u>d", "EH"),
+        ("c<u>on</u>tent", "AA"),
+    ],
+)
+def test_underlined_vowel_sound(option, expected):
+    assert underlined_vowel_sound(option) == expected
 
 
-def test_stress_type_skips_sound_pattern_check():
-    """Dạng trọng âm không so đuôi — dù các từ cùng đuôi cũng không kiểm tra."""
+@pytest.mark.parametrize(
+    "option",
+    [
+        "cear",  # từ bịa, không có markup + không có trong từ điển
+        "s<u>ou</u>rce",  # 'e' câm -> số cụm nguyên âm chữ ≠ số âm -> None (bỏ qua an toàn)
+        "f<u>ea</u>ture",  # tương tự 'e' câm cuối
+        "xyzq",  # không phải từ
+    ],
+)
+def test_underlined_vowel_sound_returns_none_when_uncertain(option):
+    assert underlined_vowel_sound(option) is None
+
+
+def test_vowel_sounds_none_when_any_word_unresolvable():
+    # 'source' không căn được -> cả nhóm None (thà bỏ sót còn hơn báo nhầm)
+    assert vowel_sounds(["m<u>o</u>ving", "s<u>o</u>uth", "s<u>o</u>und", "s<u>o</u>urce"]) is None
+
+
+def test_flags_invalid_vowel_pattern_from_real_exam():
+    # 2-2: confusing /ʌ/, content /ɑː/, contain /ʌ/, concept /ɑː/
+    text = _joined(_pron(["c<u>on</u>fusing", "c<u>on</u>tent", "c<u>on</u>tain", "c<u>on</u>cept"]))
+    assert "không đúng quy tắc 3 từ giống - 1 từ khác" in text
+    # 0-4 (cả 4 cùng /e/): không có đáp án
+    text = _joined(_pron(["h<u>e</u>lp", "f<u>e</u>ll", "s<u>e</u>ll", "t<u>e</u>ll"]))
+    assert "không đúng quy tắc 3 từ giống - 1 từ khác" in text
+
+
+def test_valid_vowel_pattern_has_no_warning():
+    # clean/bread/teach/team = /iː/,/e/,/iː/,/iː/ = 1-3 đúng
+    assert _pron(["cl<u>ea</u>n", "br<u>ea</u>d", "t<u>ea</u>ch", "t<u>ea</u>m"]) == []
+    # silent/silhouette/silver/silly = /aɪ/,/ɪ/,/ɪ/,/ɪ/ = 1-3 đúng
+    assert _pron(["s<u>i</u>lent", "s<u>i</u>lhouette", "s<u>i</u>lver", "s<u>i</u>lly"]) == []
+
+
+def test_stress_type_does_not_apply_ending_sound_check():
+    """Dạng trọng âm không so âm đuôi (dù các từ cùng đuôi -s) — chỉ so vị trí trọng âm."""
     warnings = check_pronunciation_options(
         ["<u>cel</u>ebrates", "<u>dec</u>orates", "ex<u>hi</u>bits", "<u>har</u>vests"],
         is_pronunciation=False,
     )
-    assert "quy tắc 3 từ giống" not in _joined(warnings)
+    # celebrates/decorates/harvests trọng âm tiết 1, exhibits tiết 2 -> 3-1 hợp lệ.
+    assert warnings == []
+
+
+def _stress(options):
+    return check_pronunciation_options(options, is_pronunciation=False)
+
+
+def test_flags_invalid_stress_pattern():
+    # cả 4 trọng âm tiết 1 (0-4, không có đáp án)
+    text = _joined(_stress(["<u>hap</u>py", "<u>luc</u>ky", "<u>sun</u>ny", "<u>pret</u>ty"]))
+    assert "Nhóm trọng âm không đúng quy tắc 3 từ giống - 1 từ khác" in text
+    # 2-2: modern/travel trọng âm tiết 1, begin/invite trọng âm tiết 2
+    text = _joined(_stress(["<u>mod</u>ern", "<u>tra</u>vel", "be<u>gin</u>", "in<u>vite</u>"]))
+    assert "Nhóm trọng âm không đúng quy tắc" in text
+
+
+def test_valid_stress_pattern_has_no_warning():
+    # 3 trọng âm tiết 1 + begin trọng âm tiết 2 = 3-1 đúng
+    assert _stress(["<u>hand</u>some", "<u>tra</u>vel", "be<u>gin</u>", "<u>mod</u>ern"]) == []
+
+
+def test_stress_skips_when_word_not_in_dictionary():
+    # từ bịa không tra được -> bỏ qua kiểm tra vị trí trọng âm (vẫn cảnh báo từ bịa riêng)
+    warnings = _stress(["<u>za</u>bblary", "<u>hap</u>py", "<u>luc</u>ky", "<u>sun</u>ny"])
+    assert "Nhóm trọng âm" not in _joined(warnings)

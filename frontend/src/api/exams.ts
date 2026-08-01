@@ -81,6 +81,11 @@ export const completeReview = (examId: string): Promise<ExamDetailOut> =>
 export const approveAllQuestions = (examId: string): Promise<ExamDetailOut> =>
   apiPost(`/exams/${examId}/approve-all`);
 
+/** Duyệt hàng loạt theo danh sách câu, KHÔNG hoàn tất kiểm duyệt (khác approveAllQuestions).
+ * Dùng cho nút "Duyệt toàn bộ"/"Duyệt cả phần" ở trang Duyệt câu — giáo viên vẫn ở lại trang. */
+export const approveQuestions = (examId: string, questionIds: string[]): Promise<ExamDetailOut> =>
+  apiPost(`/exams/${examId}/questions/approve`, { question_ids: questionIds });
+
 export const saveExportConfig = (examId: string, payload: ExportConfigRequest): Promise<ExamDetailOut> =>
   apiPost(`/exams/${examId}/export-config`, payload);
 
