@@ -8,8 +8,10 @@ nhau ('ather' vs 'other'), và bịa từ không có thật ('boring' → 'forin
 """
 
 import re
+from collections import Counter
 from functools import lru_cache
 
+from app.services.pronunciation_sounds import SOUND_IPA, ending_sounds
 from app.services.text_markup import UNDERLINE_MARKUP_RE
 
 # Cụm gạch chân dạng phát âm là âm đang so sánh — dài hơn mức này nghĩa là model bọc
@@ -40,26 +42,57 @@ def visible_text(text: str) -> str:
     return UNDERLINE_MARKUP_RE.sub(r"\1", text).strip()
 
 
-def check_pronunciation_options(option_texts: list[str], *, check_cluster_shape: bool) -> list[str]:
-    """`check_cluster_shape=True` cho dạng phát âm (cụm gạch chân phải ngắn và đồng
-    nhất); dạng trọng âm bọc cả âm tiết nên chỉ kiểm tra gạch chân + từ có thật."""
+def _sound_pattern_warnings(words: list[str]) -> list[str]:
+    """Nhóm đuôi -s/-es hoặc -ed phải có ĐÚNG 1 từ phát âm khác 3 từ còn lại. Bỏ qua
+    khi không suy chắc chắn được âm (xem pronunciation_sounds.ending_sounds)."""
+    result = ending_sounds(words)
+    if result is None:
+        return []
+    sounds, label = result
+    counts = Counter(sounds)
+    if len(counts) == 2 and sorted(counts.values()) == [1, len(sounds) - 1]:
+        return []
+    detail = ", ".join(f"{word} {SOUND_IPA[sound]}" for word, sound in zip(words, sounds))
+    return [f"Nhóm {label} không đúng quy tắc 3 từ giống - 1 từ khác: {detail}."]
+
+
+def check_pronunciation_options(option_texts: list[str], *, is_pronunciation: bool) -> list[str]:
+    """`is_pronunciation=True` bật thêm 2 kiểm tra chỉ đúng cho dạng phát âm: cụm gạch
+    chân phải ngắn/đồng nhất, và nhóm đuôi -s/-es hoặc -ed phải theo quy tắc 3 từ giống
+    — 1 từ khác. Dạng trọng âm bọc cả âm tiết và không so đuôi nên chỉ kiểm tra gạch
+    chân + từ đơn + từ có thật."""
     warnings: list[str] = []
     if not option_texts:
         return warnings
 
+    words = [visible_text(text or "") for text in option_texts]
+
     clusters: list[str] = []
     missing: list[str] = []
-    for text in option_texts:
+    for text, word in zip(option_texts, words):
         match = UNDERLINE_MARKUP_RE.search(text or "")
         if match is None:
-            missing.append(visible_text(text or ""))
+            missing.append(word)
         else:
             clusters.append(match.group(1))
 
     if missing:
         warnings.append(f"Thiếu gạch chân <u> ở lựa chọn: {', '.join(missing)}.")
 
-    if check_cluster_shape and clusters:
+    # Lựa chọn BẮT BUỘC là từ đơn (prompt đã yêu cầu) — cụm từ/từ ghép có gạch nối vừa
+    # phá quy tắc so sánh âm vừa không kiểm tra chính tả được. Đề thật 24/07/2026 lọt
+    # "native languages", "southeast Asias", "black-and-whites".
+    not_single = [word for word in words if word and not _SINGLE_WORD_RE.match(word.lower())]
+    if not_single:
+        warnings.append(
+            f"Lựa chọn phải là 1 từ đơn: {', '.join(not_single)} "
+            "— không dùng cụm từ hay từ ghép có gạch nối."
+        )
+
+    if is_pronunciation:
+        warnings.extend(_sound_pattern_warnings(words))
+
+    if is_pronunciation and clusters:
         too_long = sorted({c for c in clusters if len(c) > MAX_PRONUNCIATION_CLUSTER_LEN})
         if too_long:
             warnings.append(
@@ -75,14 +108,14 @@ def check_pronunciation_options(option_texts: list[str], *, check_cluster_shape:
 
     checker = None
     unknown: list[str] = []
-    for text in option_texts:
-        word = visible_text(text or "").lower()
-        if not _SINGLE_WORD_RE.match(word):
+    for word in words:
+        lowered = word.lower()
+        if not _SINGLE_WORD_RE.match(lowered):
             continue
         if checker is None:
             checker = _spell_checker()
-        if word not in checker:
-            unknown.append(word)
+        if lowered not in checker:
+            unknown.append(lowered)
     if unknown:
         warnings.append(
             f"Không phải từ tiếng Anh có thật: {', '.join(sorted(set(unknown)))} "
