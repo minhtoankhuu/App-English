@@ -158,10 +158,35 @@ def test_valid_vowel_pattern_has_no_warning():
     assert _pron(["s<u>i</u>lent", "s<u>i</u>lhouette", "s<u>i</u>lver", "s<u>i</u>lly"]) == []
 
 
-def test_stress_type_skips_sound_pattern_check():
-    """Dạng trọng âm không so đuôi — dù các từ cùng đuôi cũng không kiểm tra."""
+def test_stress_type_does_not_apply_ending_sound_check():
+    """Dạng trọng âm không so âm đuôi (dù các từ cùng đuôi -s) — chỉ so vị trí trọng âm."""
     warnings = check_pronunciation_options(
         ["<u>cel</u>ebrates", "<u>dec</u>orates", "ex<u>hi</u>bits", "<u>har</u>vests"],
         is_pronunciation=False,
     )
-    assert "quy tắc 3 từ giống" not in _joined(warnings)
+    # celebrates/decorates/harvests trọng âm tiết 1, exhibits tiết 2 -> 3-1 hợp lệ.
+    assert warnings == []
+
+
+def _stress(options):
+    return check_pronunciation_options(options, is_pronunciation=False)
+
+
+def test_flags_invalid_stress_pattern():
+    # cả 4 trọng âm tiết 1 (0-4, không có đáp án)
+    text = _joined(_stress(["<u>hap</u>py", "<u>luc</u>ky", "<u>sun</u>ny", "<u>pret</u>ty"]))
+    assert "Nhóm trọng âm không đúng quy tắc 3 từ giống - 1 từ khác" in text
+    # 2-2: modern/travel trọng âm tiết 1, begin/invite trọng âm tiết 2
+    text = _joined(_stress(["<u>mod</u>ern", "<u>tra</u>vel", "be<u>gin</u>", "in<u>vite</u>"]))
+    assert "Nhóm trọng âm không đúng quy tắc" in text
+
+
+def test_valid_stress_pattern_has_no_warning():
+    # 3 trọng âm tiết 1 + begin trọng âm tiết 2 = 3-1 đúng
+    assert _stress(["<u>hand</u>some", "<u>tra</u>vel", "be<u>gin</u>", "<u>mod</u>ern"]) == []
+
+
+def test_stress_skips_when_word_not_in_dictionary():
+    # từ bịa không tra được -> bỏ qua kiểm tra vị trí trọng âm (vẫn cảnh báo từ bịa riêng)
+    warnings = _stress(["<u>za</u>bblary", "<u>hap</u>py", "<u>luc</u>ky", "<u>sun</u>ny"])
+    assert "Nhóm trọng âm" not in _joined(warnings)

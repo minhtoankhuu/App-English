@@ -11,7 +11,7 @@ import re
 from collections import Counter
 from functools import lru_cache
 
-from app.services.pronunciation_sounds import SOUND_IPA, ending_sounds, vowel_sounds
+from app.services.pronunciation_sounds import SOUND_IPA, ending_sounds, stress_positions, vowel_sounds
 from app.services.text_markup import UNDERLINE_MARKUP_RE
 
 # Cụm gạch chân dạng phát âm là âm đang so sánh — dài hơn mức này nghĩa là model bọc
@@ -59,11 +59,25 @@ def _sound_pattern_warnings(option_texts: list[str], words: list[str]) -> list[s
     return [f"Nhóm {label} không đúng quy tắc 3 từ giống - 1 từ khác: {detail}."]
 
 
+def _stress_pattern_warnings(words: list[str]) -> list[str]:
+    """Nhóm trọng âm phải có ĐÚNG 1 từ trọng âm rơi vào âm tiết khác 3 từ còn lại. Bỏ
+    qua khi không tra được vị trí trọng âm chắc chắn (xem pronunciation_sounds)."""
+    result = stress_positions(words)
+    if result is None:
+        return []
+    positions, label = result
+    counts = Counter(positions)
+    if len(counts) == 2 and sorted(counts.values()) == [1, len(positions) - 1]:
+        return []
+    detail = ", ".join(f"{word} (âm tiết {pos + 1})" for word, pos in zip(words, positions))
+    return [f"Nhóm {label} không đúng quy tắc 3 từ giống - 1 từ khác: {detail}."]
+
+
 def check_pronunciation_options(option_texts: list[str], *, is_pronunciation: bool) -> list[str]:
-    """`is_pronunciation=True` bật thêm 2 kiểm tra chỉ đúng cho dạng phát âm: cụm gạch
-    chân phải ngắn/đồng nhất, và nhóm đuôi -s/-es hoặc -ed phải theo quy tắc 3 từ giống
-    — 1 từ khác. Dạng trọng âm bọc cả âm tiết và không so đuôi nên chỉ kiểm tra gạch
-    chân + từ đơn + từ có thật."""
+    """Kiểm tra chung cho gạch chân + từ đơn + từ có thật, cộng quy tắc 3 giống - 1 khác:
+    `is_pronunciation=True` (dạng phát âm) so âm đuôi -s/-es, -ed hoặc nguyên âm giữa từ
+    và ép cụm gạch chân ngắn/đồng nhất; `is_pronunciation=False` (dạng trọng âm) so vị
+    trí âm tiết mang trọng âm. Ca không suy chắc chắn được thì bỏ qua, không báo nhầm."""
     warnings: list[str] = []
     if not option_texts:
         return warnings
@@ -94,6 +108,8 @@ def check_pronunciation_options(option_texts: list[str], *, is_pronunciation: bo
 
     if is_pronunciation:
         warnings.extend(_sound_pattern_warnings(option_texts, words))
+    else:
+        warnings.extend(_stress_pattern_warnings(words))
 
     if is_pronunciation and clusters:
         too_long = sorted({c for c in clusters if len(c) > MAX_PRONUNCIATION_CLUSTER_LEN})

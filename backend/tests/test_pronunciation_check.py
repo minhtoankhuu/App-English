@@ -59,8 +59,9 @@ def test_suffix_types_allow_different_clusters():
 
 
 def test_stress_allows_long_syllable_clusters():
-    """Trọng âm bọc cả âm tiết ('thanks', 'feast') — không áp ngưỡng độ dài/đồng nhất."""
-    assert _stress(["<u>thanks</u>giving", "en<u>ter</u>tain", "com<u>pe</u>tition", "<u>fes</u>tival"]) == []
+    """Trọng âm bọc cả âm tiết — không áp ngưỡng độ dài/đồng nhất cụm. Dùng bộ 3-1 hợp
+    lệ (3 từ trọng âm tiết 1, 'begin' trọng âm tiết 2) để không dính cảnh báo trọng âm."""
+    assert _stress(["<u>hand</u>some", "<u>tra</u>vel", "be<u>gin</u>", "<u>mod</u>ern"]) == []
 
 
 def test_stress_still_flags_fabricated_words():

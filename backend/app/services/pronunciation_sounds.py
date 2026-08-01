@@ -111,6 +111,38 @@ def vowel_sounds(option_texts: list[str]) -> tuple[list[str], str] | None:
     return [s for s in sounds if s is not None], "âm trong từ"
 
 
+# ---- Trọng âm (dạng "stress") --------------------------------------------
+def stressed_syllable_index(word: str) -> int | None:
+    """Vị trí âm tiết mang trọng âm CHÍNH (0-based) theo từ điển CMU, hoặc None khi
+    không xác định được (không có trong từ điển, hoặc không có dấu trọng âm chính)."""
+    prons = _cmu_dict().get(word.lower())
+    if not prons:
+        return None
+    vowels = [p for p in prons[0] if p[-1].isdigit()]
+    for i, phone in enumerate(vowels):
+        if phone.endswith("1"):
+            return i
+    return None
+
+
+def stress_positions(words: list[str]) -> tuple[list[int], str] | None:
+    """Vị trí trọng âm cho CẢ nhóm — chỉ trả khi mọi từ đều tra được VÀ đều đa âm tiết
+    (từ 1 âm tiết không có tương phản trọng âm). None = bỏ qua (không báo nhầm)."""
+    if len(words) < 3:
+        return None
+    positions: list[int] = []
+    for word in words:
+        prons = _cmu_dict().get(word.lower())
+        if not prons:
+            return None
+        n_syllables = sum(1 for p in prons[0] if p[-1].isdigit())
+        idx = stressed_syllable_index(word)
+        if idx is None or n_syllables < 2:
+            return None
+        positions.append(idx)
+    return positions, "trọng âm"
+
+
 def s_ending_sound(word: str) -> str | None:
     """'s' | 'z' | 'iz' — hoặc None khi không suy chắc chắn được."""
     w = word.lower()
