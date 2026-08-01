@@ -15,15 +15,58 @@ from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, G
 from app.services.ai_provider_factory import get_active_provider
 from app.services.crypto import decrypt_api_key
 from app.services.openai_embedding import OpenAIEmbeddingClient
+from app.services.pronunciation_builder import build_pronunciation_questions
 from app.services.pronunciation_check import check_pronunciation_options
 from app.services.validation import validate_draft
 
-# Dạng phát âm/trọng âm hay bị model sinh sai quy tắc dù prompt đã dặn (bịa từ, sai
-# quy tắc 3 giống - 1 khác...). check_pronunciation_options phát hiện được bằng code,
-# nên tự động sinh lại câu lỗi ngay trong pipeline để giáo viên nhận đề gần như sạch,
-# không phải bấm "Sinh lại" thủ công nhiều lần (báo cáo giáo viên 01/08/2026).
+# Dạng phát âm/trọng âm: kiểm chứng thực tế cho thấy LLM gần như không sinh đúng
+# (gpt-4o-mini 0/8 với -s/-es), re-roll cũng vô ích (báo cáo 02/08/2026). Nên DỰNG
+# BẰNG CODE (pronunciation_builder) — luôn đúng quy tắc 3 giống - 1 khác — thay vì gọi
+# LLM. Chỉ khi builder không dựng được mới rơi về LLM + auto-fix như trước (phòng hờ).
 _PRONUNCIATION_TYPES = {"pronunciation", "stress"}
 _MAX_PRONUNCIATION_REGEN = 2  # tối đa 2 lần sinh lại/câu — chặn vòng lặp + giới hạn chi phí
+
+
+def _detect_pronunciation_kind(prompt_override: str | None) -> str | None:
+    """Suy 'kiểu' bài phát âm từ prompt_override của Phần con (preset ở ExamBuilder ghi
+    'kiểu (1)/(2)/(3)'). None = không rõ kiểu -> caller dựng bộ trộn."""
+    text = (prompt_override or "").lower()
+    if "(1)" in text or "-s/-es" in text or "đuôi -s" in text:
+        return "s"
+    if "(2)" in text or "-ed" in text or "đuôi -ed" in text:
+        return "ed"
+    if "(3)" in text or "âm chung" in text or "âm trong từ" in text:
+        return "vowel"
+    return None
+
+
+def _deterministic_pronunciation_drafts(spec: BlockSpec) -> list[QuestionDraft] | None:
+    """Dựng câu phát âm/trọng âm bằng code. None = không thuộc dạng này hoặc dựng không
+    đủ câu -> caller rơi về LLM."""
+    if spec.exercise_type_code not in _PRONUNCIATION_TYPES:
+        return None
+    if spec.exercise_type_code == "stress":
+        drafts = build_pronunciation_questions("stress", spec.question_count)
+    else:
+        kind = _detect_pronunciation_kind(spec.prompt_override)
+        if kind is not None:
+            drafts = build_pronunciation_questions(kind, spec.question_count)
+        else:
+            # Không rõ kiểu -> trộn -s/-es, -ed, nguyên âm cho đa dạng, đan xen.
+            kinds = ["s", "ed", "vowel"]
+            pools = {k: build_pronunciation_questions(k, spec.question_count) for k in kinds}
+            drafts = []
+            i = 0
+            while len(drafts) < spec.question_count and any(pools.values()):
+                pool = pools[kinds[i % len(kinds)]]
+                if pool:
+                    drafts.append(pool.pop(0))
+                i += 1
+    if not drafts:
+        return None
+    for draft in drafts:
+        draft.level_code = spec.level_code
+    return drafts
 
 
 def _pronunciation_warnings(draft: QuestionDraft, exercise_type_code: str) -> list[str]:
@@ -157,8 +200,10 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             passage_word_target=block.passage_word_target,
             prompt_override=prompt_override,
         )
-        drafts = provider.generate(spec, context)
-        drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
+        drafts = _deterministic_pronunciation_drafts(spec)
+        if drafts is None:
+            drafts = provider.generate(spec, context)
+            drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
         draft_embeddings = _embed_drafts(embedding_client, drafts)
 
         for draft, draft_embedding in zip(drafts, draft_embeddings):
