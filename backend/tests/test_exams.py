@@ -175,9 +175,14 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     assert any("vượt trình độ" in w for w in rewrite_q["warnings"])
     assert rewrite_q["answer_text"] == "will be built"
 
-    # câu phát âm phải đúng nội dung golden fixture
+    # câu phát âm dựng bằng code (pronunciation_builder, không dùng LLM/fixture) — kiểm
+    # cấu trúc đúng: 4 lựa chọn, đúng 1 đáp án, answer_text khớp nhãn đáp án đúng.
     pron_block = next(b for b in detail["blocks"] if b["exercise_type"]["code"] == "pronunciation")
-    assert pron_block["questions"][0]["answer_text"] == "B. bread"
+    pron_q = pron_block["questions"][0]
+    assert pron_q["options"] is not None and len(pron_q["options"]) == 4
+    correct_opts = [o for o in pron_q["options"] if o["is_correct"]]
+    assert len(correct_opts) == 1
+    assert pron_q["answer_text"].startswith(correct_opts[0]["label"])
 
     # chưa duyệt hết thì complete-review phải 409
     resp = client.post(f"/exams/{exam_id}/complete-review")
@@ -217,11 +222,11 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     assert "School:" not in full_text
     assert "Full name:" in full_text
     assert "Mark:" not in full_text
-    # đáp án tô đỏ: chữ "bread" xuất hiện, và có ít nhất 1 run màu đỏ trong file
+    # đáp án tô đỏ (mã đề đáp án): có ít nhất 1 run màu trong file
     red_runs = [r for p in doc.paragraphs for r in p.runs if r.font.color and r.font.color.rgb is not None]
     assert len(red_runs) > 0
-    # 2 câu pronunciation dùng chung 1 câu dẫn (fixture) — chỉ in 1 lần, không lặp lại
-    assert full_text.count("Choose the word whose underlined part is pronounced differently.") == 1
+    # câu phát âm dựng bằng code có câu dẫn dạng "...different pronunciation of the ending..."
+    assert "different pronunciation of the ending" in full_text
 
     # mã đề không tồn tại (chỉ tạo A, B) -> 404
     resp = client.get(f"/exams/{exam_id}/export.docx", params={"variant": "C"})
