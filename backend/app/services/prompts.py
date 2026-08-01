@@ -133,6 +133,7 @@ def build_user_prompt(
     retrieved_chunks: list[tuple[str, str]],
     prompt_override: str | None,
     exclude_prompt: str | None,
+    feedback: str | None = None,
 ) -> str:
     lines: list[str] = []
     if unit_title:
@@ -147,4 +148,6 @@ def build_user_prompt(
         lines.append(f"Yêu cầu thêm từ giáo viên: {prompt_override}")
     if exclude_prompt:
         lines.append(f"Tránh trùng nội dung với câu đã có: {exclude_prompt}")
+    if feedback:
+        lines.append(f"Câu vừa sinh BỊ LỖI, hãy sinh câu mới KHÁC sửa đúng lỗi này: {feedback}")
     return "\n".join(lines)

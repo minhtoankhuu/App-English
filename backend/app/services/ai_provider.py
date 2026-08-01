@@ -60,9 +60,15 @@ class AIProvider(ABC):
 
     @abstractmethod
     def regenerate_one(
-        self, block: BlockSpec, context: GenerationContext, exclude_prompt: str | None = None
+        self,
+        block: BlockSpec,
+        context: GenerationContext,
+        exclude_prompt: str | None = None,
+        feedback: str | None = None,
     ) -> QuestionDraft:
-        """Sinh lại một câu duy nhất, tránh trùng nội dung câu cũ nếu có thể."""
+        """Sinh lại một câu duy nhất, tránh trùng nội dung câu cũ nếu có thể. `feedback`
+        (nếu có) mô tả lỗi của câu vừa sinh để lần sinh lại tránh lặp lại (vd cảnh báo
+        phát âm từ Validation Engine — xem generation._auto_fix_pronunciation_drafts)."""
 
 
 class MockAIProvider(AIProvider):
@@ -95,8 +101,13 @@ class MockAIProvider(AIProvider):
         return [self._draft_from_template(pool[i % len(pool)], block) for i in range(block.question_count)]
 
     def regenerate_one(
-        self, block: BlockSpec, context: GenerationContext, exclude_prompt: str | None = None
+        self,
+        block: BlockSpec,
+        context: GenerationContext,
+        exclude_prompt: str | None = None,
+        feedback: str | None = None,
     ) -> QuestionDraft:
+        # Mock lấy từ fixture cố định nên bỏ qua `feedback` (không có model để nghe góp ý).
         pool = self._pool(block, context)
         candidates = pool
         if exclude_prompt and len(pool) > 1:

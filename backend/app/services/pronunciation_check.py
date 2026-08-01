@@ -11,7 +11,7 @@ import re
 from collections import Counter
 from functools import lru_cache
 
-from app.services.pronunciation_sounds import SOUND_IPA, ending_sounds
+from app.services.pronunciation_sounds import SOUND_IPA, ending_sounds, vowel_sounds
 from app.services.text_markup import UNDERLINE_MARKUP_RE
 
 # Cụm gạch chân dạng phát âm là âm đang so sánh — dài hơn mức này nghĩa là model bọc
@@ -42,17 +42,20 @@ def visible_text(text: str) -> str:
     return UNDERLINE_MARKUP_RE.sub(r"\1", text).strip()
 
 
-def _sound_pattern_warnings(words: list[str]) -> list[str]:
-    """Nhóm đuôi -s/-es hoặc -ed phải có ĐÚNG 1 từ phát âm khác 3 từ còn lại. Bỏ qua
-    khi không suy chắc chắn được âm (xem pronunciation_sounds.ending_sounds)."""
+def _sound_pattern_warnings(option_texts: list[str], words: list[str]) -> list[str]:
+    """Nhóm phát âm phải có ĐÚNG 1 từ khác 3 từ còn lại. Suy âm đuôi -s/-es, -ed từ
+    chính tả; nếu không phải dạng đuôi thì thử suy nguyên âm giữa từ bằng từ điển IPA.
+    Bỏ qua khi không suy chắc chắn được (xem pronunciation_sounds)."""
     result = ending_sounds(words)
+    if result is None:
+        result = vowel_sounds(option_texts)
     if result is None:
         return []
     sounds, label = result
     counts = Counter(sounds)
     if len(counts) == 2 and sorted(counts.values()) == [1, len(sounds) - 1]:
         return []
-    detail = ", ".join(f"{word} {SOUND_IPA[sound]}" for word, sound in zip(words, sounds))
+    detail = ", ".join(f"{word} {SOUND_IPA.get(sound, sound)}" for word, sound in zip(words, sounds))
     return [f"Nhóm {label} không đúng quy tắc 3 từ giống - 1 từ khác: {detail}."]
 
 
@@ -90,7 +93,7 @@ def check_pronunciation_options(option_texts: list[str], *, is_pronunciation: bo
         )
 
     if is_pronunciation:
-        warnings.extend(_sound_pattern_warnings(words))
+        warnings.extend(_sound_pattern_warnings(option_texts, words))
 
     if is_pronunciation and clusters:
         too_long = sorted({c for c in clusters if len(c) > MAX_PRONUNCIATION_CLUSTER_LEN})

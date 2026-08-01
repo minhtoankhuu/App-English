@@ -213,7 +213,11 @@ class OpenAIProvider(AIProvider):
         return [self._draft_from_item(item, block, warning) for item in parsed["questions"]]
 
     def regenerate_one(
-        self, block: BlockSpec, context: GenerationContext, exclude_prompt: str | None = None
+        self,
+        block: BlockSpec,
+        context: GenerationContext,
+        exclude_prompt: str | None = None,
+        feedback: str | None = None,
     ) -> QuestionDraft:
         retrieved = self._retrieve(block, context)
         system_prompt = build_system_prompt(block.exercise_type_code, 1, block.level_code)
@@ -222,6 +226,7 @@ class OpenAIProvider(AIProvider):
             [(str(c.chunk_id), c.raw_text) for c in retrieved],
             block.prompt_override,
             exclude_prompt,
+            feedback,
         )
         try:
             parsed, prompt_tokens, completion_tokens = self._call_openai(system_prompt, user_prompt)
