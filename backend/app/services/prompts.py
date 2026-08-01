@@ -5,7 +5,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v7"
+PROMPT_VERSION = "v8"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -42,8 +42,19 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "tạo từ mới (SAI: từ 'boring' chế ra 'foring'/'woring'/'soring' — không phải từ tiếng "
         "Anh). Nếu không tìm đủ 4 từ CÓ THẬT cùng cụm chữ cái, hãy đổi sang cụm chữ cái khác.\n"
         "BẮT BUỘC với MỌI câu, không phân biệt kiểu nào:\n"
-        "- 4 lựa chọn phải là 4 TỪ ĐƠN KHÁC NHAU (không trùng từ giữa các lựa chọn, không phải "
-        "cụm từ/câu — KHÔNG được dùng như 'computer games'/'free time').\n"
+        "- QUY TẮC 3-1 VỀ ÂM (quan trọng nhất, kiểm tra lại từng câu trước khi trả kết quả): "
+        "trong 4 lựa chọn phải có ĐÚNG 3 từ phát âm phần đang xét GIỐNG NHAU và ĐÚNG 1 từ khác "
+        "— tuyệt đối không được 2-2 hay 1-1-1-1. Với đuôi -s/-es hãy tự đọc thầm âm cuối từng "
+        "từ rồi đếm: SAI 'twins /z/, types /s/, separates /s/, overalls /z/' (2-2, không có đáp "
+        "án duy nhất); ĐÚNG 'rings /z/, endings /z/, saves /z/, shoots /s/'. Với đuôi -ed: SAI "
+        "'saved /d/, loved /d/, wanted /ɪd/, visited /ɪd/' (2-2) và SAI 'learned /d/, played "
+        "/d/, worked /t/, talked /t/' (2-2); ĐÚNG 'wanted /ɪd/, visited /ɪd/, decided /ɪd/, "
+        "escaped /t/'.\n"
+        "- 4 lựa chọn phải là 4 TỪ ĐƠN KHÁC NHAU: đúng MỘT từ, KHÔNG có dấu cách và KHÔNG có "
+        "dấu gạch nối (SAI: 'native languages', 'southeast Asia', 'black-and-white', 'computer "
+        "games', 'free time'; ĐÚNG: 'languages', 'films', 'voices').\n"
+        "- KHÔNG thêm -s vào trạng từ hay từ không có dạng số nhiều/ngôi thứ 3 (SAI: "
+        "'magicallys', 'wiselys', 'violentlys' — trạng từ không bao giờ thêm -s).\n"
         "- Mỗi lựa chọn sau khi bỏ markup <u>...</u> đi PHẢI là 1 từ tiếng Anh có thật, đánh "
         "vần đúng chính tả — không tự chế/nhân đôi ký tự để khớp đuôi.\n"
         "- CẢ 4 lựa chọn (kể cả các lựa chọn sai) đều phải bọc phần đang so sánh trong "

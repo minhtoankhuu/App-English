@@ -60,8 +60,9 @@ def validate_draft(
         warnings.extend(
             check_pronunciation_options(
                 [option.get("text", "") for option in draft.options],
-                # Dạng trọng âm bọc cả âm tiết nên không áp ngưỡng độ dài/đồng nhất cụm.
-                check_cluster_shape=exercise_type.code == "pronunciation",
+                # Dạng trọng âm bọc cả âm tiết và không so đuôi nên bỏ kiểm tra
+                # độ dài/đồng nhất cụm và quy tắc 3 giống - 1 khác.
+                is_pronunciation=exercise_type.code == "pronunciation",
             )
         )
 
