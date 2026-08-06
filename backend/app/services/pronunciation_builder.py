@@ -15,9 +15,10 @@ import random
 from collections import Counter
 
 from app.services.ai_provider import QuestionDraft
-from app.services.pronunciation_check import check_pronunciation_options
+from app.services.pronunciation_check import check_pronunciation_options, is_real_word
 from app.services.pronunciation_sounds import (
     SOUND_IPA,
+    _cmu_dict,
     _vowel_letter_runs,
     ed_ending_sound,
     s_ending_sound,
@@ -97,11 +98,84 @@ def _finish(items: list[tuple[str, str]], odd_index: int, prompt: str, explain: 
     return _draft(prompt, options, odd_label, odd_word, explain)
 
 
-def _build_ending(kind: str, rng: random.Random) -> QuestionDraft | None:
-    if kind == "s":
-        pool = [(f"{base}<u>{suf}</u>", base + suf, s_ending_sound(base + suf)) for base, suf in _S_WORDS]
+_S_SIBILANT_ENDINGS = ("s", "x", "z", "ch", "sh")
+_VOWELS = "aeiou"
+
+
+def inflect_s(word: str) -> tuple[str, str] | None:
+    """(gốc, đuôi) dạng số nhiều/ngôi 3 của `word`, hoặc None nếu không chắc chắn.
+    Kết quả PHẢI là từ có thật trong từ điển — chặn dạng bịa (city -> citys)."""
+    w = (word or "").lower()
+    if not w.isalpha() or len(w) < 2 or w.endswith("s"):
+        return None
+    if w.endswith("y") and w[-2] not in _VOWELS:
+        base, suffix = w[:-1] + "i", "es"  # city -> cit + ies
+    elif w.endswith(_S_SIBILANT_ENDINGS):
+        base, suffix = w, "es"
     else:
-        pool = [(f"{w[:-2]}<u>ed</u>", w, ed_ending_sound(w)) for w in _ED_WORDS]
+        base, suffix = w, "s"
+    return (base, suffix) if is_real_word(base + suffix) else None
+
+
+def inflect_ed(word: str) -> str | None:
+    """Dạng quá khứ có quy tắc của `word`, hoặc None nếu không chắc chắn. Kết quả PHẢI
+    là từ có thật — chặn động từ bất quy tắc (go -> goed) và dạng bịa."""
+    w = (word or "").lower()
+    if not w.isalpha() or len(w) < 3 or w.endswith("ed"):
+        return None
+    if w.endswith("e"):
+        candidate = w + "d"
+    elif w.endswith("y") and w[-2] not in _VOWELS:
+        candidate = w[:-1] + "ied"
+    elif len(w) >= 3 and w[-1] not in _VOWELS and w[-2] in _VOWELS and w[-3] not in _VOWELS and w[-1] not in "wxy":
+        candidate = w + w[-1] + "ed"  # stop -> stopped
+    else:
+        candidate = w + "ed"
+    return candidate if is_real_word(candidate) else None
+
+
+def _s_items(words: list[str]) -> list[tuple[str, str, str | None]]:
+    """(text_markup, từ, âm đuôi) cho danh sách từ GỐC."""
+    items = []
+    for word in words:
+        inflected = inflect_s(word)
+        if inflected is None:
+            continue
+        base, suffix = inflected
+        items.append((f"{base}<u>{suffix}</u>", base + suffix, s_ending_sound(base + suffix)))
+    return items
+
+
+def _ed_items(words: list[str]) -> list[tuple[str, str, str | None]]:
+    items = []
+    for word in words:
+        past = inflect_ed(word) if not word.endswith("ed") else word
+        if past is None:
+            continue
+        items.append((f"{past[:-2]}<u>ed</u>", past, ed_ending_sound(past)))
+    return items
+
+
+def _build_ending(kind: str, rng: random.Random, unit_words: list[str] | None = None) -> QuestionDraft | None:
+    make_items = _s_items if kind == "s" else _ed_items
+    if kind == "s":
+        curated = [(f"{base}<u>{suf}</u>", base + suf, s_ending_sound(base + suf)) for base, suf in _S_WORDS]
+    else:
+        curated = [(f"{w[:-2]}<u>ed</u>", w, ed_ending_sound(w)) for w in _ED_WORDS]
+    # Ưu tiên vốn từ trong Unit: thử dựng chỉ bằng từ của bài trước, thiếu mới bù curated.
+    pools = []
+    if unit_words:
+        pools.append(make_items(unit_words))
+    pools.append(curated)
+
+    for pool in pools:
+        draft = _build_ending_from_pool(kind, pool, rng)
+        if draft is not None:
+            return draft
+    return None
+
+
+def _build_ending_from_pool(kind: str, pool, rng: random.Random) -> QuestionDraft | None:
     buckets: dict[str, list[tuple[str, str]]] = {}
     for text, word, sound in pool:
         if sound is not None:
@@ -141,9 +215,29 @@ def _build_vowel(rng: random.Random) -> QuestionDraft | None:
     return _finish(items, odd_index, _PROMPTS["vowel"], explain)
 
 
-def _build_stress(rng: random.Random) -> QuestionDraft | None:
+def _build_stress(rng: random.Random, unit_words: list[str] | None = None) -> QuestionDraft | None:
+    # Ưu tiên từ trong Unit (đa âm tiết, tra được trọng âm), thiếu mới bù bộ chuẩn.
+    for words in ([w for w in (unit_words or []) if is_real_word(w)], _STRESS_WORDS):
+        draft = _build_stress_from_words(words, rng)
+        if draft is not None:
+            return draft
+    return None
+
+
+def _syllable_count(word: str) -> int:
+    """Số âm tiết theo từ điển CMU (0 nếu không tra được)."""
+    prons = _cmu_dict().get(word.lower())
+    if not prons:
+        return 0
+    return sum(1 for phone in prons[0] if phone[-1].isdigit())
+
+
+def _build_stress_from_words(words: list[str], rng: random.Random) -> QuestionDraft | None:
     buckets: dict[int, list[tuple[str, str]]] = {}
-    for word in _STRESS_WORDS:
+    for word in words:
+        # Từ 1 âm tiết không có tương phản trọng âm -> loại khỏi bài trọng âm.
+        if _syllable_count(word) < 2:
+            continue
         idx = stressed_syllable_index(word)
         marked = _stress_markup(word, idx)
         if idx is None or marked is None:
@@ -165,10 +259,13 @@ def _plain(text: str) -> str:
 
 
 def _stress_markup(word: str, idx: int | None) -> str | None:
+    """Gạch chân đúng âm tiết mang trọng âm. None khi không căn chắc chắn được: số cụm
+    nguyên âm (chữ) phải bằng số âm tiết, nếu không sẽ bọc nhầm (vd 'layer' có 1 cụm
+    'aye' nhưng 2 âm tiết -> bọc cả từ, sai)."""
     if idx is None:
         return None
     runs = _vowel_letter_runs(word.lower())
-    if idx >= len(runs):
+    if len(runs) != _syllable_count(word) or idx >= len(runs):
         return None
     start, end = runs[idx]
     return f"{word[:start]}<u>{word[start:end]}</u>{word[end:]}"
@@ -188,15 +285,21 @@ def _pick_three_one(buckets: dict, rng: random.Random):
     return None
 
 
-def build_pronunciation_questions(kind: str, count: int, seed: int | None = None) -> list[QuestionDraft]:
+def build_pronunciation_questions(
+    kind: str, count: int, seed: int | None = None, unit_words: list[str] | None = None
+) -> list[QuestionDraft]:
     """Dựng tối đa `count` câu dạng `kind` ('s' | 'ed' | 'vowel' | 'stress'), không trùng
-    bộ lựa chọn. Mỗi câu đều đã qua checker nên luôn đúng quy tắc 3 giống - 1 khác."""
+    bộ lựa chọn. Mỗi câu đều đã qua checker nên luôn đúng quy tắc 3 giống - 1 khác.
+
+    `unit_words` (vốn từ của Unit) được ƯU TIÊN: thử dựng bằng từ trong bài trước, chỉ
+    khi không đủ nguyên liệu mới bù bằng bộ từ chuẩn — nhờ vậy đề bám sách hơn mà vẫn
+    đảm bảo đúng. Dạng 'vowel' dùng nhóm dựng sẵn nên chưa áp dụng."""
     rng = random.Random(seed)
     builder = {
-        "s": lambda: _build_ending("s", rng),
-        "ed": lambda: _build_ending("ed", rng),
+        "s": lambda: _build_ending("s", rng, unit_words),
+        "ed": lambda: _build_ending("ed", rng, unit_words),
         "vowel": lambda: _build_vowel(rng),
-        "stress": lambda: _build_stress(rng),
+        "stress": lambda: _build_stress(rng, unit_words),
     }.get(kind)
     if builder is None:
         return []
