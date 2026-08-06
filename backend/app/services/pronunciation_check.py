@@ -42,6 +42,15 @@ def visible_text(text: str) -> str:
     return UNDERLINE_MARKUP_RE.sub(r"\1", text).strip()
 
 
+def is_real_word(word: str) -> bool:
+    """Từ đơn có thật trong từ điển tiếng Anh offline. Dùng để kiểm chứng dạng biến đổi
+    chính tả tự sinh (vd 'city' + -es -> 'cities') trước khi đưa vào đề."""
+    lowered = (word or "").strip().lower()
+    if not _SINGLE_WORD_RE.match(lowered):
+        return False
+    return lowered in _spell_checker()
+
+
 def _sound_pattern_warnings(option_texts: list[str], words: list[str]) -> list[str]:
     """Nhóm phát âm phải có ĐÚNG 1 từ khác 3 từ còn lại. Suy âm đuôi -s/-es, -ed từ
     chính tả; nếu không phải dạng đuôi thì thử suy nguyên âm giữa từ bằng từ điển IPA.

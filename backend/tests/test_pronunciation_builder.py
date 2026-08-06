@@ -3,8 +3,9 @@ Bảo chứng cốt lõi: MỌI câu dựng ra đều qua check_pronunciation_op
 
 import pytest
 
-from app.services.pronunciation_builder import build_pronunciation_questions
+from app.services.pronunciation_builder import build_pronunciation_questions, inflect_ed, inflect_s
 from app.services.pronunciation_check import check_pronunciation_options
+from app.services.pronunciation_sounds import stress_positions
 
 
 def _is_pron(kind):
@@ -56,6 +57,87 @@ def test_same_seed_is_reproducible():
 
 def test_unknown_kind_returns_empty():
     assert build_pronunciation_questions("banana", 5, seed=1) == []
+
+
+UNIT_WORDS = [
+    "tornado", "tremble", "flood", "damage", "destroy", "erupt", "collapse", "rescue",
+    "warn", "shelter", "earthquake", "volcano", "drought", "storm", "victim", "evacuate",
+    "supply", "battery", "layer", "ash",
+]
+
+
+@pytest.mark.parametrize(
+    "word, expected",
+    [
+        ("book", ("book", "s")), ("watch", ("watch", "es")), ("box", ("box", "es")),
+        ("city", ("citi", "es")), ("study", ("studi", "es")), ("save", ("save", "s")),
+        ("day", ("day", "s")),
+    ],
+)
+def test_inflect_s(word, expected):
+    assert inflect_s(word) == expected
+
+
+@pytest.mark.parametrize("word", ["books", "s", "", "zzqx"])
+def test_inflect_s_rejects_uncertain(word):
+    assert inflect_s(word) is None
+
+
+@pytest.mark.parametrize(
+    "word, expected",
+    [("work", "worked"), ("stop", "stopped"), ("save", "saved"), ("study", "studied"), ("play", "played")],
+)
+def test_inflect_ed(word, expected):
+    assert inflect_ed(word) == expected
+
+
+@pytest.mark.parametrize("word", ["go", "be", "zzqx", "worked"])
+def test_inflect_ed_rejects_irregular_or_unknown(word):
+    """Động từ bất quy tắc (go -> goed) và từ lạ phải bị loại, không bịa."""
+    assert inflect_ed(word) is None
+
+
+@pytest.mark.parametrize("kind", ["s", "ed", "stress"])
+def test_unit_words_are_preferred_when_sufficient(kind):
+    """Có đủ vốn từ Unit thì lựa chọn phải lấy từ trong bài, không dùng bộ chuẩn."""
+    qs = build_pronunciation_questions(kind, 3, seed=5, unit_words=UNIT_WORDS)
+    assert qs
+    for q in qs:
+        for opt in q.options:
+            plain = opt["text"].replace("<u>", "").replace("</u>", "").lower()
+            assert any(plain.startswith(w[:4]) for w in UNIT_WORDS), plain
+
+
+@pytest.mark.parametrize("kind", ["s", "ed", "stress"])
+def test_falls_back_to_curated_when_unit_words_insufficient(kind):
+    """Vốn từ Unit quá ít/không dùng được -> vẫn dựng đủ câu bằng bộ chuẩn."""
+    qs = build_pronunciation_questions(kind, 3, seed=5, unit_words=["zzqx", "qqzz"])
+    assert len(qs) == 3
+
+
+@pytest.mark.parametrize("kind", ["s", "ed", "stress"])
+def test_unit_word_questions_still_pass_checker(kind):
+    for q in build_pronunciation_questions(kind, 5, seed=5, unit_words=UNIT_WORDS):
+        texts = [o["text"] for o in q.options]
+        assert check_pronunciation_options(texts, is_pronunciation=kind != "stress") == [], texts
+
+
+def test_stress_excludes_single_syllable_unit_words():
+    """'flood', 'drought', 'storm', 'ash', 'warn' 1 âm tiết -> không được vào bài trọng âm."""
+    single = {"flood", "drought", "storm", "ash", "warn"}
+    for q in build_pronunciation_questions("stress", 5, seed=5, unit_words=UNIT_WORDS):
+        words = [o["text"].replace("<u>", "").replace("</u>", "").lower() for o in q.options]
+        assert not (single & set(words)), words
+
+
+def test_stress_markup_marks_exactly_one_syllable():
+    """Markup phải bọc đúng 1 âm tiết (không bọc cả từ như 'l<u>aye</u>r')."""
+    for q in build_pronunciation_questions("stress", 5, seed=5, unit_words=UNIT_WORDS):
+        for opt in q.options:
+            marked = opt["text"]
+            plain = marked.replace("<u>", "").replace("</u>", "")
+            underlined = marked.split("<u>")[1].split("</u>")[0]
+            assert len(underlined) < len(plain), marked
 
 
 def test_prompt_text_matches_kind():

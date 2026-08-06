@@ -17,6 +17,7 @@ from app.services.crypto import decrypt_api_key
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.pronunciation_builder import build_pronunciation_questions
 from app.services.pronunciation_check import check_pronunciation_options
+from app.services.unit_vocabulary import unit_vocabulary_words
 from app.services.validation import validate_draft
 
 # Dạng phát âm/trọng âm: kiểm chứng thực tế cho thấy LLM gần như không sinh đúng
@@ -40,21 +41,25 @@ def _detect_pronunciation_kind(prompt_override: str | None) -> str | None:
     return None
 
 
-def _deterministic_pronunciation_drafts(spec: BlockSpec) -> list[QuestionDraft] | None:
-    """Dựng câu phát âm/trọng âm bằng code. None = không thuộc dạng này hoặc dựng không
-    đủ câu -> caller rơi về LLM."""
+def _deterministic_pronunciation_drafts(
+    spec: BlockSpec, unit_words: list[str] | None = None
+) -> list[QuestionDraft] | None:
+    """Dựng câu phát âm/trọng âm bằng code, ưu tiên vốn từ của Unit (`unit_words`).
+    None = không thuộc dạng này hoặc dựng không đủ câu -> caller rơi về LLM."""
     if spec.exercise_type_code not in _PRONUNCIATION_TYPES:
         return None
     if spec.exercise_type_code == "stress":
-        drafts = build_pronunciation_questions("stress", spec.question_count)
+        drafts = build_pronunciation_questions("stress", spec.question_count, unit_words=unit_words)
     else:
         kind = _detect_pronunciation_kind(spec.prompt_override)
         if kind is not None:
-            drafts = build_pronunciation_questions(kind, spec.question_count)
+            drafts = build_pronunciation_questions(kind, spec.question_count, unit_words=unit_words)
         else:
             # Không rõ kiểu -> trộn -s/-es, -ed, nguyên âm cho đa dạng, đan xen.
             kinds = ["s", "ed", "vowel"]
-            pools = {k: build_pronunciation_questions(k, spec.question_count) for k in kinds}
+            pools = {
+                k: build_pronunciation_questions(k, spec.question_count, unit_words=unit_words) for k in kinds
+            }
             drafts = []
             i = 0
             while len(drafts) < spec.question_count and any(pools.values()):
@@ -178,6 +183,12 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
     context = _build_context(db, exam, grade)
     provider = get_active_provider(db)
     embedding_client = _active_embedding_client(db)
+    # Vốn từ của Unit để bộ dựng phát âm ưu tiên dùng từ trong bài (chỉ tra khi cần).
+    unit_words = (
+        unit_vocabulary_words(db, exam.unit_id)
+        if exercise_type.code in _PRONUNCIATION_TYPES
+        else []
+    )
 
     for existing in list(block.questions):
         if not existing.is_locked:
@@ -200,7 +211,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             passage_word_target=block.passage_word_target,
             prompt_override=prompt_override,
         )
-        drafts = _deterministic_pronunciation_drafts(spec)
+        drafts = _deterministic_pronunciation_drafts(spec, unit_words)
         if drafts is None:
             drafts = provider.generate(spec, context)
             drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
