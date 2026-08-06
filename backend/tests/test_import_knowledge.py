@@ -4,11 +4,12 @@ from pathlib import Path
 from docx import Document
 from sqlalchemy import func, select
 
-from app.import_knowledge import import_global_success
+from app.import_knowledge import import_global_success, import_grade9_vocabulary
 from app.models.academic import Grade, Unit
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
 
 KB_ROOT = Path(__file__).resolve().parents[2] / "Knowledge_Base" / "Global Success"
+_G9_VOCAB_FILE = "Vocabulary Global Success 9 (1).docx"
 
 
 def _copy_unit3_grade7(tmp_path: Path) -> Path:
@@ -101,3 +102,46 @@ def test_import_force_reparses_even_when_checksum_unchanged(seeded_db, tmp_path)
     assert stats.documents_unchanged == 0
     assert document.checksum == original_checksum
     assert _chunk_count(seeded_db, document.id) == stats.chunks_written
+
+
+def _copy_g9_vocab(tmp_path: Path) -> Path:
+    dest_dir = tmp_path / "Global Success" / "G9"
+    dest_dir.mkdir(parents=True)
+    shutil.copyfile(KB_ROOT / "G9" / _G9_VOCAB_FILE, dest_dir / _G9_VOCAB_FILE)
+    return tmp_path
+
+
+def _grade9_units(db) -> list[Unit]:
+    grade9 = db.scalar(select(Grade).where(Grade.number == 9))
+    return list(db.scalars(select(Unit).where(Unit.grade_id == grade9.id)))
+
+
+def test_import_g9_vocabulary_creates_per_unit_docs(seeded_db, tmp_path):
+    assert _grade9_units(seeded_db), "seed phải có Unit lớp 9"
+    base_path = _copy_g9_vocab(tmp_path)
+
+    stats = import_grade9_vocabulary(seeded_db, base_path)
+    seeded_db.commit()
+
+    assert stats.documents_created >= 1
+    assert stats.chunks_written > 0
+    # mỗi Unit lớp 9 có tài liệu từ vựng với chunk VOCABULARY
+    unit1 = seeded_db.scalar(
+        select(Unit).join(Grade).where(Grade.number == 9, Unit.order_no == 1)
+    )
+    doc = seeded_db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.unit_id == unit1.id))
+    assert doc is not None and doc.file_name == _G9_VOCAB_FILE
+    assert _chunk_count(seeded_db, doc.id) > 0
+
+
+def test_import_g9_vocabulary_is_idempotent(seeded_db, tmp_path):
+    base_path = _copy_g9_vocab(tmp_path)
+    import_grade9_vocabulary(seeded_db, base_path)
+    seeded_db.commit()
+
+    stats = import_grade9_vocabulary(seeded_db, base_path)
+    seeded_db.commit()
+
+    assert stats.documents_created == 0
+    assert stats.documents_updated == 0
+    assert stats.documents_unchanged >= 1

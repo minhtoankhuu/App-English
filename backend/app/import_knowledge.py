@@ -22,9 +22,12 @@ from app.db import SessionLocal
 from app.models.academic import Grade, Unit
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
 from app.services.knowledge_parser import parse_lesson_docx
+from app.services.knowledge_parser_g9 import parse_g9_vocabulary
 
 GRADES = (6, 7, 8)
 _UNIT_NUMBER_RE = re.compile(r"UNIT\s*(\d+)", re.IGNORECASE)
+# G9 khác cấu trúc: 1 file gộp 12 Unit (xem knowledge_parser_g9.py).
+_G9_VOCAB_FILE = "Vocabulary Global Success 9 (1).docx"
 
 
 @dataclass
@@ -110,6 +113,61 @@ def import_global_success(db: Session, base_path: Path, force: bool = False) -> 
     return stats
 
 
+def import_grade9_vocabulary(db: Session, base_path: Path, force: bool = False) -> ImportStats:
+    """Nhập từ vựng Global Success 9 từ file gộp 12 Unit. Mỗi Unit -> 1 KnowledgeDocument
+    (unit_id theo order_no), file_name chung nên checksum giống nhau cho mọi Unit —
+    idempotent theo checksum như import_global_success."""
+    stats = ImportStats()
+    grade9 = db.scalar(select(Grade).where(Grade.number == 9))
+    vocab_file = base_path / "Global Success" / "G9" / _G9_VOCAB_FILE
+    if grade9 is None or not vocab_file.is_file():
+        return stats
+
+    units_by_order = {u.order_no: u for u in db.scalars(select(Unit).where(Unit.grade_id == grade9.id))}
+    checksum = _checksum(vocab_file)
+    per_unit = parse_g9_vocabulary(vocab_file)
+
+    for order_no, parsed_chunks in per_unit.items():
+        unit = units_by_order.get(order_no)
+        if unit is None:
+            continue
+        stats.files_seen += 1
+        existing = db.scalar(
+            select(KnowledgeDocument).where(
+                KnowledgeDocument.unit_id == unit.id,
+                KnowledgeDocument.file_name == _G9_VOCAB_FILE,
+            )
+        )
+        if existing is not None and existing.checksum == checksum and not force:
+            stats.documents_unchanged += 1
+            continue
+
+        if existing is not None:
+            existing.checksum = checksum
+            existing.chunks.clear()
+            document = existing
+            stats.documents_updated += 1
+        else:
+            document = KnowledgeDocument(unit_id=unit.id, file_name=_G9_VOCAB_FILE, checksum=checksum)
+            db.add(document)
+            stats.documents_created += 1
+
+        for chunk in parsed_chunks:
+            document.chunks.append(
+                KnowledgeChunk(
+                    order_no=chunk.order_no,
+                    chunk_type=chunk.chunk_type,
+                    section_title=chunk.section_title,
+                    raw_text=chunk.raw_text,
+                    structured=chunk.structured,
+                )
+            )
+        stats.chunks_written += len(parsed_chunks)
+        db.flush()
+
+    return stats
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -122,12 +180,19 @@ def main() -> None:
     settings = get_settings()
     db = SessionLocal()
     try:
-        stats = import_global_success(db, Path(settings.knowledge_base_dir), force=args.force)
+        base_path = Path(settings.knowledge_base_dir)
+        stats = import_global_success(db, base_path, force=args.force)
+        g9_stats = import_grade9_vocabulary(db, base_path, force=args.force)
         db.commit()
         print(
-            f"Import OK: {stats.files_seen} file, {stats.documents_created} mới, "
+            f"Import OK (G6-8): {stats.files_seen} file, {stats.documents_created} mới, "
             f"{stats.documents_updated} cập nhật, {stats.documents_unchanged} không đổi, "
             f"{stats.chunks_written} chunk ghi."
+        )
+        print(
+            f"Import OK (G9 vocab): {g9_stats.files_seen} unit, {g9_stats.documents_created} mới, "
+            f"{g9_stats.documents_updated} cập nhật, {g9_stats.documents_unchanged} không đổi, "
+            f"{g9_stats.chunks_written} chunk ghi."
         )
     finally:
         db.close()
