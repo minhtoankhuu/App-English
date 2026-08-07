@@ -32,12 +32,21 @@ def _detect_pronunciation_kind(prompt_override: str | None) -> str | None:
     """Suy 'kiểu' bài phát âm từ prompt_override của Phần con (preset ở ExamBuilder ghi
     'kiểu (1)/(2)/(3)'). None = không rõ kiểu -> caller dựng bộ trộn."""
     text = (prompt_override or "").lower()
-    if "(1)" in text or "-s/-es" in text or "đuôi -s" in text:
-        return "s"
-    if "(2)" in text or "-ed" in text or "đuôi -ed" in text:
-        return "ed"
-    if "(3)" in text or "âm chung" in text or "âm trong từ" in text:
+    # Ưu tiên mã kiểu tường minh "(1)/(2)/(3)" TRƯỚC khi dò từ khoá: preset kiểu (3) mô
+    # tả là "so sánh âm chung trong từ (KHÔNG PHẢI đuôi -s/-es hay -ed)" — có chứa
+    # "-s/-es" trong mệnh đề loại trừ, nên dò từ khoá trước sẽ nhận nhầm thành kiểu (1),
+    # khiến Phần con thứ 3 ra đề trùng hệt Phần A (báo cáo giáo viên 07/08/2026).
+    for marker, kind in (("(3)", "vowel"), ("(2)", "ed"), ("(1)", "s")):
+        if marker in text:
+            return kind
+    # Không có mã kiểu (giáo viên tự nhập) -> dò từ khoá, xét "âm trong từ" trước vì mô
+    # tả kiểu này thường nhắc lại tên 2 kiểu đuôi kia để loại trừ.
+    if "âm chung" in text or "âm trong từ" in text:
         return "vowel"
+    if "-ed" in text or "đuôi -ed" in text:
+        return "ed"
+    if "-s/-es" in text or "đuôi -s" in text:
+        return "s"
     return None
 
 

@@ -2,8 +2,14 @@
 (app/services/generation._auto_fix_pronunciation_drafts) — dùng provider giả, không
 cần DB hay gọi OpenAI thật."""
 
+import pytest
+
 from app.services.ai_provider import AIGenerationError, BlockSpec, GenerationContext, QuestionDraft
-from app.services.generation import _MAX_PRONUNCIATION_REGEN, _auto_fix_pronunciation_drafts
+from app.services.generation import (
+    _MAX_PRONUNCIATION_REGEN,
+    _auto_fix_pronunciation_drafts,
+    _detect_pronunciation_kind,
+)
 
 
 def _opts(words):
@@ -92,3 +98,37 @@ def test_stops_gracefully_when_regeneration_errors():
 
     assert result[0] is BAD  # giữ câu cũ, không vỡ pipeline
     assert provider.calls == 1
+
+
+PRESET_S = "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu."
+PRESET_ED = "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu."
+PRESET_VOWEL = (
+    "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) "
+    "cho toàn bộ các câu."
+)
+
+
+@pytest.mark.parametrize(
+    "prompt_override, expected",
+    [
+        (PRESET_S, "s"),
+        (PRESET_ED, "ed"),
+        # Bug thật: preset kiểu (3) nhắc "-s/-es" trong mệnh đề LOẠI TRỪ nên trước đây bị
+        # nhận nhầm thành kiểu (1), khiến Phần con 3 ra đề trùng hệt Phần A (07/08/2026).
+        (PRESET_VOWEL, "vowel"),
+        # giáo viên tự nhập, không có mã kiểu
+        ("so sánh âm chung trong từ", "vowel"),
+        ("dùng đuôi -ed", "ed"),
+        ("dùng đuôi -s/-es", "s"),
+        (None, None),
+        ("", None),
+    ],
+)
+def test_detect_pronunciation_kind(prompt_override, expected):
+    assert _detect_pronunciation_kind(prompt_override) == expected
+
+
+def test_three_presets_produce_three_distinct_kinds():
+    """3 Phần con phải ra 3 kiểu KHÁC nhau — chặn tái phát lỗi trùng phần A và C."""
+    kinds = [_detect_pronunciation_kind(p) for p in (PRESET_S, PRESET_ED, PRESET_VOWEL)]
+    assert len(set(kinds)) == 3, kinds
