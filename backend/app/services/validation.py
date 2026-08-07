@@ -16,6 +16,7 @@ from app.models.ai_config import AIProviderConfig
 from app.models.exam import Question
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
 from app.services.ai_provider import QuestionDraft
+from app.services.mcq_check import check_multiple_choice
 from app.services.pronunciation_check import check_pronunciation_options
 
 WORD_COUNT_EXERCISE_TYPES = {"multiple_choice", "word_form"}
@@ -65,6 +66,9 @@ def validate_draft(
                 is_pronunciation=exercise_type.code == "pronunciation",
             )
         )
+
+    if exercise_type.code == "multiple_choice":
+        warnings.extend(check_multiple_choice(draft.prompt_text, draft.options))
 
     if exercise_type.has_passage and draft.passage_text:
         rule = db.scalar(
