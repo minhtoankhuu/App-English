@@ -46,7 +46,7 @@ const PRONUNCIATION_PART_PRESETS: { title: string; promptOverride: string }[] = 
 const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
   pronunciation: "PRONUNCIATION",
   stress: "STRESS",
-  multiple_choice: "MULTIPLE CHOICE",
+  multiple_choice: "VOCABULARY AND GRAMMAR",
   matching: "MATCHING",
   gap_fill: "GAP FILL",
   cloze_test: "CLOZE TEST",

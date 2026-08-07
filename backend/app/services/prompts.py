@@ -5,7 +5,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v8"
+PROMPT_VERSION = "v9"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -72,8 +72,24 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "Giải thích nêu rõ vị trí trọng âm (âm tiết thứ mấy) của từng từ."
     ),
     "multiple_choice": (
-        "Trắc nghiệm 4 lựa chọn A/B/C/D, đúng 1 đáp án đúng, kiểm tra đúng target_knowledge "
-        "(từ vựng/ngữ pháp) trong phạm vi nguồn được cung cấp."
+        "Phần VOCABULARY AND GRAMMAR: trắc nghiệm 4 lựa chọn A/B/C/D, đúng 1 đáp án đúng.\n"
+        "ĐỊNH DẠNG BẮT BUỘC — mỗi câu là MỘT CÂU TIẾNG ANH HOÀN CHỈNH có đúng một chỗ trống "
+        "'______' để điền, KHÔNG phải câu hỏi về nghĩa của từ. Ví dụ ĐÚNG: 'My brother often "
+        "______ to school by bus.' / 'Solar energy is a ______ source of energy.' Ví dụ SAI "
+        "(TUYỆT ĐỐI KHÔNG dùng): \"What does 'in person' mean?\", \"Which phrase means to "
+        "stay in touch?\", \"What is a 'voice message'?\", \"How do you say 'giao tiếp "
+        "với' in English?\" — đó là câu đố nghĩa/dịch, không phải đề kiểm tra tiếng Anh THCS.\n"
+        "TOÀN BỘ đề phải bằng TIẾNG ANH — KHÔNG chèn tiếng Việt vào prompt_text hay lựa chọn "
+        "(riêng trường explanation dành cho giáo viên thì vẫn viết tiếng Việt).\n"
+        "CÂN ĐỐI NỘI DUNG: khoảng MỘT NỬA số câu kiểm tra NGỮ PHÁP (bám đúng mục ngữ pháp có "
+        "trong tài liệu nguồn: thì của động từ, giới từ, liên từ, so sánh, câu điều kiện, "
+        "V-ing/to-V...), nửa còn lại kiểm tra TỪ VỰNG (chọn từ hợp ngữ cảnh của câu).\n"
+        "4 lựa chọn phải CÙNG LOẠI và đều hợp lý khi thay vào chỗ trống (cùng từ loại, hoặc "
+        "cùng là các dạng chia của một động từ) để học sinh phải thật sự hiểu mới chọn được "
+        "— không đặt 3 phương án sai hiển nhiên.\n"
+        "KHÔNG hỏi phiên âm/IPA hay trọng âm (đã có phần riêng). KHÔNG dùng markup <u>...</u> "
+        "ở dạng này. KHÔNG hỏi kiến thức khoa học/đời sống mà không cần biết tiếng Anh vẫn "
+        "trả lời được."
     ),
     "reading_true_false": (
         "Cho 1 đoạn văn ngắn (passage_text) rồi hỏi True/False về 1 chi tiết trong đoạn. "

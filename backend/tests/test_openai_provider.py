@@ -185,3 +185,19 @@ def test_insufficient_source_warning_appended_to_source_ref(provider_setup):
         drafts = provider.generate(block, context)
 
     assert "CẢNH BÁO" in drafts[0].source_ref
+
+
+def test_sanitize_options_strips_markup_for_non_pronunciation_types():
+    """Markup <u> chỉ hợp lệ ở phát âm/trọng âm; dạng khác phải gỡ nhưng GIỮ NGUYÊN chữ."""
+    from app.services.openai_provider import _sanitize_options
+
+    opts = [{"label": "B", "text": "A method of <u>communicating</u> with thoughts", "is_correct": True}]
+    assert _sanitize_options(opts, "multiple_choice")[0]["text"] == "A method of communicating with thoughts"
+    assert _sanitize_options(opts, "reading_true_false")[0]["text"] == "A method of communicating with thoughts"
+
+
+def test_sanitize_options_keeps_markup_for_pronunciation_and_stress():
+    from app.services.openai_provider import _sanitize_options
+
+    assert _sanitize_options([{"label": "A", "text": "cl<u>ea</u>n"}], "pronunciation")[0]["text"] == "cl<u>ea</u>n"
+    assert _sanitize_options([{"label": "A", "text": "be<u>gin</u>"}], "stress")[0]["text"] == "be<u>gin</u>"

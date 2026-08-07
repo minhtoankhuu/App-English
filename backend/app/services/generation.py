@@ -224,6 +224,9 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
         if drafts is None:
             drafts = provider.generate(spec, context)
             drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
+            # Model đôi khi trả nhiều/ít hơn số câu yêu cầu dù prompt đã ghi rõ (đề thật
+            # 07/08/2026: xin 8 câu, trả 9) -> cắt đúng số câu để block không lệch.
+            drafts = drafts[:count]
         draft_embeddings = _embed_drafts(embedding_client, drafts)
 
         for draft, draft_embedding in zip(drafts, draft_embeddings):

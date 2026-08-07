@@ -66,3 +66,15 @@ def test_keeps_correct_options_unchanged(correct):
 
 def test_no_markup_returns_input():
     assert dedupe_pronunciation_suffix("plain text") == "plain text"
+
+
+def test_strip_underline_markup_keeps_inner_text():
+    from app.services.text_markup import strip_underline_markup
+
+    # Bug thật 07/08/2026: lựa chọn trắc nghiệm bị model chèn <u> -> in gạch chân vô nghĩa
+    assert (
+        strip_underline_markup("A method of <u>communicating</u> with thoughts")
+        == "A method of communicating with thoughts"
+    )
+    assert strip_underline_markup("cl<u>ea</u>n") == "clean"
+    assert strip_underline_markup("không có markup") == "không có markup"

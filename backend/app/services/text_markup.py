@@ -47,3 +47,8 @@ def dedupe_pronunciation_suffix(text: str) -> str:
         return f"{prefix}<u>es</u>"
 
     return f"{prefix[: -len(inner)]}<u>{inner}</u>"
+
+def strip_underline_markup(text: str) -> str:
+    """Gỡ marker <u>...</u>, giữ lại chữ bên trong. Dùng cho dạng bài KHÔNG cần gạch
+    chân (chỉ phát âm/trọng âm mới cần) khi model lỡ chèn markup vào."""
+    return UNDERLINE_MARKUP_RE.sub(lambda m: m.group(1), text)
