@@ -48,4 +48,18 @@ def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -
         if len(set(texts)) != len(texts):
             warnings.append("Các lựa chọn bị trùng nhau.")
 
+        # Model phải giải trình vì sao TỪNG phương án nhiễu sai ngay khi sinh (why_wrong).
+        # Không giải trình được nghĩa là phương án đó có thể CŨNG ĐÚNG -> câu có nhiều đáp
+        # án đúng, lỗi hay gặp nhất còn lại của dạng này.
+        unjustified = [
+            opt.get("label") or "?"
+            for opt in options
+            if not opt.get("is_correct") and not (opt.get("why_wrong") or "").strip()
+        ]
+        if unjustified:
+            warnings.append(
+                f"Chưa nêu được vì sao phương án {', '.join(unjustified)} sai "
+                "— có thể các phương án này cũng đúng."
+            )
+
     return warnings

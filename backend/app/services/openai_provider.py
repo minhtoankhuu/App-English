@@ -62,8 +62,12 @@ _QUESTION_ITEM_SCHEMA = {
                     "label": {"type": "string"},
                     "text": {"type": "string"},
                     "is_correct": {"type": "boolean"},
+                    # Buộc model giải trình NGAY KHI SINH vì sao mỗi phương án nhiễu sai —
+                    # phải tự kiểm trước khi chốt thay vì để kiểm sau (xem prompts.py).
+                    # null cho đáp án đúng.
+                    "why_wrong": {"type": ["string", "null"]},
                 },
-                "required": ["label", "text", "is_correct"],
+                "required": ["label", "text", "is_correct", "why_wrong"],
                 "additionalProperties": False,
             },
         },

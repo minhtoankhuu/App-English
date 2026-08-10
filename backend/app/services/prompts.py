@@ -5,7 +5,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v11"
+PROMPT_VERSION = "v12"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -96,8 +96,12 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "trong tài liệu nguồn: giới từ, thì của động từ, liên từ, so sánh, V-ing/to-V...), "
         "nửa còn lại kiểm tra TỪ VỰNG (chọn từ hợp ngữ cảnh của câu).\n"
         "4 lựa chọn phải CÙNG LOẠI (cùng từ loại, hoặc cùng là các dạng chia của một động từ) "
-        "và CHỈ DUY NHẤT 1 phương án đúng — kiểm tra lại: nếu thay từng phương án nhiễu vào "
-        "chỗ trống mà câu vẫn đúng ngữ pháp VÀ hợp nghĩa thì phải đổi phương án nhiễu khác "
+        "và CHỈ DUY NHẤT 1 phương án đúng. BẮT BUỘC tự kiểm NGAY KHI SINH: với MỖI phương án "
+        "nhiễu, hãy thay nó vào chỗ trống rồi ghi vào trường why_wrong lý do NGẮN GỌN vì sao "
+        "câu trở nên SAI (sai ngữ pháp, sai collocation, hoặc sai nghĩa trong ngữ cảnh). Nếu "
+        "không nêu được lý do rõ ràng — tức phương án đó CŨNG ĐÚNG — thì PHẢI thay bằng "
+        "phương án nhiễu khác trước khi trả kết quả. why_wrong của đáp án đúng để null.\n"
+        "Ví dụ phải tránh: "
         "(SAI: 'They will ______ with each other.' với cả interact/connect/communicate).\n"
         "KHÔNG hỏi phiên âm/IPA hay trọng âm (đã có phần riêng). KHÔNG dùng markup <u>...</u> "
         "ở dạng này. KHÔNG hỏi kiến thức khoa học/đời sống mà không cần biết tiếng Anh vẫn "
