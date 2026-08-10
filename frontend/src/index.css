@@ -521,7 +521,7 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
 .q-card.approved .q-status { background: var(--success-soft); color: var(--success); }
 
 .q-passage { margin: 0 0 9px; padding: 10px 12px; border-radius: 8px; background: var(--surface-soft); color: #334155; font-style: italic; font-size: 13px; border: 1px solid var(--border); }
-.q-text { margin: 0 0 9px; color: var(--ink); }
+.q-text { margin: 0 0 9px; color: var(--ink); white-space: pre-wrap; }
 .q-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; margin: 0 0 10px; padding: 0; list-style: none; }
 .q-options li { padding: 6px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px; transition: all .15s ease; }
 .q-options li.correct { border-color: #93c5fd; background: #eff6ff; font-weight: 600; color: #1d4ed8; }

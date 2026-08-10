@@ -16,6 +16,7 @@ from app.services.ai_provider_factory import get_active_provider
 from app.services.crypto import decrypt_api_key
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.pronunciation_builder import build_pronunciation_questions
+from app.services.mcq_check import check_multiple_choice
 from app.services.pronunciation_check import check_pronunciation_options
 from app.services.unit_vocabulary import unit_vocabulary_words
 from app.services.validation import validate_draft
@@ -26,6 +27,8 @@ from app.services.validation import validate_draft
 # LLM. Chỉ khi builder không dựng được mới rơi về LLM + auto-fix như trước (phòng hờ).
 _PRONUNCIATION_TYPES = {"pronunciation", "stress"}
 _MAX_PRONUNCIATION_REGEN = 2  # tối đa 2 lần sinh lại/câu — chặn vòng lặp + giới hạn chi phí
+# Dạng tự đánh giá được bằng code -> câu lỗi được tự sinh lại trong pipeline.
+_AUTO_FIX_TYPES = _PRONUNCIATION_TYPES | {"multiple_choice"}
 
 
 def _detect_pronunciation_kind(prompt_override: str | None) -> str | None:
@@ -84,6 +87,10 @@ def _deterministic_pronunciation_drafts(
 
 
 def _pronunciation_warnings(draft: QuestionDraft, exercise_type_code: str) -> list[str]:
+    """Cảnh báo kiểm được bằng code cho các dạng mà máy tự đánh giá được chất lượng —
+    dùng làm điều kiện tự sinh lại trong pipeline."""
+    if exercise_type_code == "multiple_choice":
+        return check_multiple_choice(draft.prompt_text, draft.options)
     if exercise_type_code not in _PRONUNCIATION_TYPES or not draft.options:
         return []
     return check_pronunciation_options(
@@ -99,7 +106,7 @@ def _auto_fix_pronunciation_drafts(
     cảnh báo làm feedback), tối đa _MAX_PRONUNCIATION_REGEN lần, giữ bản ít lỗi nhất.
     Câu đạt hoặc dạng khác giữ nguyên. Không finalize/chặn — vẫn để Validation Engine
     gắn cảnh báo lên câu cuối cùng nếu vẫn còn lỗi."""
-    if spec.exercise_type_code not in _PRONUNCIATION_TYPES:
+    if spec.exercise_type_code not in _AUTO_FIX_TYPES:
         return drafts
     fixed: list[QuestionDraft] = []
     for draft in drafts:
@@ -224,6 +231,9 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
         if drafts is None:
             drafts = provider.generate(spec, context)
             drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
+            # Model đôi khi trả nhiều/ít hơn số câu yêu cầu dù prompt đã ghi rõ (đề thật
+            # 07/08/2026: xin 8 câu, trả 9) -> cắt đúng số câu để block không lệch.
+            drafts = drafts[:count]
         draft_embeddings = _embed_drafts(embedding_client, drafts)
 
         for draft, draft_embedding in zip(drafts, draft_embeddings):

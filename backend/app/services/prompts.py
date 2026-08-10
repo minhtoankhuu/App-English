@@ -5,7 +5,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v8"
+PROMPT_VERSION = "v11"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -72,8 +72,36 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "Giải thích nêu rõ vị trí trọng âm (âm tiết thứ mấy) của từng từ."
     ),
     "multiple_choice": (
-        "Trắc nghiệm 4 lựa chọn A/B/C/D, đúng 1 đáp án đúng, kiểm tra đúng target_knowledge "
-        "(từ vựng/ngữ pháp) trong phạm vi nguồn được cung cấp."
+        "Phần VOCABULARY AND GRAMMAR: trắc nghiệm 4 lựa chọn A/B/C/D, đúng 1 đáp án đúng.\n"
+        "ĐỊNH DẠNG BẮT BUỘC — prompt_text có ĐÚNG MỘT chỗ trống '______' trong TOÀN BỘ "
+        "câu (kể cả dạng hội thoại: chỉ lượt TRẢ LỜI mới có chỗ trống, lượt hỏi KHÔNG có), và "
+        "phải ĐA DẠNG, trộn đều 2 kiểu sau (khoảng nửa-nửa trong cùng một lần sinh):\n"
+        "  KIỂU 1 — câu đơn hoàn chỉnh: 'Solar energy is a ______ source of energy.'; "
+        "'My brother often ______ to school by bus.'\n"
+        "  KIỂU 2 — HỘI THOẠI 2 LƯỢT (rất hay gặp trong đề thật, phải có): lượt 1 là câu hỏi "
+        "của người A, lượt 2 là câu trả lời của người B và chỗ trống nằm trong lượt 2. Mỗi "
+        "lượt một dòng, phân cách bằng ký tự xuống dòng, dạng 'Tên: câu nói'. Ví dụ:\n"
+        "  Minh Khoa: Why does Duc Minh always join the school football club?\n"
+        "  Bao Han: Because he is really crazy ______ sports and loves playing in his free time.\n"
+        "  Dùng TÊN RIÊNG VIỆT NAM không dấu cho nhân vật (Minh Khoa, Bao Han, Khanh Ngoc, "
+        "Tu Anh, Phuc Hung, Gia Linh, Lan Chi, Quang Huy...), mỗi câu đổi cặp tên khác nhau.\n"
+        "Các câu ví dụ dưới đây chỉ để minh hoạ ĐỊNH DẠNG — TUYỆT ĐỐI KHÔNG chép lại nội "
+        "dung của chúng, phải tự đặt câu mới bám từ vựng/ngữ pháp của bài.\n"
+        "TUYỆT ĐỐI KHÔNG dùng câu đố nghĩa/dịch — SAI: "
+        "\"What does 'in person' mean?\", \"Which phrase means to stay in touch?\", "
+        "\"How do you say 'giao tiếp với' in English?\".\n"
+        "TOÀN BỘ đề bằng TIẾNG ANH (tên riêng Việt Nam thì giữ nguyên) — KHÔNG chèn câu chữ "
+        "tiếng Việt vào prompt_text hay lựa chọn; riêng explanation vẫn viết tiếng Việt.\n"
+        "CÂN ĐỐI NỘI DUNG: khoảng MỘT NỬA số câu kiểm tra NGỮ PHÁP (bám đúng mục ngữ pháp có "
+        "trong tài liệu nguồn: giới từ, thì của động từ, liên từ, so sánh, V-ing/to-V...), "
+        "nửa còn lại kiểm tra TỪ VỰNG (chọn từ hợp ngữ cảnh của câu).\n"
+        "4 lựa chọn phải CÙNG LOẠI (cùng từ loại, hoặc cùng là các dạng chia của một động từ) "
+        "và CHỈ DUY NHẤT 1 phương án đúng — kiểm tra lại: nếu thay từng phương án nhiễu vào "
+        "chỗ trống mà câu vẫn đúng ngữ pháp VÀ hợp nghĩa thì phải đổi phương án nhiễu khác "
+        "(SAI: 'They will ______ with each other.' với cả interact/connect/communicate).\n"
+        "KHÔNG hỏi phiên âm/IPA hay trọng âm (đã có phần riêng). KHÔNG dùng markup <u>...</u> "
+        "ở dạng này. KHÔNG hỏi kiến thức khoa học/đời sống mà không cần biết tiếng Anh vẫn "
+        "trả lời được."
     ),
     "reading_true_false": (
         "Cho 1 đoạn văn ngắn (passage_text) rồi hỏi True/False về 1 chi tiết trong đoạn. "

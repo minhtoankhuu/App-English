@@ -18,18 +18,31 @@ from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, G
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.prompts import PROMPT_VERSION, build_system_prompt, build_user_prompt
 from app.services.rag_search import RetrievedChunk, hybrid_search, retrieval_profile
-from app.services.text_markup import dedupe_pronunciation_suffix
+from app.services.text_markup import dedupe_pronunciation_suffix, strip_underline_markup
 
 _MAX_ATTEMPTS = 3  # 1 lần gọi đầu + tối đa 2 lần retry (PRD 17)
+# Chỉ 2 dạng này mới cần gạch chân âm/trọng âm trong lựa chọn (xem prompts.py).
+_MARKUP_ALLOWED_TYPES = frozenset({"pronunciation", "stress"})
 
 
-def _sanitize_options(options: list[dict] | None) -> list[dict] | None:
+def _sanitize_options(options: list[dict] | None, exercise_type_code: str = "") -> list[dict] | None:
     """Chặn lỗi model nhân đôi ký tự đuôi phát âm ngay khi lưu (vd 'cats<u>s</u>' →
     'cat<u>s</u>') để cả DOCX lẫn preview web đều sạch, không phụ thuộc render (xem
     app/services/text_markup.py)."""
     if not options:
         return options
-    return [{**opt, "text": dedupe_pronunciation_suffix(opt["text"])} if opt.get("text") else opt for opt in options]
+    cleaned = [
+        {**opt, "text": dedupe_pronunciation_suffix(opt["text"])} if opt.get("text") else opt for opt in options
+    ]
+    # Markup <u>...</u> CHỈ dành cho dạng phát âm/trọng âm. Model vẫn lỡ chèn vào dạng
+    # khác (đề thật 07/08/2026: lựa chọn "A method of <u>communicating</u> with thoughts"
+    # bị in gạch chân đậm vô nghĩa) -> gỡ sạch thay vì tin prompt.
+    if exercise_type_code not in _MARKUP_ALLOWED_TYPES:
+        cleaned = [
+            {**opt, "text": strip_underline_markup(opt["text"])} if opt.get("text") else opt
+            for opt in cleaned
+        ]
+    return cleaned
 
 # Giá tham khảo gpt-4o-mini (USD/1 triệu token) tại thời điểm viết — chỉ ước tính
 # sơ bộ cho GenerationLog, không phải nguồn giá chính thức.
@@ -181,7 +194,7 @@ class OpenAIProvider(AIProvider):
             level_code=item.get("level_code") or block.level_code,
             source_ref=source_ref,
             passage_text=item.get("passage_text"),
-            options=_sanitize_options(item.get("options")),
+            options=_sanitize_options(item.get("options"), block.exercise_type_code),
         )
 
     def generate(self, block: BlockSpec, context: GenerationContext) -> list[QuestionDraft]:

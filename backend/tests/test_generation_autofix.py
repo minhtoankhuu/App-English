@@ -76,13 +76,37 @@ def test_stops_after_max_attempts_and_keeps_best():
     assert result[0] is BAD
 
 
-def test_ignores_non_pronunciation_types():
+def test_ignores_types_without_machine_checks():
+    """Dạng không tự đánh giá được bằng code (vd đọc hiểu) thì không sinh lại."""
     provider = FakeProvider([CLEAN])
-    spec = BlockSpec(exercise_type_code="multiple_choice", question_count=1, level_code="A2")
+    spec = BlockSpec(exercise_type_code="reading_true_false", question_count=1, level_code="A2")
     result = _auto_fix_pronunciation_drafts(provider, spec, CTX, [BAD])
 
     assert result == [BAD]
     assert provider.calls == 0
+
+
+def test_multiple_choice_is_auto_fixed():
+    """Trắc nghiệm cũng kiểm được bằng code (mcq_check) -> câu lỗi phải được sinh lại."""
+    bad_mc = QuestionDraft(
+        prompt_text="A: How do you ______ friends?\nB: I keep in ______ online.",  # 2 cho trong
+        answer_text="A. contact", explanation="x", target_knowledge="v", level_code="A2",
+        source_ref="mock",
+        options=[{"label": lb, "text": t, "is_correct": i == 0}
+                 for i, (lb, t) in enumerate(zip("ABCD", ["contact", "contacts", "contacting", "contacted"]))],
+    )
+    good_mc = QuestionDraft(
+        prompt_text="B: I keep in ______ with my friends online.",
+        answer_text="A. contact", explanation="x", target_knowledge="v", level_code="A2",
+        source_ref="mock", options=bad_mc.options,
+    )
+    provider = FakeProvider([good_mc])
+    spec = BlockSpec(exercise_type_code="multiple_choice", question_count=1, level_code="A2")
+
+    result = _auto_fix_pronunciation_drafts(provider, spec, CTX, [bad_mc])
+
+    assert result[0] is good_mc
+    assert provider.calls == 1
 
 
 def test_stops_gracefully_when_regeneration_errors():
