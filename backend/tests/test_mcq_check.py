@@ -6,10 +6,10 @@ import pytest
 from app.services.mcq_check import blank_count, check_multiple_choice
 
 OPTS = [
-    {"label": "A", "text": "contact", "is_correct": True},
-    {"label": "B", "text": "contacts", "is_correct": False},
-    {"label": "C", "text": "contacting", "is_correct": False},
-    {"label": "D", "text": "contacted", "is_correct": False},
+    {"label": "A", "text": "contact", "is_correct": True, "why_wrong": None},
+    {"label": "B", "text": "contacts", "is_correct": False, "why_wrong": "sai chia động từ"},
+    {"label": "C", "text": "contacting", "is_correct": False, "why_wrong": "sai dạng V-ing"},
+    {"label": "D", "text": "contacted", "is_correct": False, "why_wrong": "sai thì"},
 ]
 
 
@@ -60,3 +60,19 @@ def test_flags_duplicate_options():
 
 def test_options_none_is_skipped():
     assert check_multiple_choice("a ______ b", None) == []
+
+
+def test_flags_distractor_without_justification():
+    """Không giải trình được vì sao phương án nhiễu sai -> nhiều khả năng nó CŨNG ĐÚNG."""
+    no_reason = [dict(o, why_wrong=None) if not o["is_correct"] else o for o in OPTS]
+    assert "Chưa nêu được vì sao" in _joined(check_multiple_choice("I keep in ______ online.", no_reason))
+
+    # chỉ thiếu ở 1 phương án cũng phải báo, và nêu đúng nhãn
+    partial = [dict(o, why_wrong=None) if o["label"] == "C" else o for o in OPTS]
+    text = _joined(check_multiple_choice("I keep in ______ online.", partial))
+    assert "phương án C" in text
+
+
+def test_blank_why_wrong_on_correct_option_is_fine():
+    """Đáp án đúng để why_wrong = null là hợp lệ, không được cảnh báo."""
+    assert check_multiple_choice("I keep in ______ online.", OPTS) == []

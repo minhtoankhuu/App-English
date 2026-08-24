@@ -6,8 +6,18 @@ golden test Global Success 7 - Unit 3 Community Service.
 
 
 def _opts(*pairs: tuple[str, bool]) -> list[dict]:
+    """`why_wrong` là lý do phương án nhiễu sai — AI thật bắt buộc điền (xem prompts.py),
+    fixture điền chuỗi mẫu để mock không bị Validation Engine cảnh báo thiếu giải trình."""
     labels = ["A", "B", "C", "D"]
-    return [{"label": labels[i], "text": text, "is_correct": correct} for i, (text, correct) in enumerate(pairs)]
+    return [
+        {
+            "label": labels[i],
+            "text": text,
+            "is_correct": correct,
+            "why_wrong": None if correct else "Mock — không hợp ngữ cảnh câu.",
+        }
+        for i, (text, correct) in enumerate(pairs)
+    ]
 
 
 GOLDEN_UNIT3_QUESTIONS: dict[str, list[dict]] = {

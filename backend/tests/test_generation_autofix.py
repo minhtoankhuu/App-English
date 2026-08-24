@@ -92,8 +92,10 @@ def test_multiple_choice_is_auto_fixed():
         prompt_text="A: How do you ______ friends?\nB: I keep in ______ online.",  # 2 cho trong
         answer_text="A. contact", explanation="x", target_knowledge="v", level_code="A2",
         source_ref="mock",
-        options=[{"label": lb, "text": t, "is_correct": i == 0}
-                 for i, (lb, t) in enumerate(zip("ABCD", ["contact", "contacts", "contacting", "contacted"]))],
+        options=[
+            {"label": lb, "text": t, "is_correct": i == 0, "why_wrong": None if i == 0 else "sai dạng"}
+            for i, (lb, t) in enumerate(zip("ABCD", ["contact", "contacts", "contacting", "contacted"]))
+        ],
     )
     good_mc = QuestionDraft(
         prompt_text="B: I keep in ______ with my friends online.",
