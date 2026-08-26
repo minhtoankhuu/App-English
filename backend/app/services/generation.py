@@ -23,7 +23,7 @@ from app.services.mcq_check import check_multiple_choice
 from app.services.pronunciation_check import check_pronunciation_options
 from app.services.unit_vocabulary import unit_vocabulary_words
 from app.services.validation import validate_draft
-from app.services.word_form_check import check_word_form, detect_word_form_kind
+from app.services.word_form_check import check_word_form, detect_word_form_kind, word_family_members
 
 # Dạng phát âm/trọng âm: kiểm chứng thực tế cho thấy LLM gần như không sinh đúng
 # (gpt-4o-mini 0/8 với -s/-es), re-roll cũng vô ích (báo cáo 02/08/2026). Nên DỰNG
@@ -276,6 +276,15 @@ def _batch_family(drafts: list[QuestionDraft]) -> str | None:
     return None
 
 
+def _retrieval_query(context: GenerationContext, *terms: str | None) -> str:
+    """Câu truy vấn RAG: từ khoá nội dung TIẾNG ANH (từ hạt giống, các từ trong họ từ)
+    cộng tên Unit — không phải đoạn chỉ thị tiếng Việt dài mà pipeline gửi cho model."""
+    parts = [t.strip() for t in terms if t and t.strip()]
+    if context.unit_title:
+        parts.append(context.unit_title)
+    return " ".join(parts) or "kiến thức bài học"
+
+
 def _family_prompt_override(
     base: str | None, seed: str | None, used: list[str], per_family: int = WORD_FORM_QUESTIONS_PER_FAMILY
 ) -> str:
@@ -370,6 +379,8 @@ def _word_form_bracket_drafts(
             spec,
             question_count=count,
             prompt_override=_bracket_prompt_override(spec.prompt_override, family, count),
+            # Truy vấn theo CÁC TỪ trong họ từ, không theo cả đoạn chỉ thị tiếng Việt.
+            retrieval_query=_retrieval_query(context, " ".join(sorted(word_family_members(family)))),
         )
         batch = provider.generate(sub, context)[:count]
         _strip_word_form_extras(batch, kind="bracket")
@@ -409,6 +420,7 @@ def _word_form_family_drafts(
                 spec,
                 question_count=per_family,
                 prompt_override=_family_prompt_override(spec.prompt_override, seed, used, per_family),
+                retrieval_query=_retrieval_query(context, seed),
             )
             batch = provider.generate(sub, context)[:per_family]
             _strip_word_form_extras(batch, kind="family")

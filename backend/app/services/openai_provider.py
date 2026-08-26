@@ -114,12 +114,13 @@ class OpenAIProvider(AIProvider):
     def _retrieve(self, block: BlockSpec, context: GenerationContext) -> list[RetrievedChunk]:
         # Không nhét exercise_type_code vào query — đó là mã dạng bài tiếng Anh
         # ("multiple_choice"...), không xuất hiện trong nội dung sách nên chỉ làm
-        # plainto_tsquery (AND toàn bộ từ) trật khớp. prompt_override (nếu giáo
-        # viên có nhập) là tín hiệu tìm kiếm tốt nhất; không có thì để trống — phạm
-        # vi Unit/GrammarPoint đã đủ hẹp, rag_search có fallback khi không tìm được gì.
-        # OpenAI embeddings từ chối input rỗng — luôn cần 1 chuỗi có nghĩa, kể cả khi
-        # không có unit_title (đề "Kiến thức chung") lẫn prompt_override.
-        query_text = block.prompt_override or context.unit_title or "kiến thức bài học"
+        # plainto_tsquery (AND toàn bộ từ) trật khớp.
+        # Thứ tự ưu tiên: retrieval_query (do pipeline đặt, xem BlockSpec) > prompt_override
+        # của giáo viên > tên Unit. OpenAI embeddings từ chối input rỗng — luôn cần 1 chuỗi
+        # có nghĩa, kể cả khi không có unit_title (đề "Kiến thức chung") lẫn prompt_override.
+        query_text = (
+            block.retrieval_query or block.prompt_override or context.unit_title or "kiến thức bài học"
+        )
         # Truy xuất theo dạng bài: lọc loại chunk phù hợp + top_k riêng cho dạng này,
         # thay vì cùng 1 rổ cho mọi dạng trong Unit (xem rag_search.retrieval_profile).
         chunk_types, top_k = retrieval_profile(block.exercise_type_code)
