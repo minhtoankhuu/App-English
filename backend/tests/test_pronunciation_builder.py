@@ -130,14 +130,12 @@ def test_stress_excludes_single_syllable_unit_words():
         assert not (single & set(words)), words
 
 
-def test_stress_markup_marks_exactly_one_syllable():
-    """Markup phải bọc đúng 1 âm tiết (không bọc cả từ như 'l<u>aye</u>r')."""
+def test_stress_options_carry_no_underline():
+    """Gạch chân âm tiết trọng âm ở MỌI lựa chọn là lộ đáp án — học sinh chỉ cần so vị
+    trí gạch chân. Đề thật để trần từ (báo cáo 26/08/2026)."""
     for q in build_pronunciation_questions("stress", 5, seed=5, unit_words=UNIT_WORDS):
         for opt in q.options:
-            marked = opt["text"]
-            plain = marked.replace("<u>", "").replace("</u>", "")
-            underlined = marked.split("<u>")[1].split("</u>")[0]
-            assert len(underlined) < len(plain), marked
+            assert "<u>" not in opt["text"], opt["text"]
 
 
 def test_prompt_text_matches_kind():

@@ -90,3 +90,21 @@ def test_ordinary_question_is_not_flagged_as_copied():
 def test_old_prompt_examples_still_flagged():
     """Đề sinh bằng prompt cũ vẫn còn trong DB."""
     assert _looks_copied("Solar energy is a ______ source of energy.")
+
+
+# --- câu mẫu từ đề thật được ưu tiên hơn kho viết tay ------------------------
+
+
+def test_real_exam_examples_replace_the_handwritten_bank():
+    """Câu mẫu của đúng Unit bám sát chủ đề và độ khó của bài đang ra đề."""
+    real = ["Thanh Tai: Some teenagers are addicted ______ fast food.\nHai Nam: Yes.\nA. to  B. in"]
+    text = build_system_prompt("multiple_choice", 5, "A2", example_offset=0, examples=real)
+
+    assert real[0] in text
+    assert not any(e in text for e in MULTIPLE_CHOICE_EXAMPLES)
+
+
+def test_falls_back_to_the_bank_when_the_unit_has_no_real_exam():
+    """Unit chưa nạp đề thật không được bỏ trắng phần câu mẫu."""
+    text = build_system_prompt("multiple_choice", 5, "A2", example_offset=0, examples=[])
+    assert MULTIPLE_CHOICE_EXAMPLES[0] in text

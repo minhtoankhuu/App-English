@@ -17,6 +17,9 @@ class DocumentChunkType(str, enum.Enum):
     WORD_FORM = "word_form"
     PHRASE = "phrase"
     GRAMMAR = "grammar"
+    # Một câu hỏi lấy nguyên từ đề thi thật (Knowledge_Base/Exams/) — dùng làm CÂU MẪU
+    # về văn phong cho model, KHÔNG phải nguồn kiến thức để trích nội dung.
+    EXAM_ITEM = "exam_item"
     OTHER = "other"
 
 

@@ -239,10 +239,11 @@ def _build_stress_from_words(words: list[str], rng: random.Random) -> QuestionDr
         if _syllable_count(word) < 2:
             continue
         idx = stressed_syllable_index(word)
-        marked = _stress_markup(word, idx)
-        if idx is None or marked is None:
+        if idx is None:
             continue
-        buckets.setdefault(idx, []).append((marked, word))
+        # Không gạch chân âm tiết trọng âm: gạch chân ở MỌI lựa chọn là lộ đáp án — học
+        # sinh chỉ cần so vị trí gạch chân. Đề thật để trần từ (báo cáo 26/08/2026).
+        buckets.setdefault(idx, []).append((word, word))
     chosen = _pick_three_one(buckets, rng)
     if chosen is None:
         return None

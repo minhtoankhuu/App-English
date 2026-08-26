@@ -58,10 +58,15 @@ def test_suffix_types_allow_different_clusters():
     assert _pron(["tri<u>ed</u>", "play<u>ed</u>", "marr<u>ied</u>", "look<u>ed</u>"]) == []
 
 
-def test_stress_allows_long_syllable_clusters():
-    """Trọng âm bọc cả âm tiết — không áp ngưỡng độ dài/đồng nhất cụm. Dùng bộ 3-1 hợp
-    lệ (3 từ trọng âm tiết 1, 'begin' trọng âm tiết 2) để không dính cảnh báo trọng âm."""
-    assert _stress(["<u>hand</u>some", "<u>tra</u>vel", "be<u>gin</u>", "<u>mod</u>ern"]) == []
+def test_stress_options_must_not_be_underlined():
+    """Gạch chân ở dạng trọng âm là lộ đáp án — học sinh so vị trí gạch chân là xong."""
+    warnings = _stress(["<u>hand</u>some", "<u>tra</u>vel", "be<u>gin</u>", "<u>mod</u>ern"])
+    assert any("lộ đáp án" in w for w in warnings)
+
+
+def test_stress_accepts_plain_words():
+    """Đề thật để trần từ, không gạch chân — phải hợp lệ."""
+    assert _stress(["handsome", "travel", "begin", "modern"]) == []
 
 
 def test_stress_still_flags_fabricated_words():

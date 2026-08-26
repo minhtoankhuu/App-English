@@ -2,6 +2,7 @@
 (`knowledge_parser.py` cho bài học Global Success, `grammar_parser.py` cho
 tài liệu ngữ pháp Kiến thức chung)."""
 
+import re
 from dataclasses import dataclass
 
 from docx import Document
@@ -75,3 +76,20 @@ def table_to_grid(table: Table) -> list[list[str]]:
     vì chuỗi đã dồn dấu "|" (một số tài liệu gộp nhiều dòng vào 1 ô, `table_to_text`
     làm mất ranh giới hàng/cột khi hiển thị, xem docs/superpowers/specs/2026-07-20-grammar-reference-knowledge-design.md)."""
     return [[cell.text.strip() for cell in row.cells] for row in table.rows]
+
+
+def paragraph_markup(paragraph) -> str:
+    """Text của đoạn văn, giữ phần gạch chân bằng markup `<u>...</u>`.
+
+    Đề thật đánh dấu âm cần so sánh bằng gạch chân thật của Word ("puzzl" + gạch chân
+    "es"). `paragraph.text` bỏ mất định dạng nên câu phát âm tách ra sẽ không biết so
+    âm nào — mà đó chính là nội dung của câu hỏi. Markup ở đây trùng đúng markup hệ
+    thống dùng khi sinh đề (xem prompts.py / docx_renderer.py).
+    """
+    parts: list[str] = []
+    for run in paragraph.runs:
+        if not run.text:
+            continue
+        parts.append(f"<u>{run.text}</u>" if run.font.underline else run.text)
+    # Gộp các đoạn gạch chân liền nhau: Word hay cắt một từ thành nhiều run.
+    return re.sub(r"</u>(\s*)<u>", r"\1", "".join(parts))

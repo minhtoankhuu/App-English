@@ -7,7 +7,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v19"
+PROMPT_VERSION = "v20"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -249,25 +249,41 @@ def _rotating(pool: tuple[str, ...], offset: int | None) -> list[str]:
     return [pool[(start + i) % len(pool)] for i in range(min(_EXAMPLES_PER_CALL, len(pool)))]
 
 
-def example_block(exercise_type_code: str, offset: int | None = None) -> str:
-    """Khối câu mẫu chèn vào system prompt, rỗng nếu dạng bài chưa có kho mẫu."""
+def example_block(
+    exercise_type_code: str, offset: int | None = None, examples: list[str] | None = None
+) -> str:
+    """Khối câu mẫu chèn vào system prompt, rỗng nếu dạng bài chưa có kho mẫu.
+
+    `examples` là câu mẫu lấy từ ĐỀ THẬT của đúng Unit (rag_search.exam_examples) — ưu
+    tiên hơn kho viết tay vì bám đúng chủ đề và độ khó của bài đang ra đề. Unit chưa nạp
+    đề thật thì rơi về kho viết tay, nên không Unit nào bị bỏ trắng.
+    """
+    if examples:
+        return _wrap_examples(list(examples))
     if exercise_type_code == "multiple_choice":
         chosen = _rotating(MULTIPLE_CHOICE_EXAMPLES, offset)
     elif exercise_type_code == "word_form":
         chosen = _rotating(WORD_FORM_FAMILY_EXAMPLES + WORD_FORM_BRACKET_EXAMPLES, offset)
     else:
         return ""
+    return _wrap_examples(chosen)
+
+
+def _wrap_examples(chosen: list[str]) -> str:
     if not chosen:
         return ""
-    joined = "\n\n".join(chosen)
     return (
         "\nCÂU MẪU tham khảo về VĂN PHONG và ĐỘ KHÓ (không phải nội dung bài này) — "
-        "học cách đặt câu, đừng chép lại chữ nào:\n" + joined + "\n"
+        "học cách đặt câu, đừng chép lại chữ nào:\n" + "\n\n".join(chosen) + "\n"
     )
 
 
 def build_system_prompt(
-    exercise_type_code: str, question_count: int, level_code: str, example_offset: int | None = None
+    exercise_type_code: str,
+    question_count: int,
+    level_code: str,
+    example_offset: int | None = None,
+    examples: list[str] | None = None,
 ) -> str:
     instruction = EXERCISE_INSTRUCTIONS.get(
         exercise_type_code, "Sinh câu hỏi tiếng Anh phù hợp trình độ mục tiêu, bám sát tài liệu nguồn được cung cấp."
@@ -287,7 +303,7 @@ def build_system_prompt(
         "không dấu ngoặc kép quanh phần gạch chân). CHỈ dùng markup <u>...</u> bên trong option.text — TUYỆT "
         "ĐỐI KHÔNG dùng trong prompt_text, passage_text hay bất kỳ trường nào khác (câu dẫn/câu hỏi không cần "
         "và không được gạch chân, kể cả khi nhắc lại từ/chữ cái đang so sánh — chỉ mô tả bằng lời)."
-        + example_block(exercise_type_code, example_offset)
+        + example_block(exercise_type_code, example_offset, examples)
     )
 
 

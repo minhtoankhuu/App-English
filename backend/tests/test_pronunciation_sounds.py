@@ -161,7 +161,7 @@ def test_valid_vowel_pattern_has_no_warning():
 def test_stress_type_does_not_apply_ending_sound_check():
     """Dạng trọng âm không so âm đuôi (dù các từ cùng đuôi -s) — chỉ so vị trí trọng âm."""
     warnings = check_pronunciation_options(
-        ["<u>cel</u>ebrates", "<u>dec</u>orates", "ex<u>hi</u>bits", "<u>har</u>vests"],
+        ["celebrates", "decorates", "exhibits", "harvests"],
         is_pronunciation=False,
     )
     # celebrates/decorates/harvests trọng âm tiết 1, exhibits tiết 2 -> 3-1 hợp lệ.
@@ -183,7 +183,8 @@ def test_flags_invalid_stress_pattern():
 
 def test_valid_stress_pattern_has_no_warning():
     # 3 trọng âm tiết 1 + begin trọng âm tiết 2 = 3-1 đúng
-    assert _stress(["<u>hand</u>some", "<u>tra</u>vel", "be<u>gin</u>", "<u>mod</u>ern"]) == []
+    # Không gạch chân: gạch chân ở dạng trọng âm là lộ đáp án (xem test_pronunciation_check).
+    assert _stress(["handsome", "travel", "begin", "modern"]) == []
 
 
 def test_stress_skips_when_word_not_in_dictionary():
