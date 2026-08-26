@@ -39,12 +39,17 @@ PART_CONTENT_INDENT_CM = 0.9
 # Khoảng chừa cho số thứ tự câu hỏi ("6.", "11.") khi in chung dòng với lựa chọn
 # (xem _render_options) — đủ rộng cho số 2 chữ số + dấu chấm ở cỡ chữ 11.5pt.
 NUMBER_GUTTER_CM = 0.9
+# Nhãn câu lệnh ("Prepositions and Phrases:") luôn ngắn; dài hơn thì đó là câu văn.
+_INSTRUCTION_LABEL_MAX_WORDS = 6
 
 
-def _set_font(run, size: float = 11.5, bold: bool = False, color: RGBColor | None = None) -> None:
+def _set_font(
+    run, size: float = 11.5, bold: bool = False, color: RGBColor | None = None, italic: bool = False
+) -> None:
     run.font.name = FONT_NAME
     run.font.size = Pt(size)
     run.font.bold = bold
+    run.font.italic = italic
     if color is not None:
         run.font.color.rgb = color
     rpr = run._element.get_or_add_rPr()
@@ -204,6 +209,21 @@ def _add_bracket_root(p, root: str) -> None:
     _set_font(p.add_run(f"({root})"), bold=True)
 
 
+def _add_block_instruction(doc: Document, instruction: str) -> None:
+    """Dòng hướng dẫn dưới tiêu đề phần, theo đề thật: nhãn ngắn trước dấu hai chấm
+    ("Prepositions and Phrases:") in đậm, phần hướng dẫn làm bài in nghiêng. Không có nhãn
+    thì cả dòng in nghiêng (yêu cầu chủ dự án 26/08/2026)."""
+    p = _new_paragraph(doc, justify=True)
+    label, sep, rest = instruction.partition(":")
+    # Chỉ coi là nhãn khi phần trước dấu hai chấm đủ ngắn — câu lệnh như
+    # "Read the passage and decide: ..." không phải nhãn.
+    if sep and rest.strip() and len(label.split()) <= _INSTRUCTION_LABEL_MAX_WORDS:
+        _set_font(p.add_run(f"{label.strip()}: "), bold=True)
+        _set_font(p.add_run(rest.strip()), italic=True)
+    else:
+        _set_font(p.add_run(instruction), italic=True)
+
+
 def _shared_instruction_question_ids(ordered_questions: list) -> set:
     """ID các câu thuộc nhóm dùng CHUNG y hệt 1 câu dẫn (vd dạng phát âm/trọng âm:
     "Which word has a different stress pattern?" lặp cho mọi câu trong nhóm).
@@ -321,9 +341,7 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
         )
         _set_font(heading_run, bold=True)
         if block.instruction:
-            block_instruction_p = _new_paragraph(doc)
-            block_instruction_run = block_instruction_p.add_run(block.instruction)
-            _set_font(block_instruction_run)
+            _add_block_instruction(doc, block.instruction)
 
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])
         by_id = {str(q.id): q for q in block.questions}

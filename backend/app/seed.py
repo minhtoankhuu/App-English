@@ -149,7 +149,15 @@ STRUCTURE_GROUPS = [
 EXERCISE_TYPES = [
     ("pronunciation", "Phát âm", "Choose the word whose underlined part is pronounced differently.", False),
     ("stress", "Trọng âm", "Choose the word that has a different stress pattern.", False),
-    ("multiple_choice", "Trắc nghiệm", "Choose the best answer A, B, C or D.", False),
+    # Câu lệnh theo đề thật: nhãn ngắn trước dấu hai chấm (in đậm khi xuất DOCX), phần
+    # còn lại là hướng dẫn làm bài (in nghiêng). Giáo viên sửa lại tự do cho từng đề.
+    (
+        "multiple_choice",
+        "Trắc nghiệm",
+        "Prepositions and Phrases: Choose the word / phrase / sentence (A, B, C or D) that best fits "
+        "the space or best answers the question given in each sentence.",
+        False,
+    ),
     ("matching", "Matching", "Match the items in column A with the ones in column B.", False),
     ("gap_fill", "Điền vào chỗ trống", "Fill in each blank with a suitable word.", False),
     ("cloze_test", "Cloze test", "Choose the best option to complete the passage.", True),

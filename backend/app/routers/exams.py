@@ -250,10 +250,17 @@ def add_block(
     db: Session = Depends(get_db),
 ) -> ExamBlock:
     exam = _get_owned_exam(db, exam_id, current_user)
-    if db.get(ExerciseType, payload.exercise_type_id) is None:
+    exercise_type = db.get(ExerciseType, payload.exercise_type_id)
+    if exercise_type is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Dạng bài không tồn tại")
     next_order = (max((b.order_no for b in exam.blocks), default=0)) + 1
-    block = ExamBlock(exam_id=exam.id, order_no=next_order, **payload.model_dump())
+    data = payload.model_dump()
+    # Không nhập câu lệnh thì lấy câu lệnh mặc định của dạng bài — đúng ý nghĩa của
+    # ExerciseType.default_instruction, và đề in ra luôn có dòng hướng dẫn dưới tiêu đề
+    # phần như đề thật (yêu cầu chủ dự án 26/08/2026). Giáo viên sửa lại tự do trong popup.
+    if not (data.get("instruction") or "").strip():
+        data["instruction"] = exercise_type.default_instruction
+    block = ExamBlock(exam_id=exam.id, order_no=next_order, **data)
     db.add(block)
     db.commit()
     db.refresh(block)
