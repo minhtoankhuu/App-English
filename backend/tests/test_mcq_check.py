@@ -103,3 +103,41 @@ def test_flags_distractor_without_justification():
 def test_blank_why_wrong_on_correct_option_is_fine():
     """Đáp án đúng để why_wrong = null là hợp lệ, không được cảnh báo."""
     assert check_multiple_choice(DIALOGUE, OPTS) == []
+
+
+# --- model nhét cả lượt trả lời vào lựa chọn (đề sinh thử 24/08/2026) --------
+
+ANSWER_TURN_AS_OPTIONS = [
+    {"label": lb, "text": t, "is_correct": i == 0, "why_wrong": None if i == 0 else "x"}
+    for i, (lb, t) in enumerate(zip("ABCD", [
+        "We enjoy the show and ______ with friends.",
+        "We enjoy the show and ______ gifts.",
+        "We enjoy the show and ______ dance.",
+        "We enjoy the show and ______ fireworks.",
+    ]))
+]
+ONE_TURN = "Khanh Ngoc: What do we usually do at the firework festival?"
+
+
+def test_flags_blank_left_inside_options():
+    """Chỗ trống nằm trong lựa chọn -> không câu nào là đáp án thật."""
+    assert "còn chứa chỗ trống" in _joined(check_multiple_choice(ONE_TURN, ANSWER_TURN_AS_OPTIONS))
+
+
+def test_flags_options_sharing_a_long_prefix():
+    assert "lặp chung" in _joined(check_multiple_choice(ONE_TURN, ANSWER_TURN_AS_OPTIONS))
+
+
+def test_flags_options_that_are_full_sentences():
+    assert "dài quá" in _joined(check_multiple_choice(ONE_TURN, ANSWER_TURN_AS_OPTIONS))
+
+
+def test_short_options_sharing_a_word_are_fine():
+    """Lựa chọn cùng dạng chia của một động từ vẫn hợp lệ, không được báo oan."""
+    opts = [
+        {"label": lb, "text": t, "is_correct": i == 0, "why_wrong": None if i == 0 else "x"}
+        for i, (lb, t) in enumerate(zip("ABCD", ["take part in", "take care of", "take off", "take up"]))
+    ]
+    warnings = _joined(check_multiple_choice(DIALOGUE, opts))
+    assert "lặp chung" not in warnings
+    assert "dài quá" not in warnings

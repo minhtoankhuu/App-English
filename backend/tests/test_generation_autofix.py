@@ -7,6 +7,8 @@ import pytest
 from app.services.ai_provider import AIGenerationError, BlockSpec, GenerationContext, QuestionDraft
 from app.services.generation import (
     _MAX_PRONUNCIATION_REGEN,
+    _duplicate_warning,
+    _prompt_key,
     _auto_fix_pronunciation_drafts,
     _detect_pronunciation_kind,
 )
@@ -126,6 +128,11 @@ def test_stops_gracefully_when_regeneration_errors():
     assert provider.calls == 1
 
 
+_MC_OPTS = [
+    {"label": lb, "text": t, "is_correct": i == 0, "why_wrong": None if i == 0 else "sai"}
+    for i, (lb, t) in enumerate(zip("ABCD", ["celebrate", "celebrating", "celebration", "celebrated"]))
+]
+
 PRESET_S = "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu."
 PRESET_ED = "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu."
 PRESET_VOWEL = (
@@ -158,3 +165,47 @@ def test_three_presets_produce_three_distinct_kinds():
     """3 Phần con phải ra 3 kiểu KHÁC nhau — chặn tái phát lỗi trùng phần A và C."""
     kinds = [_detect_pronunciation_kind(p) for p in (PRESET_S, PRESET_ED, PRESET_VOWEL)]
     assert len(set(kinds)) == 3, kinds
+
+
+# --- chặn câu trùng nội dung trong cùng một phần -----------------------------
+
+
+def test_prompt_key_ignores_speaker_names():
+    """Đề thật 24/08/2026: câu 17, 20, 24 giống hệt nhau, chỉ khác tên nhân vật."""
+    a = "Gia Linh: What do people usually do to ______ the Mid-Autumn Festival?"
+    b = "Linh Chi: What do people usually do to ______ the Mid-Autumn Festival?"
+    assert _prompt_key(a) == _prompt_key(b)
+
+
+def test_prompt_key_keeps_real_content_apart():
+    a = "Gia Linh: What do people usually do to ______ the Mid-Autumn Festival?"
+    c = "Gia Linh: What do you usually do to ______ the Mid-Autumn Festival?"
+    assert _prompt_key(a) != _prompt_key(c)
+
+
+def test_duplicate_warning_only_after_first_use():
+    draft = _draft("Gia Linh: Anything?\nBao Han: I ______ it.", "x")
+    seen: set[str] = set()
+    assert _duplicate_warning(draft, seen) == []
+    seen.add(_prompt_key(draft.prompt_text))
+    assert _duplicate_warning(draft, seen)
+
+
+def test_auto_fix_regenerates_a_duplicate_question():
+    first = QuestionDraft(
+        prompt_text="Gia Linh: What do people do?\nBao Han: They ______ the festival.",
+        answer_text="A. celebrate", explanation="x", target_knowledge="v", level_code="A2",
+        source_ref="mock", options=_MC_OPTS,
+    )
+    duplicate = QuestionDraft(**{**first.__dict__, "prompt_text":
+                                 "Linh Chi: What do people do?\nTu Anh: They ______ the festival."})
+    replacement = QuestionDraft(**{**first.__dict__, "prompt_text":
+                                   "Minh Khoa: How do you relax?\nPhuc Hung: I ______ music at home."})
+    provider = FakeProvider([replacement])
+    spec = BlockSpec(exercise_type_code="multiple_choice", question_count=2, level_code="A2")
+
+    result = _auto_fix_pronunciation_drafts(provider, spec, CTX, [first, duplicate])
+
+    assert result[0] is first
+    assert result[1] is replacement
+    assert provider.calls == 1
