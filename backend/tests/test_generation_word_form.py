@@ -385,6 +385,25 @@ def test_word_family_members():
     assert word_family_members(None) == set()
 
 
+def test_strip_moves_inline_bracket_before_checking():
+    """Ngoặc giữa câu che mất lỗi "từ gốc trùng đáp án": bộ kiểm chỉ đọc ngoặc ở cuối câu,
+    nên câu "The ______ (form) of the artwork..." với đáp án 'form' lọt qua (đề thật 24/08/2026)."""
+    draft = _draft("The ______ (form) of the artwork was very unique.", "mô tả")
+    draft.answer_text = "form"
+
+    _strip_word_form_extras([draft], kind="bracket")
+
+    assert draft.prompt_text == "The ______ of the artwork was very unique. (form)"
+    warnings = check_word_form(draft.prompt_text, draft.answer_text, draft.target_knowledge, kind="bracket")
+    assert any("trùng hệt đáp án" in w for w in warnings)
+
+
+def test_strip_removes_inline_bracket_in_family_kind():
+    draft = _draft("Many plants need water to ______ (grow) every day.", "grow (v) → growth (n)")
+    _strip_word_form_extras([draft], kind="family")
+
+    assert draft.prompt_text == "Many plants need water to ______ every day."
+
 # --- câu truy vấn RAG tách khỏi chỉ thị cho model ---------------------------
 
 CTX_UNIT = GenerationContext(

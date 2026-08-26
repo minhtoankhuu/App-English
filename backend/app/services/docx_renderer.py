@@ -169,6 +169,28 @@ def split_bracket_root(prompt_text: str) -> tuple[str, str | None]:
     return prompt_text[: match.start()].rstrip(), match.group(1).strip()
 
 
+_INLINE_ROOT_RE = re.compile(r"\s*\(([A-Za-z][A-Za-z'\-]{0,30})\)")
+
+
+def normalize_bracket_root(prompt_text: str) -> str:
+    """Đưa từ gốc trong ngoặc về CUỐI câu word form.
+
+    Model hay đặt ngay sau chỗ trống ("The teacher explained the ______ (formally) of
+    the lesson plan.") thay vì cuối câu. Hai hậu quả: từ gốc in lẫn giữa câu thay vì
+    canh sát lề phải, và bộ kiểm "từ gốc trùng đáp án" không nhận ra vì nó chỉ đọc
+    ngoặc ở cuối câu — đề thật 24/08/2026 lọt câu "The ______ (form) of the artwork
+    was very unique." với đáp án đúng là 'form', học sinh chỉ cần chép lại.
+    """
+    if split_bracket_root(prompt_text)[1] is not None:
+        return prompt_text
+    matches = list(_INLINE_ROOT_RE.finditer(prompt_text))
+    if not matches:
+        return prompt_text
+    match = matches[-1]
+    sentence = " ".join((prompt_text[: match.start()] + prompt_text[match.end() :]).split())
+    return f"{sentence} ({match.group(1)})"
+
+
 def _add_word_family_heading(doc: Document, family: str) -> None:
     family_p = _new_paragraph(doc, center=True)
     _set_font(family_p.add_run(f"{WORD_FAMILY_BULLET} {family}"), bold=True)
@@ -424,8 +446,11 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
                 prompt_p = _new_paragraph(doc)
                 pf = prompt_p.paragraph_format
                 pf.left_indent = Cm(prompt_indent_cm)
+                # Chuẩn hoá ngay khi render để đề cũ tải lại cũng hết lỗi, không cần sinh lại.
                 prompt_body, bracket_root = (
-                    split_bracket_root(question.prompt_text) if is_word_form else (question.prompt_text, None)
+                    split_bracket_root(normalize_bracket_root(question.prompt_text))
+                    if is_word_form
+                    else (question.prompt_text, None)
                 )
                 is_dialogue = _speaker_prefix_cuts(prompt_body) is not None
                 if is_dialogue:
