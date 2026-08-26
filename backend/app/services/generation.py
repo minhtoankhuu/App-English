@@ -15,12 +15,14 @@ from app.models.exam import Exam, ExamBlock, ExamBlockPart, Question
 from app.models.exercise import ExerciseType
 from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, GenerationContext, QuestionDraft
 from app.services.docx_renderer import split_bracket_root, word_family_label
+from app.services.exam_pronunciation import build_from_exam_items
 from app.services.ai_provider_factory import get_active_provider
 from app.services.crypto import decrypt_api_key
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.pronunciation_builder import build_pronunciation_questions
 from app.services.mcq_check import check_multiple_choice
 from app.services.pronunciation_check import check_pronunciation_options
+from app.services.rag_search import exam_examples
 from app.services.unit_vocabulary import unit_vocabulary_words
 from app.services.validation import validate_draft
 from app.services.word_form_check import check_word_form, detect_word_form_kind, word_family_members
@@ -58,12 +60,28 @@ def _detect_pronunciation_kind(prompt_override: str | None) -> str | None:
 
 
 def _deterministic_pronunciation_drafts(
-    spec: BlockSpec, unit_words: list[str] | None = None
+    spec: BlockSpec, unit_words: list[str] | None = None, exam_lines: list[str] | None = None
 ) -> list[QuestionDraft] | None:
-    """Dựng câu phát âm/trọng âm bằng code, ưu tiên vốn từ của Unit (`unit_words`).
-    None = không thuộc dạng này hoặc dựng không đủ câu -> caller rơi về LLM."""
+    """Dựng câu phát âm/trọng âm bằng code.
+    None = không thuộc dạng này hoặc dựng không đủ câu -> caller rơi về LLM.
+
+    Thứ tự ưu tiên nguyên liệu: ĐỀ THẬT của Unit (nhóm 4 từ do giáo viên soạn, bám sách và
+    độ khó thật) -> vốn từ của Unit -> bộ từ chuẩn viết tay. Đề thật không ghi đáp án nên
+    đáp án được suy bằng chính bộ phân tích âm dùng để kiểm tra; nhóm nào không suy chắc chắn
+    thì bỏ, thiếu bao nhiêu bù bằng bộ dựng cũ (xem exam_pronunciation.py).
+    """
     if spec.exercise_type_code not in _PRONUNCIATION_TYPES:
         return None
+
+    is_pronunciation = spec.exercise_type_code == "pronunciation"
+    drafts_from_exam = build_from_exam_items(
+        exam_lines or [], is_pronunciation=is_pronunciation, count=spec.question_count
+    )
+    if len(drafts_from_exam) >= spec.question_count:
+        for draft in drafts_from_exam:
+            draft.level_code = spec.level_code
+        return drafts_from_exam
+
     if spec.exercise_type_code == "stress":
         drafts = build_pronunciation_questions("stress", spec.question_count, unit_words=unit_words)
     else:
@@ -83,6 +101,12 @@ def _deterministic_pronunciation_drafts(
                 if pool:
                     drafts.append(pool.pop(0))
                 i += 1
+    # Bù cho đủ số câu bằng bộ dựng cũ, đặt đề thật lên trước.
+    used = {frozenset(o["text"] for o in d.options) for d in drafts_from_exam}
+    drafts = drafts_from_exam + [
+        d for d in drafts if frozenset(o["text"] for o in d.options) not in used
+    ]
+    drafts = drafts[: spec.question_count]
     if not drafts:
         return None
     for draft in drafts:
@@ -453,6 +477,12 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
         if exercise_type.code in _PRONUNCIATION_TYPES or exercise_type.code == "word_form"
         else []
     )
+    # Nhóm 4 từ lấy nguyên từ đề thật của Unit — nguyên liệu tốt hơn bộ từ viết tay.
+    exam_lines = (
+        exam_examples(db, unit_id=exam.unit_id, exercise_type_code=exercise_type.code, limit=400)
+        if exercise_type.code in _PRONUNCIATION_TYPES
+        else []
+    )
 
     for existing in list(block.questions):
         if not existing.is_locked:
@@ -481,7 +511,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
         word_form_kind = (
             detect_word_form_kind(prompt_override) if exercise_type.code == "word_form" else None
         )
-        drafts = _deterministic_pronunciation_drafts(spec, unit_words)
+        drafts = _deterministic_pronunciation_drafts(spec, unit_words, exam_lines)
         if drafts is not None:
             pass
         elif word_form_kind == "family":

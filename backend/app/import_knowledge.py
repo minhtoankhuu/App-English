@@ -23,6 +23,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.models.academic import Grade, Unit
 from app.models.knowledge import DocumentChunkType, KnowledgeChunk, KnowledgeDocument
+from app.services.docx_utils import paragraph_markup
 from app.services.exam_parser import parse_exam_items
 from app.services.knowledge_parser import parse_lesson_docx
 from app.services.knowledge_parser_g9 import parse_g9_vocabulary
@@ -155,7 +156,10 @@ def import_exam_papers(db: Session, base_path: Path, force: bool = False) -> Imp
                 stats.documents_unchanged += 1
                 continue
 
-            items = parse_exam_items([p.text for p in Document(str(file_path)).paragraphs])
+            # paragraph_markup giữ gạch chân của đề thật — nội dung chính của câu phát âm.
+            items = parse_exam_items(
+                [paragraph_markup(p) for p in Document(str(file_path)).paragraphs]
+            )
 
             if existing is not None:
                 existing.checksum = checksum

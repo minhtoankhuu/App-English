@@ -102,8 +102,15 @@ def check_pronunciation_options(option_texts: list[str], *, is_pronunciation: bo
         else:
             clusters.append(match.group(1))
 
-    if missing:
+    # Chỉ dạng PHÁT ÂM mới cần gạch chân (để chỉ rõ so âm nào). Dạng TRỌNG ÂM thì KHÔNG:
+    # gạch chân âm tiết mang trọng âm của mọi lựa chọn chính là lộ đáp án — học sinh nhìn
+    # vị trí gạch chân là biết câu nào khác, không cần biết trọng âm. Đề thật để trần từ.
+    if missing and is_pronunciation:
         warnings.append(f"Thiếu gạch chân <u> ở lựa chọn: {', '.join(missing)}.")
+    if clusters and not is_pronunciation:
+        warnings.append(
+            "Dạng trọng âm KHÔNG được gạch chân âm tiết nào — gạch chân là lộ đáp án."
+        )
 
     # Lựa chọn BẮT BUỘC là từ đơn (prompt đã yêu cầu) — cụm từ/từ ghép có gạch nối vừa
     # phá quy tắc so sánh âm vừa không kiểm tra chính tả được. Đề thật 24/07/2026 lọt
