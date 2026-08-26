@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   addBlock,
   addBlockPart,
   deleteBlock,
-  deleteBlockPart,
   generateExam,
   getExam,
-  getExamPreview,
   reorderBlocks,
   setGrammarSelection,
   updateBlock,
@@ -18,9 +16,7 @@ import { listExerciseTypes, listGrades, listGrammarTopics, listPassageLengthRule
 import { ApiError } from "../api/client";
 import type { BlockPartOut, ExamDetailOut, BlockOut, Difficulty } from "../types/exam";
 import type { ExerciseTypeOut, GradeOut, GrammarTopicOut, PassageLengthRuleOut, ProficiencyLevelOut } from "../types/catalog";
-import type { ExamPreviewOut } from "../types/examPreview";
 import { SortableBlockList } from "../exam-builder/SortableBlockList";
-import { ExamPreview } from "../exam-preview/ExamPreview";
 import { StepsIndicator } from "../components/StepsIndicator";
 import { Modal } from "../components/Modal";
 import { PencilIcon } from "../icons/Icon";
@@ -43,6 +39,43 @@ const PRONUNCIATION_PART_PRESETS: { title: string; promptOverride: string }[] = 
   },
 ];
 
+// WORD FORMATION theo format đề thật gồm 2 phần không trộn được trong 1 lần sinh
+// (xem prompts.py): Phần A gom câu theo họ từ (dòng "❖ adore (v) → adorable (adj) → ..."),
+// Phần B đặt từ gốc trong ngoặc canh sát lề phải. Tiêu đề Phần con chính là câu lệnh
+// in ra đề (docx_renderer không đánh số "1./2." cho phần con của word form).
+// Mỗi họ từ ở Phần A làm 5 câu (khớp WORD_FORM_QUESTIONS_PER_FAMILY ở generation.py):
+// giáo viên chọn SỐ HỌC TỪ, còn `question_count` lưu theo số CÂU để không lệch với
+// tổng số câu của block (xem _sync_block_question_count ở routers/exams.py).
+const WORD_FORM_QUESTIONS_PER_FAMILY = 5;
+const WORD_FORM_MIN_PER_FAMILY = 3;
+const WORD_FORM_MAX_PER_FAMILY = 10;
+// Số câu mỗi họ từ đi kèm prompt_override của Phần con (nơi đã ghim sẵn "kiểu (A)")
+// thay vì thêm cột DB — backend đọc lại bằng word_form_questions_per_family().
+const PER_FAMILY_RE = /mỗi họ từ\s+(\d+)\s*câu/i;
+
+function readPerFamily(promptOverride: string | null): number {
+  const match = PER_FAMILY_RE.exec(promptOverride ?? "");
+  if (!match) return WORD_FORM_QUESTIONS_PER_FAMILY;
+  const value = Number(match[1]);
+  return Math.max(WORD_FORM_MIN_PER_FAMILY, Math.min(WORD_FORM_MAX_PER_FAMILY, value));
+}
+
+function writePerFamily(promptOverride: string | null, perFamily: number): string {
+  const base = (promptOverride ?? "").replace(PER_FAMILY_RE, "").replace(/\s+/g, " ").trim();
+  return `${base} Mỗi họ từ ${perFamily} câu.`.trim();
+}
+
+const WORD_FORM_PART_PRESETS: { title: string; promptOverride: string }[] = [
+  {
+    title: "Part A. Fill in the blanks with the correct form of the words",
+    promptOverride: "Chỉ dùng kiểu (A) nhóm theo họ từ cho toàn bộ các câu.",
+  },
+  {
+    title: "Part B. Fill in the blanks with the correct form of the word in brackets.",
+    promptOverride: "Chỉ dùng kiểu (B) từ gốc trong ngoặc ở cuối câu cho toàn bộ các câu.",
+  },
+];
+
 const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
   pronunciation: "PRONUNCIATION",
   stress: "STRESS",
@@ -52,9 +85,21 @@ const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
   cloze_test: "CLOZE TEST",
   reading_true_false: "READING COMPREHENSION",
   sign_reading: "PICTURE / SIGN READING",
-  word_form: "WORD FORM",
+  word_form: "WORD FORMATION",
   sentence_rewrite: "SENTENCE TRANSFORMATION",
 };
+
+// Mỗi phần con quy đổi bao nhiêu câu trên một "từ": Phần A word form là 1 họ từ = 5 câu,
+// còn lại 1 đơn vị = 1 câu. Nhận diện qua prompt_override — cùng dấu hiệu mà
+// detect_word_form_kind ở backend dùng.
+function isWordFormFamilyPart(block: BlockOut, part: BlockPartOut): boolean {
+  return block.exercise_type.code === "word_form" && /\(a\)|họ từ/i.test(part.prompt_override ?? "");
+}
+
+function partCountLabel(block: BlockOut, part: BlockPartOut): string {
+  if (block.exercise_type.code !== "word_form") return `${part.order_no}. ${part.title}`;
+  return isWordFormFamilyPart(block, part) ? "Phần A — Số họ từ" : "Phần B — Số từ";
+}
 
 interface RouteToken {
   examId: string;
@@ -86,12 +131,8 @@ export function ExamBuilderPage() {
   const [grammarTopics, setGrammarTopics] = useState<GrammarTopicOut[]>([]);
   const [selectedPoints, setSelectedPoints] = useState<Set<string>>(new Set());
   const [error, setError] = useState<RouteValue<string> | null>(null);
-  const [previewState, setPreviewState] = useState<RouteValue<ExamPreviewOut> | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(true);
-  const [previewError, setPreviewError] = useState<RouteValue<string> | null>(null);
   const [mutationLock, setMutationLock] = useState<MutationToken | null>(null);
   const examRequestId = useRef(0);
-  const previewRequestId = useRef(0);
   const nextOperationId = useRef(0);
   const activeMutationRef = useRef<MutationToken | null>(null);
 
@@ -114,11 +155,11 @@ export function ExamBuilderPage() {
   const [editingExamTitle, setEditingExamTitle] = useState(false);
   const [examTitleDraft, setExamTitleDraft] = useState("");
 
-  const [partTitle, setPartTitle] = useState("");
-  const [partInstruction, setPartInstruction] = useState("");
-  const [partCount, setPartCount] = useState<number | "">(5);
-  const [partPromptOverride, setPartPromptOverride] = useState("");
-  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  // Số câu đang soạn cho từng phần con, khoa theo part.id. Phần con không còn thêm/xóa
+  // được từ giao diện — mỗi dạng bài đã có sẵn các phần theo format đề thật, giáo viên
+  // chỉ chỉnh số lượng ngay trong form chính (chốt 24/08/2026).
+  const [partCounts, setPartCounts] = useState<Record<string, number | "">>({});
+  const [partPerFamily, setPartPerFamily] = useState<Record<string, number | "">>({});
 
   function isActiveRoute(target: RouteToken) {
     return routeRef.current.examId === target.examId && routeRef.current.generation === target.generation;
@@ -166,36 +207,10 @@ export function ExamBuilderPage() {
     }
   }
 
-  async function loadPreview(target: RouteToken) {
-    const requestId = ++previewRequestId.current;
-    if (!isActiveRoute(target)) return;
-    setPreviewLoading(true);
-    setPreviewError(null);
-    try {
-      const nextPreview = await getExamPreview(target.examId);
-      if (
-        !isActiveRoute(target) ||
-        requestId !== previewRequestId.current ||
-        nextPreview.exam_id !== target.examId
-      )
-        return;
-      setPreviewState({ generation: target.generation, value: nextPreview });
-      setPreviewError(null);
-    } catch (err) {
-      if (!isActiveRoute(target) || requestId !== previewRequestId.current) return;
-      setPreviewError({
-        generation: target.generation,
-        value: err instanceof ApiError ? err.message : "Không tải được bản xem trước",
-      });
-    } finally {
-      if (isActiveRoute(target) && requestId === previewRequestId.current) setPreviewLoading(false);
-    }
-  }
 
   async function refreshBuilder(target: RouteToken): Promise<boolean> {
     if (!isActiveRoute(target)) return false;
-    const [examReloaded] = await Promise.all([reload(target), loadPreview(target)]);
-    return examReloaded;
+    return reload(target);
   }
 
   useEffect(() => {
@@ -207,14 +222,10 @@ export function ExamBuilderPage() {
     if (!route.examId) return;
     const target: RouteToken = { examId: route.examId, generation: route.generation };
     setExamState(null);
-    setPreviewState(null);
     setError(null);
-    setPreviewError(null);
-    setPreviewLoading(true);
     setSelectedPoints(new Set());
     setMutationLock(null);
     void reload(target);
-    void loadPreview(target);
     void listExerciseTypes().then((types) => {
       if (!isActiveRoute(target)) return;
       setExerciseTypes(types);
@@ -233,7 +244,6 @@ export function ExamBuilderPage() {
     });
     return () => {
       examRequestId.current += 1;
-      previewRequestId.current += 1;
       if (isActiveRoute(target)) {
         routeRef.current = { examId: undefined, generation: target.generation + 1 };
       }
@@ -244,16 +254,9 @@ export function ExamBuilderPage() {
   const exam =
     examState?.generation === routeGeneration && examState.value.id === examId ? examState.value : null;
   const activeError = error?.generation === routeGeneration ? error.value : null;
-  const preview =
-    previewState?.generation === routeGeneration && previewState.value.exam_id === examId ? previewState.value : null;
-  const activePreviewError = previewError?.generation === routeGeneration ? previewError.value : null;
   const mutationSaving = mutationLock?.generation === routeGeneration && mutationLock.examId === examId;
   const generating = mutationSaving && mutationLock?.kind === "generate";
 
-  function retryPreview() {
-    const route = routeRef.current;
-    if (route.examId) void loadPreview({ examId: route.examId, generation: route.generation });
-  }
 
   if (!exam) {
     return (
@@ -265,7 +268,6 @@ export function ExamBuilderPage() {
               {activeError ?? "Đang tải..."}
             </p>
           </section>
-          <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
         </div>
       </>
     );
@@ -278,6 +280,21 @@ export function ExamBuilderPage() {
     try {
       if (existingBlocks.length > 0) {
         await Promise.all(existingBlocks.map((block) => deleteBlock(target.examId, block.id)));
+      } else if (type.code === "word_form") {
+        // Giống Pronunciation: tạo sẵn 2 Phần con, mỗi phần ghim 1 kiểu qua prompt_override.
+        const created = await addBlock(target.examId, {
+          exercise_type_id: type.id,
+          title: DEFAULT_BLOCK_TITLE_BY_CODE[type.code] ?? type.name,
+          question_count: 3 * WORD_FORM_QUESTIONS_PER_FAMILY,
+          points: 2,
+        });
+        for (const preset of WORD_FORM_PART_PRESETS) {
+          await addBlockPart(target.examId, created.id, {
+            title: preset.title,
+            question_count: 3 * WORD_FORM_QUESTIONS_PER_FAMILY,
+            prompt_override: preset.promptOverride,
+          });
+        }
       } else if (type.code === "pronunciation") {
         // Phát âm có 3 kiểu không trộn được trong 1 lần sinh (xem prompts.py) — tạo 1
         // block chung "PRONUNCIATION" kèm sẵn 3 Phần con (5 câu/phần, tự đánh số
@@ -349,7 +366,6 @@ export function ExamBuilderPage() {
       if (reorderedExam.id === target.examId) {
         setExamState({ generation: target.generation, value: reorderedExam });
       }
-      await loadPreview(target);
     } catch (err) {
       if (isActiveOperation(target)) {
         setExamState({ generation: target.generation, value: snapshot });
@@ -377,78 +393,13 @@ export function ExamBuilderPage() {
     setEditShuffleQuestions(block.shuffle_questions);
     setEditShuffleAnswers(block.shuffle_answers);
     setEditPromptOverride(block.prompt_override ?? "");
-    resetPartForm();
+    setPartCounts(Object.fromEntries(block.parts.map((part) => [part.id, part.question_count])));
+    setPartPerFamily(Object.fromEntries(block.parts.map((part) => [part.id, readPerFamily(part.prompt_override)])));
   }
 
-  function resetPartForm() {
-    setEditingPartId(null);
-    setPartTitle("");
-    setPartInstruction("");
-    setPartCount(5);
-    setPartPromptOverride("");
-  }
 
-  function openEditPart(part: BlockPartOut) {
-    setEditingPartId(part.id);
-    setPartTitle(part.title);
-    setPartInstruction(part.instruction ?? "");
-    setPartCount(part.question_count);
-    setPartPromptOverride(part.prompt_override ?? "");
-  }
 
-  async function handleSavePart() {
-    if (!editingBlock || mutationSaving || !partTitle.trim() || partCount === "") return;
-    const target = beginMutation();
-    if (!target) return;
-    const payload = {
-      title: partTitle.trim(),
-      instruction: partInstruction.trim() || null,
-      question_count: partCount,
-      prompt_override: partPromptOverride.trim() || null,
-    };
-    try {
-      const updatedBlock = editingPartId
-        ? await updateBlockPart(target.examId, editingBlock.id, editingPartId, payload)
-        : await addBlockPart(target.examId, editingBlock.id, payload);
-      if (!isActiveOperation(target)) return;
-      setEditingBlock(updatedBlock);
-      setEditCount(updatedBlock.question_count);
-      resetPartForm();
-      await refreshBuilder(target);
-    } catch (err) {
-      if (isActiveOperation(target)) {
-        setError({
-          generation: target.generation,
-          value: err instanceof ApiError ? err.message : "Không lưu được phần con",
-        });
-      }
-    } finally {
-      finishMutation(target);
-    }
-  }
 
-  async function handleDeletePart(partId: string) {
-    if (!editingBlock || mutationSaving) return;
-    const target = beginMutation();
-    if (!target) return;
-    try {
-      const updatedBlock = await deleteBlockPart(target.examId, editingBlock.id, partId);
-      if (!isActiveOperation(target)) return;
-      setEditingBlock(updatedBlock);
-      setEditCount(updatedBlock.question_count);
-      if (editingPartId === partId) resetPartForm();
-      await refreshBuilder(target);
-    } catch (err) {
-      if (isActiveOperation(target)) {
-        setError({
-          generation: target.generation,
-          value: err instanceof ApiError ? err.message : "Không xóa được phần con",
-        });
-      }
-    } finally {
-      finishMutation(target);
-    }
-  }
 
   function passageRangeFor(gradeNumber: number | undefined): [number, number] | null {
     if (!gradeNumber) return null;
@@ -479,6 +430,24 @@ export function ExamBuilderPage() {
         passage_word_target:
           editingBlock.exercise_type.has_passage && editPassageWordTarget !== "" ? editPassageWordTarget : null,
       });
+      // Phần con không còn nút lưu riêng — số câu của từng phần lưu chung với khối.
+      for (const part of editingBlock.parts) {
+        const value = partCounts[part.id];
+        const isFamily = isWordFormFamilyPart(editingBlock, part);
+        const stored = partPerFamily[part.id];
+        const perFamily = stored === "" || stored === undefined ? readPerFamily(part.prompt_override) : stored;
+        const promptOverride = isFamily
+          ? writePerFamily(part.prompt_override, perFamily)
+          : part.prompt_override;
+        const count = value === "" || value === undefined ? part.question_count : value;
+        if (count === part.question_count && promptOverride === part.prompt_override) continue;
+        await updateBlockPart(target.examId, editingBlock.id, part.id, {
+          title: part.title,
+          instruction: part.instruction,
+          question_count: count,
+          prompt_override: promptOverride,
+        });
+      }
       if (!isActiveOperation(target)) return;
       await refreshBuilder(target);
       setEditingBlock(null);
@@ -572,6 +541,15 @@ export function ExamBuilderPage() {
 
   const activeTopic = grammarTopics.find((t) => t.id === exam.grammar_topic_id);
   const orderedBlocks = [...exam.blocks].sort((a, b) => a.order_no - b.order_no);
+  const sortedParts = editingBlock ? [...editingBlock.parts].sort((a, b) => a.order_no - b.order_no) : [];
+  // "Số câu" của khối = tổng các phần con, tính lại ngay khi gõ chứ không đợi bấm Lưu
+  // (số không nhúch thì giáo viên tưởng hỏng — báo cáo 24/08/2026).
+  const pendingPartCount = sortedParts.length
+    ? sortedParts.reduce((total, part) => {
+        const value = partCounts[part.id];
+        return total + (value === "" || value === undefined ? part.question_count : value);
+      }, 0)
+    : null;
 
   return (
     <>
@@ -710,7 +688,6 @@ export function ExamBuilderPage() {
             </button>
           </div>
         </section>
-        <ExamPreview preview={preview} loading={previewLoading} error={activePreviewError} onRetry={retryPreview} />
       </div>
 
       <Modal open={editingBlock !== null} onClose={() => setEditingBlock(null)} title="Chỉnh sửa phần" size="lg">
@@ -750,8 +727,23 @@ export function ExamBuilderPage() {
               </label>
               <label>
                 Số câu
-                {editingBlock.parts.length > 0 ? (
-                  <input type="number" value={editCount} disabled title="Tự động tính theo phần con bên dưới" />
+                {editingBlock.parts.length > 0 || pendingPartCount !== null ? (
+                  <>
+                    {/* aria-label cố định: dòng chú thích bên dưới nằm trong <label> nên tên
+                        nhãn suy từ text sẽ đổi theo trạng thái. */}
+                    <input
+                      type="number"
+                      aria-label="Số câu"
+                      value={pendingPartCount ?? editCount}
+                      disabled
+                      title="Tự động tính theo phần con bên dưới"
+                    />
+                    {pendingPartCount !== null && pendingPartCount !== editCount && (
+                      <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                        Sau khi lưu phần con (đang là {editCount})
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <input
                     type="number"
@@ -775,100 +767,86 @@ export function ExamBuilderPage() {
               </label>
             </div>
 
-            <div>
-              <div className="section-heading block-heading">
-                <div>
-                  <h3>Phần con</h3>
-                  <p>Chia thành các phần đánh số 1., 2., 3. khi dạng bài cần nhiều chủ đề/mẫu câu riêng (ví dụ so sánh kép, cụm động từ).</p>
+            {editingBlock.parts.length > 0 && (
+              <div>
+                <div className="section-heading block-heading">
+                  <div>
+                    <h3>Số lượng từng phần</h3>
+                    <p>
+                      Dạng bài này chia sẵn theo format đề thật — chỉ cần chỉnh số lượng, không
+                      phải thêm/xóa phần nào.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              {editingBlock.parts.length > 0 && (
-                <ul style={{ listStyle: "none", margin: "0 0 12px", padding: 0, display: "grid", gap: 8 }}>
-                  {[...editingBlock.parts]
-                    .sort((a, b) => a.order_no - b.order_no)
-                    .map((part) => (
-                      <li
-                        key={part.id}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
-                      >
-                        <span>
-                          {part.order_no}. {part.title} <span style={{ color: "var(--muted)" }}>({part.question_count} câu)</span>
-                        </span>
-                        <span style={{ display: "flex", gap: 6 }}>
-                          <button type="button" className="button secondary compact" onClick={() => openEditPart(part)}>
-                            Sửa
-                          </button>
-                          <button
-                            type="button"
-                            className="button secondary compact"
-                            onClick={() => handleDeletePart(part.id)}
-                            disabled={mutationSaving}
-                          >
-                            Xóa
-                          </button>
-                        </span>
-                      </li>
-                    ))}
-                </ul>
-              )}
-
-              {(editingBlock.exercise_type.code !== "pronunciation" || editingPartId) && (
-              <div style={{ display: "grid", gap: 8, padding: 12, borderRadius: 8, background: "var(--surface)" }}>
-                <label>
-                  Tiêu đề phần con
-                  <input
-                    type="text"
-                    placeholder="Ví dụ: So sánh kép"
-                    value={partTitle}
-                    onChange={(e) => setPartTitle(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Hướng dẫn riêng (tuỳ chọn)
-                  <input
-                    type="text"
-                    value={partInstruction}
-                    onChange={(e) => setPartInstruction(e.target.value)}
-                  />
-                </label>
                 <div className="editor-grid">
-                  <label>
-                    Số câu của phần con
-                    <input
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={partCount}
-                      onChange={(e) => setPartCount(e.target.value === "" ? "" : Number(e.target.value))}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Prompt bổ sung cho phần con (tuỳ chọn)
-                  <textarea
-                    rows={2}
-                    value={partPromptOverride}
-                    onChange={(e) => setPartPromptOverride(e.target.value)}
-                  />
-                </label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    className="button secondary compact"
-                    onClick={handleSavePart}
-                    disabled={mutationSaving || !partTitle.trim() || partCount === ""}
-                  >
-                    {editingPartId ? "Lưu phần con" : "+ Thêm phần con"}
-                  </button>
-                  {editingPartId && (
-                    <button type="button" className="button secondary compact" onClick={resetPartForm}>
-                      Hủy sửa
-                    </button>
-                  )}
+                  {sortedParts.map((part) => {
+                    const isFamily = isWordFormFamilyPart(editingBlock, part);
+                    // Để trống được khi đang gõ (nếu chặn rỗng thì xóa không được, gõ "7" vào "5"
+                    // thành 57); lúc tính toán thì quay về giá trị đã lưu.
+                    const perFamilyRaw = isFamily
+                      ? (partPerFamily[part.id] ?? readPerFamily(part.prompt_override))
+                      : 1;
+                    // Ô đang rỗng thì quay về giá trị đã lưu, KHÔNG về 1 — về 1 sẽ làm ô "Số họ từ"
+                    // nhảy từ 3 lên 15 ngay giữa lúc gõ.
+                    const perWord = !isFamily
+                      ? 1
+                      : perFamilyRaw === ""
+                        ? readPerFamily(part.prompt_override)
+                        : perFamilyRaw;
+                    const raw = partCounts[part.id] ?? part.question_count;
+                    return (
+                      <Fragment key={part.id}>
+                        <label>
+                          {partCountLabel(editingBlock, part)}
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={raw === "" ? "" : Math.max(1, Math.round(raw / perWord))}
+                            onChange={(e) =>
+                              setPartCounts((prev) => ({
+                                ...prev,
+                                [part.id]: e.target.value === "" ? "" : Number(e.target.value) * perWord,
+                              }))
+                            }
+                          />
+                          <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                            {isFamily
+                              ? `Mỗi họ từ ${perWord} câu — ${raw === "" ? 0 : raw} câu`
+                              : `${raw === "" ? 0 : raw} câu`}
+                          </span>
+                        </label>
+                        {isFamily && (
+                          <label>
+                            Số câu mỗi họ từ
+                            <input
+                              type="number"
+                              min={WORD_FORM_MIN_PER_FAMILY}
+                              max={WORD_FORM_MAX_PER_FAMILY}
+                              value={perFamilyRaw}
+                              onChange={(e) => {
+                                if (e.target.value === "") {
+                                  setPartPerFamily((prev) => ({ ...prev, [part.id]: "" }));
+                                  return;
+                                }
+                                const next = Number(e.target.value);
+                                if (!next) return;
+                                const families = raw === "" ? 1 : Math.max(1, Math.round(raw / perWord));
+                                setPartPerFamily((prev) => ({ ...prev, [part.id]: next }));
+                                setPartCounts((prev) => ({ ...prev, [part.id]: families * next }));
+                              }}
+                            />
+                            <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                              Câu trong một họ từ được đảo ngẫu nhiên khi xuất đề
+                            </span>
+                          </label>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </div>
               </div>
-              )}
-            </div>
+            )}
 
             {editingBlock.exercise_type.has_passage &&
               (() => {

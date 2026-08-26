@@ -198,3 +198,21 @@ def test_non_pronunciation_parts_keep_headings_and_restart_numbering():
     assert _paragraph_by_text(doc, "Prompt B1").text.startswith("1.")
     # Phần con hiện tiêu đề thì lựa chọn cũng thụt theo câu dẫn.
     assert _left_indent_cm(_paragraph_by_text(doc, "x1")) == round(PART_CONTENT_INDENT_CM, 3)
+
+
+def test_title_does_not_print_variant_code():
+    """Giáo viên không muốn 'MÃ ĐỀ A' in trên đầu đề — mã đề chỉ còn ở tên file tải về."""
+    doc = build_exam_document(*_exam(_pronunciation_block()))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+
+    assert "UNIT 1 REVISION" in full_text
+    assert "MÃ ĐỀ" not in full_text
+
+
+def test_no_student_info_line():
+    """Đề in ra không có sẵn dòng "Full name/Class" — trường tự thêm mẫu riêng."""
+    doc = build_exam_document(*_exam(_pronunciation_block()))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+
+    assert "Full name" not in full_text
+    assert "Class:" not in full_text

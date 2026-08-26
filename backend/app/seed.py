@@ -155,7 +155,9 @@ EXERCISE_TYPES = [
     ("cloze_test", "Cloze test", "Choose the best option to complete the passage.", True),
     ("reading_true_false", "Đọc hiểu True/False", "Read the passage and decide whether the statements are True or False.", True),
     ("sign_reading", "Đọc biển báo có hình", "Look at each sign and choose the best answer.", False),
-    ("word_form", "Word form", "Give the correct form of the words in brackets.", False),
+    # Câu lệnh cụ thể nằm ở tiêu đề từng Phần con (Part A/Part B, xem ExamBuilderPage.tsx)
+    # vì hai phần có cách làm khác nhau — dòng này chỉ giới thiệu chung cho cả khối.
+    ("word_form", "Word form", "Give the correct form of the words.", False),
     ("sentence_rewrite", "Viết lại câu", "Rewrite the sentences using the given words.", False),
 ]
 

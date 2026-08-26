@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.models.ai_config import AIProviderConfig
 from app.models.generation_log import GenerationLog
 from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, GenerationContext, QuestionDraft
+from app.services.langsmith_tracing import langsmith_extra, wrap_openai_client
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.prompts import PROMPT_VERSION, build_system_prompt, build_user_prompt
 from app.services.rag_search import RetrievedChunk, hybrid_search, retrieval_profile
@@ -104,7 +105,9 @@ _RESPONSE_SCHEMA = {
 class OpenAIProvider(AIProvider):
     def __init__(self, config: AIProviderConfig, api_key: str, db: Session):
         self._config = config
-        self._client = openai.OpenAI(api_key=api_key)
+        # Tracing LangSmith (tắt mặc định): xem token/chi phí/prompt của từng lần sinh đề
+        # trên smith.langchain.com — xem app/services/langsmith_tracing.py.
+        self._client = wrap_openai_client(openai.OpenAI(api_key=api_key))
         self._embed_client = OpenAIEmbeddingClient(api_key, config.embedding_model)
         self._db = db
 
@@ -130,7 +133,29 @@ class OpenAIProvider(AIProvider):
             chunk_types=chunk_types,
         )
 
-    def _call_openai(self, system_prompt: str, user_prompt: str) -> tuple[dict, int | None, int | None]:
+    def _trace_metadata(self, block: BlockSpec, context: GenerationContext) -> dict:
+        return {
+            "exercise_type": block.exercise_type_code,
+            "question_count": block.question_count,
+            "level_code": block.level_code,
+            "grade": context.grade_number,
+            "school_stage": context.school_stage_code,
+            "unit_title": context.unit_title,
+            "prompt_version": PROMPT_VERSION,
+            "model": self._config.model,
+        }
+
+    def _call_openai(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        trace_name: str = "generate",
+        trace_metadata: dict | None = None,
+    ) -> tuple[dict, int | None, int | None]:
+        # Metadata giúp lọc trace theo dạng bài/khối lớp/phiên bản prompt trên LangSmith;
+        # trả {} khi tracing tắt nên không ảnh hưởng lời gọi OpenAI thật.
+        trace_kwargs = langsmith_extra(name=trace_name, metadata=trace_metadata or {})
         last_error: Exception | None = None
         for attempt in range(_MAX_ATTEMPTS):
             try:
@@ -145,6 +170,7 @@ class OpenAIProvider(AIProvider):
                         "type": "json_schema",
                         "json_schema": {"name": "question_generation", "schema": _RESPONSE_SCHEMA, "strict": True},
                     },
+                    **trace_kwargs,
                 )
                 parsed = json.loads(response.choices[0].message.content)
                 usage = response.usage
@@ -208,7 +234,12 @@ class OpenAIProvider(AIProvider):
             context.unit_title, [(str(c.chunk_id), c.raw_text) for c in retrieved], block.prompt_override, None
         )
         try:
-            parsed, prompt_tokens, completion_tokens = self._call_openai(system_prompt, user_prompt)
+            parsed, prompt_tokens, completion_tokens = self._call_openai(
+                system_prompt,
+                user_prompt,
+                trace_name=f"generate:{block.exercise_type_code}",
+                trace_metadata=self._trace_metadata(block, context),
+            )
         except AIGenerationError:
             self._log(
                 question_count=block.question_count,
@@ -246,7 +277,14 @@ class OpenAIProvider(AIProvider):
             feedback,
         )
         try:
-            parsed, prompt_tokens, completion_tokens = self._call_openai(system_prompt, user_prompt)
+            parsed, prompt_tokens, completion_tokens = self._call_openai(
+                system_prompt,
+                user_prompt,
+                trace_name=f"regenerate:{block.exercise_type_code}",
+                # `retry` phân biệt lần sinh lại do máy kiểm lỗi (auto-fix) với lần sinh đầu,
+                # để trên LangSmith đếm được tỷ lệ phải sinh lại.
+                trace_metadata={**self._trace_metadata(block, context), "retry": True},
+            )
         except AIGenerationError:
             self._log(
                 question_count=1,

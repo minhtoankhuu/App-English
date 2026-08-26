@@ -12,9 +12,13 @@ services:
       - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-examcraft}"]
-      interval: 5s
+      # Chạy ổn định thì 30s/lần cho đỡ ồn log; riêng lúc khởi động vẫn dò 2s/lần
+      # (start_interval) để backend không phải chờ đủ 30s mới được phép lên.
+      interval: 30s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 30s
+      start_interval: 2s
 
   backend:
     build: ./backend
@@ -31,15 +35,23 @@ services:
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ChangeMe123!}
       KNOWLEDGE_BASE_DIR: /knowledge_base
       AI_CONFIG_ENCRYPTION_KEY: ${AI_CONFIG_ENCRYPTION_KEY:-RzeAmI7PNoRVVxdZyyEaHC1Asjbmt2Af7jWpUvhRdug=}
+      # Tracing LangSmith — tắt mặc định, bật bằng LANGSMITH_TRACING=true trong .env
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-EngLish}
     volumes:
       - ./Knowledge_Base:/knowledge_base:ro
     ports:
       - "8000:8000"
     healthcheck:
+      # 30s/lần — trước đây 5s/lần làm log uvicorn đầy "GET /health" (xem db ở trên).
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 5s
+      interval: 30s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 30s
+      start_interval: 2s
 
   frontend:
     build:

@@ -3,9 +3,11 @@
 LLM — dữ liệu đến từ Question đã qua Validation Engine và được giáo viên duyệt."""
 
 import io
+import re
+import unicodedata
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
@@ -72,6 +74,112 @@ def _add_runs_with_underline(p, text: str, *, bold: bool = False, color: RGBColo
     if pos < len(text):
         run = p.add_run(text[pos:])
         _set_font(run, bold=bold, color=color)
+
+
+# Tên người nói đầu lượt thoại ("Khanh:", "Ngọc:", "A:") — tối đa 3 từ, mỗi từ viết
+# hoa đầu và chỉ gồm chữ cái (kèm ' . - cho tên ghép/viết tắt).
+_SPEAKER_MAX_WORDS = 3
+_SPEAKER_MAX_CHARS = 30
+_SPEAKER_WORD_EXTRA = frozenset("'.-")
+
+
+def _speaker_prefix_len(line: str) -> int:
+    """Độ dài phần "Tên:" đầu dòng (kể cả dấu hai chấm), 0 nếu dòng không phải lượt thoại."""
+    head, sep, _ = line.partition(":")
+    if not sep or len(head) > _SPEAKER_MAX_CHARS:
+        return 0
+    words = head.split()
+    if not words or len(words) > _SPEAKER_MAX_WORDS:
+        return 0
+    for word in words:
+        if not word[0].isupper():
+            return 0
+        if not all(ch.isalpha() or ch in _SPEAKER_WORD_EXTRA for ch in word):
+            return 0
+    return len(head) + 1
+
+
+def _speaker_prefix_cuts(text: str) -> list[int] | None:
+    """Độ dài phần tên người nói của từng dòng, hoặc None nếu đoạn này không phải hội thoại.
+
+    Bắt buộc có ÍT NHẤT 2 dòng mang tên người nói mới coi là hội thoại — nếu chỉ cần 1
+    dòng thì những câu dẫn bình thường kiểu "Note: ..." hay "Example: ..." sẽ bị in đậm oan.
+    """
+    lines = text.split("\n")
+    if len(lines) < 2:
+        return None
+    cuts = [_speaker_prefix_len(line) for line in lines]
+    if sum(1 for cut in cuts if cut) < 2:
+        return None
+    return cuts
+
+
+def _add_prompt_runs(p, text: str, *, color: RGBColor | None = None) -> None:
+    """In câu dẫn; riêng câu dạng hội thoại thì tên người nói in đậm để tách lượt
+    (đề trắc nghiệm theo format đề thật — yêu cầu chủ dự án 24/08/2026)."""
+    cuts = _speaker_prefix_cuts(text)
+    if cuts is None:
+        _add_runs_with_underline(p, text, color=color)
+        return
+    for i, (line, cut) in enumerate(zip(text.split("\n"), cuts)):
+        if i:
+            # python-docx đổi "\n" trong run thành <w:br/> — giữ xuống dòng giữa các lượt.
+            _set_font(p.add_run("\n"), color=color)
+        if cut:
+            _set_font(p.add_run(line[:cut]), bold=True, color=color)
+            line = line[cut:]
+        _add_runs_with_underline(p, line, color=color)
+
+
+# --- WORD FORMATION theo format đề thật (yêu cầu chủ dự án 24/08/2026) ----------------
+# Phần A gom câu theo HỌC TỪ: một dòng "❖ adore (v) → adorable (adj) → adorably (adv)"
+# in đậm, canh giữa, đứng trước nhóm câu dùng họ từ đó. Chuỗi họ từ lấy từ
+# `target_knowledge` của câu — không thêm cột DB vì bản thân họ từ chính là kiến thức đích.
+# Phần B đặt từ gốc trong ngoặc ở CUỐI câu, in đậm và canh sát lề phải.
+WORD_FAMILY_BULLET = "❖"
+_ARROW = "→"
+_WORD_FAMILY_MEMBER_RE = re.compile(r"^[A-Za-z][A-Za-z'\- ]*\([A-Za-z]{1,4}\)$")
+_BRACKET_ROOT_RE = re.compile(r"\s*\(([A-Za-z][A-Za-z'\- ]{0,30})\)\s*$")
+
+
+def word_family_label(text: str | None) -> str | None:
+    """Chuỗi họ từ chuẩn hoá từ `target_knowledge`, hoặc None nếu không phải họ từ.
+
+    Chặt tay để không nhận nhầm mô tả kiến thức thông thường (vd "Word form: verb → noun
+    (decide → decision)" — có mũi tên nhưng không phải họ từ): mọi thành phần đều phải có
+    dạng "từ (từ loại)".
+    """
+    if not text:
+        return None
+    normalised = text.strip().replace("->", _ARROW).replace("⇒", _ARROW)
+    members = [m.strip() for m in normalised.split(_ARROW)]
+    if len(members) < 2:
+        return None
+    if not all(_WORD_FAMILY_MEMBER_RE.match(m) for m in members):
+        return None
+    return f" {_ARROW} ".join(members)
+
+
+def split_bracket_root(prompt_text: str) -> tuple[str, str | None]:
+    """Tách từ gốc trong ngoặc ở cuối câu word form ("... online games. (adorable)")
+    thành (câu, từ gốc) để in từ gốc canh sát lề phải như đề thật."""
+    match = _BRACKET_ROOT_RE.search(prompt_text)
+    if match is None:
+        return prompt_text, None
+    return prompt_text[: match.start()].rstrip(), match.group(1).strip()
+
+
+def _add_word_family_heading(doc: Document, family: str) -> None:
+    family_p = _new_paragraph(doc, center=True)
+    _set_font(family_p.add_run(f"{WORD_FAMILY_BULLET} {family}"), bold=True)
+
+
+def _add_bracket_root(p, root: str) -> None:
+    """Từ gốc bám sát lề phải bằng tab canh phải — câu dài thì Word tự đẩy từ gốc
+    xuống dòng dưới, đúng như đề mẫu."""
+    p.paragraph_format.tab_stops.add_tab_stop(Cm(USABLE_WIDTH_CM), WD_TAB_ALIGNMENT.RIGHT)
+    p.add_run().add_tab()
+    _set_font(p.add_run(f"({root})"), bold=True)
 
 
 def _shared_instruction_question_ids(ordered_questions: list) -> set:
@@ -171,14 +279,12 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
     section.top_margin = section.bottom_margin = Cm(MARGIN_CM)
     section.left_margin = section.right_margin = Cm(MARGIN_CM)
 
-    student_line_p = _new_paragraph(doc)
-    student_run = student_line_p.add_run("Full name: .......................................... Class: ..........")
-    _set_font(student_run)
-
-    _new_paragraph(doc)
-
+    # Không in dòng "Full name/Class" — giáo viên tự thêm phần thông tin học sinh theo
+    # mẫu riêng của trường (yêu cầu chủ dự án 24/08/2026).
     title_p = _new_paragraph(doc, center=True)
-    title_run = title_p.add_run(f"{exam.title.upper()} — MÃ ĐỀ {variant.code}")
+    # Giáo viên không muốn in mã đề lên đầu đề; mã đề vẫn nằm ở tên file tải về
+    # (de-ma-a-....docx) để phân biệt các bản trộn.
+    title_run = title_p.add_run(exam.title.upper())
     _set_font(title_run, size=14, bold=True)
 
     ordered_blocks = sorted(exam.blocks, key=lambda b: b.order_no)
@@ -207,7 +313,12 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
         # cầu chủ dự án 21/07/2026). Khác với các dạng như SENTENCE TRANSFORMATION
         # nơi phần con là nội dung đề thật, có tiêu đề riêng và đánh số lại từ 1.
         hide_parts = block.exercise_type.code == "pronunciation"
+        # WORD FORMATION theo đề thật: Phần con không đánh số "1./2." (tiêu đề chính là
+        # câu lệnh, vd "Part B. Fill in the blanks..."), câu hỏi nằm sát lề trái, và câu
+        # cùng một họ từ được gom dưới một dòng "❖ ...".
+        is_word_form = block.exercise_type.code == "word_form"
         shared_instruction_qids = _shared_instruction_question_ids(ordered_questions)
+        last_family: str | None = None
 
         current_part_id = None
         started = False
@@ -233,9 +344,10 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
                 # Câu dẫn/tiêu đề phần con luôn thụt vào trong; lựa chọn thụt theo khi
                 # phần con hiện tiêu đề (phân cấp I. > 1. > câu hỏi), nhưng nằm sát lề
                 # trái khi ẩn phần con (Pronunciation) để chỉ dòng hướng dẫn mới thụt.
+                last_family = None
                 if part is not None:
-                    prompt_indent_cm = PART_CONTENT_INDENT_CM
-                    option_indent_cm = 0.0 if hide_parts else PART_CONTENT_INDENT_CM
+                    prompt_indent_cm = 0.0 if is_word_form else PART_CONTENT_INDENT_CM
+                    option_indent_cm = 0.0 if (hide_parts or is_word_form) else PART_CONTENT_INDENT_CM
                 else:
                     prompt_indent_cm = option_indent_cm = 0.0
                 if part is not None and hide_parts:
@@ -255,13 +367,15 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
                     last_prompt_text = question.prompt_text
                 else:
                     if part is not None:
+                        heading_indent_cm = PART_CONTENT_INDENT_CM
                         part_heading_p = _new_paragraph(doc)
-                        part_heading_p.paragraph_format.left_indent = Cm(prompt_indent_cm)
-                        part_heading_run = part_heading_p.add_run(f"{part.order_no}. {part.title}")
+                        part_heading_p.paragraph_format.left_indent = Cm(heading_indent_cm)
+                        heading_text = part.title if is_word_form else f"{part.order_no}. {part.title}"
+                        part_heading_run = part_heading_p.add_run(heading_text)
                         _set_font(part_heading_run, bold=True)
                         if part.instruction:
                             part_instruction_p = _new_paragraph(doc)
-                            part_instruction_p.paragraph_format.left_indent = Cm(prompt_indent_cm)
+                            part_instruction_p.paragraph_format.left_indent = Cm(heading_indent_cm)
                             part_instruction_run = part_instruction_p.add_run(part.instruction)
                             _set_font(part_instruction_run)
                     if question.id in shared_instruction_qids:
@@ -283,10 +397,18 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
             else:
                 display_no = question_no
 
+            # Nhóm câu cùng họ từ: in dòng "❖ adore (v) → ..." một lần cho cả nhóm. Câu
+            # vẫn đánh số liên tục xuyên các nhóm (họ từ là nhóm hiển thị, không phải Phần con).
+            family = word_family_label(question.target_knowledge) if is_word_form else None
+            if family and family != last_family:
+                _add_word_family_heading(doc, family)
+            if family:
+                last_family = family
+
             if question.passage_text:
                 passage_p = _new_paragraph(doc, justify=True)
                 passage_p.paragraph_format.left_indent = Cm(prompt_indent_cm)
-                _add_runs_with_underline(passage_p, question.passage_text)
+                _add_prompt_runs(passage_p, question.passage_text)
 
             # Block ẩn phần con (Pronunciation) đã in câu dẫn chung ở dòng nhãn A/B/C —
             # mọi câu chỉ còn số thứ tự + lựa chọn, không in lại câu dẫn theo từng câu.
@@ -300,11 +422,29 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
             )
             if show_prompt_text:
                 prompt_p = _new_paragraph(doc)
-                prompt_p.paragraph_format.left_indent = Cm(prompt_indent_cm)
+                pf = prompt_p.paragraph_format
+                pf.left_indent = Cm(prompt_indent_cm)
+                prompt_body, bracket_root = (
+                    split_bracket_root(question.prompt_text) if is_word_form else (question.prompt_text, None)
+                )
+                is_dialogue = _speaker_prefix_cuts(prompt_body) is not None
+                if is_dialogue:
+                    # Lượt thoại thứ hai trở đi phải thẳng cột với lượt đầu (ngang tên người
+                    # nói), không tụt về dưới số thứ tự — thụt treo (hanging indent) + tab để cả
+                    # dòng sau <w:br/> lẫn dòng bị Word ngắt tự động đều bắt đúng cột
+                    # (yêu cầu chủ dự án 24/08/2026).
+                    pf.left_indent = Cm(prompt_indent_cm + NUMBER_GUTTER_CM)
+                    pf.first_line_indent = Cm(-NUMBER_GUTTER_CM)
+                    pf.tab_stops.add_tab_stop(Cm(prompt_indent_cm + NUMBER_GUTTER_CM))
                 no_run = prompt_p.add_run(f"{display_no}.")
                 _set_font(no_run, bold=True)
-                prompt_p.add_run(" ")
-                _add_runs_with_underline(prompt_p, question.prompt_text)
+                if is_dialogue:
+                    prompt_p.add_run().add_tab()
+                else:
+                    prompt_p.add_run(" ")
+                _add_prompt_runs(prompt_p, prompt_body)
+                if bracket_root:
+                    _add_bracket_root(prompt_p, bracket_root)
                 last_prompt_text = question.prompt_text
 
             if question.options:
@@ -331,6 +471,36 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
     return doc
 
 
+def _slugify(text: str) -> str:
+    """Bỏ dấu tiếng Việt rồi gom về a-z0-9 và gạch ngang — tên file an toàn trên mọi OS.
+    "đ/Đ" không tách dấu được bằng NFD nên phải thay tay trước."""
+    text = text.replace("đ", "d").replace("Đ", "D")
+    plain = unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-zA-Z0-9]+", "-", plain).strip("-").lower()
+
+
+def export_filename(exam: Exam, variant: ExamVariant) -> str:
+    """Tên file DOCX theo lớp + unit đã chọn (yêu cầu chủ dự án 24/08/2026), thay cho
+    "de-ma-a-..." — giáo viên tải nhiều đề về cùng một thư mục vẫn phân biệt được."""
+    parts: list[str] = []
+    grade = getattr(exam, "grade", None)
+    if grade is not None and getattr(grade, "number", None):
+        parts.append(f"lop-{grade.number}")
+    unit = getattr(exam, "unit", None)
+    if unit is not None and getattr(unit, "order_no", None):
+        parts.append(f"unit-{unit.order_no}")
+    if not parts:
+        # Đề "Kiến thức chung"/Cambridge không gắn Unit — lấy tạm tiêu đề, cắt ngắn cho gọn.
+        parts.append(_slugify(exam.title)[:60] or "de-thi")
+    parts.append("dap-an-do" if exam.export_mode == ExportMode.ANSWER_KEY else "hoc-sinh")
+    # Giao diện chỉ còn 1 mã đề, nhưng API vẫn tạo được nhiều mã — thêm hậu tố cho mã B/C/D
+    # để hai file không trùng tên khi tải về cùng thư mục.
+    code = (getattr(variant, "code", "") or "").upper()
+    if code and code != "A":
+        parts.append(f"ma-{code.lower()}")
+    return "-".join(parts) + ".docx"
+
+
 def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     doc = build_exam_document(exam, variant)
 
@@ -338,9 +508,7 @@ def render_exam_docx(exam: Exam, variant: ExamVariant) -> StreamingResponse:
     doc.save(buffer)
     buffer.seek(0)
 
-    with_key = exam.export_mode == ExportMode.ANSWER_KEY
-    suffix = "dap-an-do" if with_key else "hoc-sinh"
-    filename = f"de-ma-{variant.code.lower()}-{suffix}.docx"
+    filename = export_filename(exam, variant)
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -2,9 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { approveAllQuestions, deleteExam, getExamPreview, listExams } from "../api/exams";
+import { approveAllQuestions, deleteExam, listExams } from "../api/exams";
 import type { ExamSummaryOut } from "../types/exam";
-import type { ExamPreviewOut } from "../types/examPreview";
 import { ExamListPage } from "./ExamListPage";
 
 vi.mock("../api/exams", () => ({
@@ -12,7 +11,6 @@ vi.mock("../api/exams", () => ({
   deleteExam: vi.fn(),
   downloadExportUrl: vi.fn(() => "http://localhost:8000/exams/exam-1/export.docx?variant=A"),
   approveAllQuestions: vi.fn(),
-  getExamPreview: vi.fn(),
 }));
 
 const draftExam: ExamSummaryOut = {
@@ -30,15 +28,6 @@ const draftExam: ExamSummaryOut = {
 
 const draftExamWithQuestions: ExamSummaryOut = { ...draftExam, total_questions: 6 };
 
-const previewData: ExamPreviewOut = {
-  exam_id: "exam-1",
-  title: "Đề kiểm tra mới",
-  total_questions: 0,
-  total_points: "3.0",
-  page_count: 1,
-  pages: [{ page_number: 1, blocks: [] }],
-};
-
 function renderList() {
   return render(
     <MemoryRouter>
@@ -52,8 +41,6 @@ describe("ExamListPage", () => {
     vi.mocked(listExams).mockReset();
     vi.mocked(deleteExam).mockReset();
     vi.mocked(approveAllQuestions).mockReset();
-    vi.mocked(getExamPreview).mockReset();
-    vi.mocked(getExamPreview).mockResolvedValue(previewData);
     vi.spyOn(window, "confirm").mockReset();
   });
 
@@ -161,29 +148,13 @@ describe("ExamListPage", () => {
     expect(await screen.findByText("Không duyệt được đề")).toBeInTheDocument();
   });
 
-  it("mở modal xem trước A4 và gọi đúng API", async () => {
-    const user = userEvent.setup();
+  it("không còn nút xem trước A4", async () => {
+    // Khung xem trước A4 đã bỏ khỏi giao diện (chốt 24/08/2026).
     vi.mocked(listExams).mockResolvedValue([draftExam]);
 
     renderList();
     await screen.findByText("Đề kiểm tra mới");
 
-    await user.click(screen.getByRole("button", { name: "Xem A4" }));
-
-    expect(getExamPreview).toHaveBeenCalledWith("exam-1");
-    expect(await screen.findByText("Xem trước A4 — Đề kiểm tra mới")).toBeInTheDocument();
-  });
-
-  it("hiển thị lỗi trong modal khi xem trước A4 thất bại", async () => {
-    const user = userEvent.setup();
-    vi.mocked(listExams).mockResolvedValue([draftExam]);
-    vi.mocked(getExamPreview).mockRejectedValue(new Error("network down"));
-
-    renderList();
-    await screen.findByText("Đề kiểm tra mới");
-
-    await user.click(screen.getByRole("button", { name: "Xem A4" }));
-
-    expect(await screen.findByText("Không dựng được bản xem trước")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Xem A4" })).not.toBeInTheDocument();
   });
 });

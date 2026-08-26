@@ -18,6 +18,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]
 # Console Windows mac dinh cp1252 -> ep UTF-8 de in duoc tieng Viet/IPA.
 sys.stdout.reconfigure(encoding="utf-8")
 
+from app.services.langsmith_tracing import langsmith_extra, wrap_openai_client
 from app.services.mcq_check import check_multiple_choice
 from app.services.openai_provider import _RESPONSE_SCHEMA
 from app.services.prompts import PROMPT_VERSION, build_system_prompt, build_user_prompt
@@ -62,7 +63,10 @@ def main() -> None:
     system_prompt = build_system_prompt("multiple_choice", args.count, "A2")
     user_prompt = build_user_prompt("Communication in the Future", SAMPLE_CHUNKS, None, None)
 
-    resp = openai.OpenAI(api_key=key).chat.completions.create(
+    # Dùng chung lớp bọc LangSmith với pipeline thật — bật LANGSMITH_TRACING=true để so
+    # token/chi phí giữa hai chế độ có/không why_wrong ngay trên smith.langchain.com.
+    client = wrap_openai_client(openai.OpenAI(api_key=key))
+    resp = client.chat.completions.create(
         model=args.model,
         temperature=0.7,
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
@@ -70,6 +74,10 @@ def main() -> None:
             "type": "json_schema",
             "json_schema": {"name": "question_generation", "schema": schema, "strict": True},
         },
+        **langsmith_extra(
+            name="verify_mcq",
+            metadata={"why_wrong": not args.no_why_wrong, "model": args.model, "count": args.count},
+        ),
     )
     data = json.loads(resp.choices[0].message.content)
 

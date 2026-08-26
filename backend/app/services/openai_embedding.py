@@ -5,10 +5,14 @@
 
 import openai
 
+from app.services.langsmith_tracing import wrap_openai_client
+
 
 class OpenAIEmbeddingClient:
     def __init__(self, api_key: str, model: str):
-        self._client = openai.OpenAI(api_key=api_key)
+        # Bọc tracing để LangSmith đếm cả token embedding (RAG + ingestion), không chỉ
+        # token sinh đề — xem app/services/langsmith_tracing.py.
+        self._client = wrap_openai_client(openai.OpenAI(api_key=api_key))
         self._model = model
 
     def embed_one(self, text: str) -> list[float]:

@@ -41,7 +41,9 @@ GOLDEN_UNIT3_QUESTIONS: dict[str, list[dict]] = {
     ],
     "multiple_choice": [
         {
-            "prompt_text": "We ______ old books and clothes to the children in the village last month.",
+            "prompt_text": (
+                "Khanh Ngoc: What did you do for the village children last month?\nPhuc Hung: We ______ old books and clothes to them."
+            ),
             "options": _opts(("donate", False), ("donated", True), ("will donate", False), ("are donating", False)),
             "answer_text": "B. donated",
             "explanation": '"last month" là dấu hiệu thì quá khứ đơn.',
@@ -49,7 +51,9 @@ GOLDEN_UNIT3_QUESTIONS: dict[str, list[dict]] = {
             "source_ref": "GS7-U3 §5",
         },
         {
-            "prompt_text": "Volunteers in our neighbourhood often ______ elderly people with their daily housework.",
+            "prompt_text": (
+                "Minh Quan: Who helps the elderly people around here?\nGia Linh: Volunteers in our neighbourhood often ______ them with daily housework."
+            ),
             "options": _opts(("help", True), ("helps", False), ("helping", False), ("helped", False)),
             "answer_text": "A. help",
             "explanation": 'Chủ ngữ số nhiều "Volunteers" + thì hiện tại đơn.',
@@ -158,15 +162,13 @@ GOLDEN_UNIT3_QUESTIONS: dict[str, list[dict]] = {
     ],
     "word_form": [
         {
-            "prompt_text": (
-                "Making a ______ (DECIDE) to help others is the first step to becoming a good volunteer."
-            ),
-            "answer_text": "decision",
+            "prompt_text": "Nam and his classmates ______ to clean the school garden every Saturday.",
+            "answer_text": "volunteer",
             "explanation": (
-                "Cần danh từ sau mạo từ 'a' — chuyển DECIDE (v) thành decision (n), theo cặp "
-                "decide/decision trong mục Word Form của Unit 3."
+                "Cần động từ sau chủ ngữ số nhiều — chuyển họ từ volunteer (v) → volunteer (n) → "
+                "voluntary (adj) về dạng động từ, theo mục Word Form của Unit 3."
             ),
-            "target_knowledge": "Word form: verb → noun (decide → decision)",
+            "target_knowledge": "volunteer (v) → volunteer (n) → voluntary (adj)",
             "source_ref": "GS7-U3 §4",
         }
     ],
@@ -215,21 +217,27 @@ GENERIC_TEMPLATES: dict[str, list[dict]] = {
     ],
     "multiple_choice": [
         {
-            "prompt_text": "Every weekend, local volunteers ______ rubbish along the beach near our town.",
+            "prompt_text": (
+                "Gia Linh: What does your club do every weekend?\nMinh Khoa: Local volunteers ______ rubbish along the beach near our town."
+            ),
             "options": _opts(("collect", True), ("collects", False), ("collected", False), ("collecting", False)),
             "answer_text": "A. collect",
             "explanation": '"Every weekend" là dấu hiệu thì hiện tại đơn, chủ ngữ số nhiều.',
             "target_knowledge": "Present Simple",
         },
         {
-            "prompt_text": "The Green Club always ______ old clothes to families in need every winter.",
+            "prompt_text": (
+                "Lan Chi: How does the Green Club help in winter?\nTu Anh: It always ______ old clothes to families in need."
+            ),
             "options": _opts(("donate", False), ("donates", True), ("donating", False), ("donated", False)),
             "answer_text": "B. donates",
             "explanation": '"The Green Club" là chủ ngữ số ít, thì hiện tại đơn.',
             "target_knowledge": "Present Simple",
         },
         {
-            "prompt_text": "Last Saturday, our class ______ a small library for children in the village.",
+            "prompt_text": (
+                "Quang Huy: What did your class do last Saturday?\nBao Han: We ______ a small library for children in the village."
+            ),
             "options": _opts(("built", True), ("build", False), ("builds", False), ("building", False)),
             "answer_text": "A. built",
             "explanation": '"Last Saturday" là dấu hiệu thì quá khứ đơn.',
@@ -303,10 +311,10 @@ GENERIC_TEMPLATES: dict[str, list[dict]] = {
     ],
     "word_form": [
         {
-            "prompt_text": "Volunteering gives young people a great sense of ______ (RESPONSIBLE) towards their community.",
+            "prompt_text": "Volunteering gives young people a great sense of ______ towards their community. (responsible)",
             "answer_text": "responsibility",
-            "explanation": "Cần danh từ sau mạo từ + tính từ 'great sense of', chuyển RESPONSIBLE thành responsibility.",
-            "target_knowledge": "Word form: adjective → noun",
+            "explanation": "Cần danh từ sau 'a great sense of' — chuyển tính từ responsible thành responsibility.",
+            "target_knowledge": "Chuyển tính từ sang danh từ",
         }
     ],
     "sentence_rewrite": [

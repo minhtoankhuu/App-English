@@ -10,9 +10,11 @@ from app.main import app
 from app.models.base import Base
 from app.seed import run_seed
 
+# Cổng 5432 khớp docker-compose.yml. Trước đây mặc định 55432 khiến chạy pytest mà
+# không đặt TEST_DATABASE_URL báo lỗi kết nối hàng loạt, dễ tưởng Docker hỏng (24/08/2026).
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://examcraft:examcraft@localhost:55432/examcraft_test",
+    "postgresql+psycopg://examcraft:examcraft@localhost:5432/examcraft_test",
 )
 
 

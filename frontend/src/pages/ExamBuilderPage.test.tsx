@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
 import type { ExerciseTypeOut, GrammarTopicOut } from "../types/catalog";
 import type { ExamDetailOut } from "../types/exam";
-import type { ExamPreviewOut } from "../types/examPreview";
 import { ExamBuilderPage } from "./ExamBuilderPage";
 
 const examApi = vi.hoisted(() => ({
@@ -16,7 +15,6 @@ const examApi = vi.hoisted(() => ({
   deleteBlockPart: vi.fn(),
   generateExam: vi.fn(),
   getExam: vi.fn(),
-  getExamPreview: vi.fn(),
   reorderBlocks: vi.fn(),
   setGrammarSelection: vi.fn(),
   updateBlock: vi.fn(),
@@ -92,44 +90,6 @@ const exam: ExamDetailOut = {
   blocks,
 };
 
-const preview: ExamPreviewOut = {
-  exam_id: "exam-1",
-  title: "Đề kiểm tra",
-  total_questions: 10,
-  total_points: "2.0",
-  page_count: 1,
-  pages: [
-    {
-      page_number: 1,
-      blocks: [
-        {
-          block_id: "a",
-          section_number: 1,
-          section_label: "I",
-          title: "A",
-          instruction: null,
-          question_start: 1,
-          question_end: 5,
-          question_count: 5,
-          points: "1.0",
-          continuation: false,
-          questions: [
-            {
-              question_number: 1,
-              prompt_text: null,
-              passage_text: null,
-              is_placeholder: true,
-              part_number: null,
-              part_title: null,
-              part_instruction: null,
-            },
-          ],
-        },
-      ],
-    },
-  ],
-};
-
 const wordFormType: ExerciseTypeOut = {
   id: "type-2",
   code: "word_form",
@@ -137,6 +97,15 @@ const wordFormType: ExerciseTypeOut = {
   default_instruction: "",
   has_passage: false,
   order_no: 2,
+};
+
+const matchingType: ExerciseTypeOut = {
+  id: "type-3",
+  code: "matching",
+  name: "Nối câu",
+  default_instruction: "",
+  has_passage: false,
+  order_no: 4,
 };
 
 const pronunciationType: ExerciseTypeOut = {
@@ -157,16 +126,6 @@ const examTwo: ExamDetailOut = {
     ...block,
     id: index === 0 ? "c" : "d",
     title: index === 0 ? "C" : "D",
-  })),
-};
-
-const previewTwo: ExamPreviewOut = {
-  ...preview,
-  exam_id: "exam-2",
-  title: "Đề số hai",
-  pages: preview.pages.map((page) => ({
-    ...page,
-    blocks: page.blocks.map((block) => ({ ...block, block_id: "c", title: "C" })),
   })),
 };
 
@@ -210,7 +169,6 @@ describe("ExamBuilderPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     examApi.getExam.mockResolvedValue(exam);
-    examApi.getExamPreview.mockResolvedValue(preview);
     examApi.addBlock.mockResolvedValue(blocks[0]);
     examApi.deleteBlock.mockResolvedValue(undefined);
     examApi.updateBlock.mockResolvedValue(blocks[0]);
@@ -241,20 +199,20 @@ describe("ExamBuilderPage", () => {
     examApi.deleteBlockPart.mockResolvedValue(blocks[0]);
   });
 
-  it("loads exam and preview together", async () => {
+  it("loads the exam", async () => {
     renderBuilder();
 
-    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
+    expect(await screen.findByTestId("block-a")).toBeInTheDocument();
     expect(examApi.getExam).toHaveBeenCalledWith("exam-1");
-    expect(examApi.getExamPreview).toHaveBeenCalledWith("exam-1");
-    expect(screen.getByLabelText("Bản xem trước đề A4")).toBeInTheDocument();
+    // Khung xem trước A4 đã bỏ khỏi giao diện (chốt 24/08/2026).
+    expect(screen.queryByLabelText("Bản xem trước đề A4")).not.toBeInTheDocument();
   });
 
-  it("edits the exam title inline and refreshes exam and preview", async () => {
+  it("edits the exam title inline and refreshes the exam", async () => {
     const user = userEvent.setup();
     examApi.getExam.mockResolvedValueOnce(exam).mockResolvedValueOnce({ ...exam, title: "Đề kiểm tra (đã sửa)" });
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa tiêu đề đề thi" }));
     const titleInput = screen.getByLabelText("Tiêu đề đề thi");
@@ -269,7 +227,7 @@ describe("ExamBuilderPage", () => {
   it("cancels exam title editing without calling the API", async () => {
     const user = userEvent.setup();
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa tiêu đề đề thi" }));
     await user.click(screen.getByRole("button", { name: "Hủy" }));
@@ -282,90 +240,13 @@ describe("ExamBuilderPage", () => {
     renderBuilderStrict();
 
     expect(await screen.findByTestId("block-a")).toBeInTheDocument();
-    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
-  });
-
-  it("renders the editor while the initial preview is still loading", async () => {
-    let resolvePreview!: (value: ExamPreviewOut) => void;
-    examApi.getExamPreview.mockReturnValueOnce(
-      new Promise<ExamPreviewOut>((resolve) => {
-        resolvePreview = resolve;
-      }),
-    );
-    renderBuilder();
-
     expect(await screen.findByTestId("block-a")).toBeInTheDocument();
-    expect(screen.getByText("Đang dựng bản xem trước...")).toBeInTheDocument();
-
-    await act(async () => resolvePreview(preview));
-    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
   });
 
-  it("renders the preview while the initial exam is still loading", async () => {
-    examApi.getExam.mockReturnValueOnce(new Promise<ExamDetailOut>(() => undefined));
-    renderBuilder();
-
-    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
-    expect(screen.getByText("Đang tải...")).toBeInTheDocument();
-    expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
-  });
-
-  it("retries preview loading in the Builder and clears the active error", async () => {
-    const user = userEvent.setup();
-    let resolveRetry!: (value: ExamPreviewOut) => void;
-    examApi.getExamPreview
-      .mockRejectedValueOnce(new ApiError(503, "Không tải được bản xem trước"))
-      .mockReturnValueOnce(
-        new Promise<ExamPreviewOut>((resolve) => {
-          resolveRetry = resolve;
-        }),
-      );
-    renderBuilder();
-    expect(await screen.findByText("Không tải được bản xem trước")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Thử lại" }));
-    expect(screen.queryByText("Không tải được bản xem trước")).not.toBeInTheDocument();
-    expect(screen.getByText("Đang dựng bản xem trước...")).toBeInTheDocument();
-
-    await act(async () => resolveRetry(preview));
-    expect(await screen.findByText("Trang 1/1")).toBeInTheDocument();
-    expect(examApi.getExamPreview).toHaveBeenCalledTimes(2);
-  });
-
-  it("ignores an older preview response that resolves after a mutation refresh", async () => {
-    const user = userEvent.setup();
-    let resolveInitialPreview!: (value: ExamPreviewOut) => void;
-    let resolveRefreshedPreview!: (value: ExamPreviewOut) => void;
-    examApi.getExamPreview
-      .mockReturnValueOnce(
-        new Promise<ExamPreviewOut>((resolve) => {
-          resolveInitialPreview = resolve;
-        }),
-      )
-      .mockReturnValueOnce(
-        new Promise<ExamPreviewOut>((resolve) => {
-          resolveRefreshedPreview = resolve;
-        }),
-      );
-    renderBuilder();
-    await screen.findByRole("heading", { name: "Đề kiểm tra" });
-
-    await user.click(screen.getByRole("checkbox", { name: "Word form" }));
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
-    await act(async () => resolveRefreshedPreview({ ...preview, title: "Bản mới" }));
-    expect(await screen.findAllByText("BẢN MỚI")).toHaveLength(1);
-
-    await act(async () => resolveInitialPreview({ ...preview, title: "Bản cũ" }));
-    await waitFor(() => expect(screen.queryByText("BẢN CŨ")).not.toBeInTheDocument());
-    expect(screen.getAllByText("BẢN MỚI")).toHaveLength(1);
-  });
-
-  it("ignores deferred exam and preview responses from the previous route", async () => {
+  it("ignores deferred exam responses from the previous route", async () => {
     const user = userEvent.setup();
     let resolveOldExam!: (value: ExamDetailOut) => void;
     let resolveNewExam!: (value: ExamDetailOut) => void;
-    let resolveOldPreview!: (value: ExamPreviewOut) => void;
-    let resolveNewPreview!: (value: ExamPreviewOut) => void;
     examApi.getExam.mockImplementation(
       (targetId: string) =>
         new Promise<ExamDetailOut>((resolve) => {
@@ -373,29 +254,19 @@ describe("ExamBuilderPage", () => {
           else resolveNewExam = resolve;
         }),
     );
-    examApi.getExamPreview.mockImplementation(
-      (targetId: string) =>
-        new Promise<ExamPreviewOut>((resolve) => {
-          if (targetId === "exam-1") resolveOldPreview = resolve;
-          else resolveNewPreview = resolve;
-        }),
-    );
     renderBuilder();
     await user.click(screen.getByRole("button", { name: "Mở đề số hai" }));
 
     await act(async () => {
       resolveNewExam(examTwo);
-      resolveNewPreview(previewTwo);
     });
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
 
     await act(async () => {
       resolveOldExam(exam);
-      resolveOldPreview({ ...preview, title: "Đề cũ về muộn" });
     });
     expect(screen.getByTestId("block-c")).toBeInTheDocument();
     expect(screen.queryByTestId("block-a")).not.toBeInTheDocument();
-    expect(screen.queryByText("Đề cũ về muộn")).not.toBeInTheDocument();
   });
 
   it("ignores stale catalog responses after the route changes", async () => {
@@ -411,9 +282,6 @@ describe("ExamBuilderPage", () => {
       .mockReturnValueOnce(new Promise((resolve) => (resolveOldTopics = resolve)))
       .mockReturnValueOnce(new Promise((resolve) => (resolveNewTopics = resolve)));
     examApi.getExam.mockImplementation((targetId: string) => Promise.resolve(targetId === "exam-1" ? exam : examTwo));
-    examApi.getExamPreview.mockImplementation((targetId: string) =>
-      Promise.resolve(targetId === "exam-1" ? preview : previewTwo),
-    );
     renderBuilder();
     await screen.findByTestId("block-a");
     await user.click(screen.getByRole("button", { name: "Mở đề số hai" }));
@@ -463,7 +331,7 @@ describe("ExamBuilderPage", () => {
     expect(screen.getByRole("heading", { name: "Chọn Ngữ pháp mới" })).toBeInTheDocument();
   });
 
-  it("rolls back reorder and keeps preview after API failure", async () => {
+  it("rolls back reorder after API failure", async () => {
     const user = userEvent.setup();
     examApi.reorderBlocks.mockRejectedValueOnce(new ApiError(500, "Không lưu được thứ tự"));
     renderBuilder();
@@ -472,11 +340,10 @@ describe("ExamBuilderPage", () => {
 
     expect(await screen.findByText("Không lưu được thứ tự")).toBeInTheDocument();
     expect(blockOrder()).toEqual(["block-a", "block-b"]);
-    expect(examApi.getExamPreview).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Trang 1/1")).toBeInTheDocument();
+    expect(examApi.getExam).toHaveBeenCalledTimes(1);
   });
 
-  it("applies reorder immediately, blocks overlap, then uses the API result and refreshes preview", async () => {
+  it("applies reorder immediately, blocks overlap, then uses the API result", async () => {
     const user = userEvent.setup();
     let resolveReorder!: (value: ExamDetailOut) => void;
     examApi.reorderBlocks.mockReturnValueOnce(
@@ -504,7 +371,8 @@ describe("ExamBuilderPage", () => {
     await act(async () => resolveReorder(reorderedExam));
 
     expect(await screen.findByText("B đã lưu")).toBeInTheDocument();
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
+    // Kết quả sắp xếp dùng thẳng phản hồi của API — không tải lại đề.
+    expect(examApi.getExam).toHaveBeenCalledTimes(1);
   });
 
   it("isolates old route fetches, mutations, and locks after navigation", async () => {
@@ -512,23 +380,11 @@ describe("ExamBuilderPage", () => {
     let resolveOldReorder!: (value: ExamDetailOut) => void;
     let resolveNewReorder!: (value: ExamDetailOut) => void;
     let resolveExamTwo!: (value: ExamDetailOut) => void;
-    let resolvePreviewTwo!: (value: ExamPreviewOut) => void;
-    let examTwoPreviewCalls = 0;
     examApi.getExam.mockImplementation((examId: string) => {
       if (examId === "exam-1") return Promise.resolve(exam);
       return new Promise<ExamDetailOut>((resolve) => {
         resolveExamTwo = resolve;
       });
-    });
-    examApi.getExamPreview.mockImplementation((examId: string) => {
-      if (examId === "exam-2") {
-        examTwoPreviewCalls += 1;
-        if (examTwoPreviewCalls > 1) return Promise.resolve(previewTwo);
-        return new Promise<ExamPreviewOut>((resolve) => {
-          resolvePreviewTwo = resolve;
-        });
-      }
-      return Promise.resolve(preview);
     });
     examApi.reorderBlocks.mockImplementation((examId: string) =>
       new Promise<ExamDetailOut>((resolve) => {
@@ -547,12 +403,10 @@ describe("ExamBuilderPage", () => {
     expect(screen.getByText("Đang tải...")).toBeInTheDocument();
 
     await act(async () => {
-      resolvePreviewTwo(previewTwo);
       resolveExamTwo(examTwo);
     });
     expect(await screen.findByTestId("block-c")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Đề số hai" })).toBeInTheDocument();
-    expect(screen.getByText("ĐỀ SỐ HAI")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Xuống C" }));
     expect(screen.getByRole("checkbox", { name: "Trắc nghiệm" })).toBeDisabled();
 
@@ -584,7 +438,7 @@ describe("ExamBuilderPage", () => {
     expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
 
     await act(async () => resolveAdd(blocks[0]!));
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(examApi.getExam).toHaveBeenCalledTimes(2));
     expect(screen.queryByText("Không lưu được thứ tự")).not.toBeInTheDocument();
   });
 
@@ -598,30 +452,29 @@ describe("ExamBuilderPage", () => {
 
     expect(await screen.findByText("Không tải được đề")).toBeInTheDocument();
     expect(screen.getByTestId("block-a")).toBeInTheDocument();
-    expect(screen.getByText("Trang 1/1")).toBeInTheDocument();
   });
 
-  it("refreshes exam and preview after add, delete, update, and grammar mutations", async () => {
+  it("refreshes the exam after add, delete, update, and grammar mutations", async () => {
     const user = userEvent.setup();
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("checkbox", { name: "Word form" }));
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(examApi.getExam).toHaveBeenCalledTimes(2));
 
     await user.click(screen.getByRole("button", { name: "Xóa A" }));
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(examApi.getExam).toHaveBeenCalledTimes(3));
 
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
     const questionCount = screen.getByLabelText("Số câu");
     await user.clear(questionCount);
     await user.type(questionCount, "8");
     await user.click(screen.getByRole("button", { name: "Lưu" }));
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(examApi.getExam).toHaveBeenCalledTimes(4));
 
     await user.click(screen.getByRole("checkbox", { name: /Hiện tại đơn/ }));
     await user.click(screen.getByRole("button", { name: "Lưu lựa chọn" }));
-    await waitFor(() => expect(examApi.getExamPreview).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(examApi.getExam).toHaveBeenCalledTimes(5));
 
     expect(examApi.getExam).toHaveBeenCalledTimes(5);
     expect(examApi.updateBlock).toHaveBeenCalledWith("exam-1", "a", {
@@ -641,24 +494,49 @@ describe("ExamBuilderPage", () => {
 
   it("ticking an exercise type without a block adds one with default count and points", async () => {
     const user = userEvent.setup();
+    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, matchingType]);
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
+
+    await user.click(screen.getByRole("checkbox", { name: "Nối câu" }));
+
+    expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
+      exercise_type_id: "type-3",
+      title: "MATCHING",
+      question_count: 5,
+      points: 1,
+    });
+  });
+
+  it("ticking Word form creates 1 block with Phần A/B pinned to one kiểu each", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("checkbox", { name: "Word form" }));
 
     expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
       exercise_type_id: "type-2",
-      title: "WORD FORM",
-      question_count: 5,
-      points: 1,
+      title: "WORD FORMATION",
+      question_count: 15,  // 3 họ từ × 5 câu
+      points: 2,
     });
+    await waitFor(() => expect(examApi.addBlockPart).toHaveBeenCalledTimes(2));
+    const kinds = vi.mocked(examApi.addBlockPart).mock.calls.map(([, , part]) => part.prompt_override);
+    // Hai phần phải ghim HAI kiểu khác nhau — nếu trùng thì Part B ra đề giống hệt Part A.
+    expect(new Set(kinds).size).toBe(2);
+    expect(kinds[0]).toContain("(A)");
+    expect(kinds[1]).toContain("(B)");
+    // Phần A lưu theo SỐ CÂU (3 họ từ × 5) để khớp tổng số câu của block.
+    const counts = vi.mocked(examApi.addBlockPart).mock.calls.map(([, , part]) => part.question_count);
+    expect(counts).toEqual([15, 15]);
   });
 
   it("ticking Pronunciation creates 1 block with 3 Phần con, each pinned to one kiểu", async () => {
     const user = userEvent.setup();
     catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType, pronunciationType]);
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("checkbox", { name: "Phát âm" }));
 
@@ -689,7 +567,7 @@ describe("ExamBuilderPage", () => {
   it("unticking an exercise type deletes every block of that type", async () => {
     const user = userEvent.setup();
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("checkbox", { name: "Trắc nghiệm" }));
 
@@ -700,7 +578,7 @@ describe("ExamBuilderPage", () => {
   it("lets the question count field go empty instead of snapping back to 0 while retyping", async () => {
     const user = userEvent.setup();
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
     const questionCount = screen.getByLabelText("Số câu");
@@ -754,82 +632,172 @@ describe("ExamBuilderPage", () => {
     });
   });
 
-  it("adds a sub-part and disables the block-level question count once a part exists", async () => {
+  it("edits sub-part counts inside the main block form, with no add/delete UI", async () => {
+    // Chốt 24/08/2026: bỏ hẳn khu "Phần con" — mỗi dạng bài đã chia sẵn theo format đề
+    // thật, giáo viên chỉ chỉnh số lượng ngay trong form chính.
     const user = userEvent.setup();
-    const blockWithPart = {
-      ...blocks[0]!,
-      question_count: 5,
-      parts: [{ id: "part-1", order_no: 1, title: "So sánh kép", instruction: null, question_count: 5, prompt_override: null }],
-    };
-    examApi.addBlockPart.mockResolvedValue(blockWithPart);
-    renderBuilder();
-    await screen.findByText("Trang 1/1");
-
-    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
-    await user.type(screen.getByLabelText("Tiêu đề phần con"), "So sánh kép");
-    await user.click(screen.getByRole("button", { name: "+ Thêm phần con" }));
-
-    expect(examApi.addBlockPart).toHaveBeenCalledWith("exam-1", "a", {
-      title: "So sánh kép",
-      instruction: null,
-      question_count: 5,
-      prompt_override: null,
-    });
-    expect(await screen.findByText(/1\. So sánh kép/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Số câu")).toBeDisabled();
-  });
-
-  it("edits and deletes an existing sub-part", async () => {
-    const user = userEvent.setup();
-    const existingPart = { id: "part-1", order_no: 1, title: "So sánh kép", instruction: null, question_count: 5, prompt_override: null };
-    const blockWithPart = { ...blocks[0]!, question_count: 5, parts: [existingPart] };
-    const blockWithoutPart = { ...blocks[0]!, parts: [] };
-    examApi.getExam.mockResolvedValue({ ...exam, blocks: [blockWithPart, blocks[1]!] });
-    examApi.updateBlockPart.mockResolvedValue({ ...blockWithPart, parts: [{ ...existingPart, question_count: 8 }] });
-    examApi.deleteBlockPart.mockResolvedValue(blockWithoutPart);
-    renderBuilder();
-    await screen.findByText("Trang 1/1");
-
-    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
-    await user.click(screen.getByRole("button", { name: "Sửa" }));
-    expect(screen.getByLabelText("Tiêu đề phần con")).toHaveValue("So sánh kép");
-
-    await user.clear(screen.getByLabelText("Số câu của phần con"));
-    await user.type(screen.getByLabelText("Số câu của phần con"), "8");
-    await user.click(screen.getByRole("button", { name: "Lưu phần con" }));
-
-    expect(examApi.updateBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1", {
-      title: "So sánh kép",
-      instruction: null,
-      question_count: 8,
-      prompt_override: null,
-    });
-
-    await user.click(await screen.findByRole("button", { name: "Xóa" }));
-    expect(examApi.deleteBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-1");
-  });
-
-  it("ẩn form thêm phần con mới ở block Pronunciation nhưng vẫn sửa được phần đã có", async () => {
-    const user = userEvent.setup();
-    const pronunciationPart = {
-      id: "part-1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5,
-      prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
-    };
+    const pronunciationParts = [
+      { id: "p1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5, prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es." },
+      { id: "p2", order_no: 2, title: "Đuôi -ed", instruction: null, question_count: 5, prompt_override: "Chỉ dùng kiểu (2) đuôi -ed." },
+    ];
     const pronunciationBlock = {
       ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
-      question_count: 5, parts: [pronunciationPart],
+      question_count: 10, parts: pronunciationParts,
     };
     examApi.getExam.mockResolvedValue({ ...exam, blocks: [pronunciationBlock, blocks[1]!] });
     renderBuilder();
-    await screen.findByText("Trang 1/1");
+    await screen.findByTestId("block-pron-block");
 
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
 
+    // Không còn thêm/xóa/sửa riêng phần con
     expect(screen.queryByRole("button", { name: "+ Thêm phần con" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lưu phần con" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sửa" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tiêu đề phần con")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Sửa" }));
+    // Mỗi phần con là một ô số ngay trong form chính
+    expect(screen.getByLabelText(/Đuôi -s\/-es/)).toHaveValue(5);
+    expect(screen.getByLabelText(/Đuôi -ed/)).toHaveValue(5);
+  });
 
-    expect(screen.getByLabelText("Tiêu đề phần con")).toHaveValue("Đuôi -s/-es");
-    expect(screen.getByRole("button", { name: "Lưu phần con" })).toBeInTheDocument();
+  it("updates the block question total live while typing a sub-part count", async () => {
+    const user = userEvent.setup();
+    const parts = [
+      { id: "p1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5, prompt_override: null },
+      { id: "p2", order_no: 2, title: "Đuôi -ed", instruction: null, question_count: 5, prompt_override: null },
+    ];
+    const block = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 10, parts,
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [block, blocks[1]!] });
+    renderBuilder();
+    await screen.findByTestId("block-pron-block");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+    expect(screen.getByLabelText("Số câu")).toHaveValue(10);
+
+    await user.clear(screen.getByLabelText(/Đuôi -ed/));
+    await user.type(screen.getByLabelText(/Đuôi -ed/), "8");
+
+    // 5 + 8 = 13, cập nhật ngay chứ không đợi bấm Lưu
+    expect(screen.getByLabelText("Số câu")).toHaveValue(13);
+  });
+
+  it("saves changed sub-part counts together with the block", async () => {
+    const user = userEvent.setup();
+    const parts = [
+      { id: "p1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5, prompt_override: "kiểu (1)" },
+      { id: "p2", order_no: 2, title: "Đuôi -ed", instruction: null, question_count: 5, prompt_override: "kiểu (2)" },
+    ];
+    const block = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 10, parts,
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [block, blocks[1]!] });
+    renderBuilder();
+    await screen.findByTestId("block-pron-block");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+    await user.clear(screen.getByLabelText(/Đuôi -ed/));
+    await user.type(screen.getByLabelText(/Đuôi -ed/), "8");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    // Chỉ phần đổi mới được gửi đi; tiêu đề/prompt giữ nguyên
+    await waitFor(() => expect(examApi.updateBlockPart).toHaveBeenCalledTimes(1));
+    expect(examApi.updateBlockPart).toHaveBeenCalledWith("exam-1", "pron-block", "p2", {
+      title: "Đuôi -ed",
+      instruction: null,
+      question_count: 8,
+      prompt_override: "kiểu (2)",
+    });
+  });
+
+  it("word form asks for Số họ từ / Số từ, not số câu (1 họ từ = 5 câu)", async () => {
+    // Giáo viên nghĩ theo "bài này ra mấy từ" (chốt 24/08/2026); DB vẫn lưu theo số câu
+    // vì block.question_count = tổng question_count các phần con.
+    const user = userEvent.setup();
+    const partA = {
+      id: "part-a", order_no: 1, title: "Part A. Fill in the blanks with the correct form of the words",
+      instruction: null, question_count: 15,
+      prompt_override: "Chỉ dùng kiểu (A) nhóm theo họ từ cho toàn bộ các câu.",
+    };
+    const partB = {
+      id: "part-b", order_no: 2, title: "Part B. Fill in the blanks with the correct form of the word in brackets.",
+      instruction: null, question_count: 6,
+      prompt_override: "Chỉ dùng kiểu (B) từ gốc trong ngoặc ở cuối câu cho toàn bộ các câu.",
+    };
+    const wfBlock = {
+      ...blocks[0]!, title: "WORD FORMATION", exercise_type: wordFormType,
+      question_count: 21, parts: [partA, partB],
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [wfBlock, blocks[1]!] });
+    renderBuilder();
+    await screen.findByTestId("block-a");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa WORD FORMATION" }));
+
+    // Phần A hiện 3 (họ từ) chứ không phải 15 (câu); Phần B 1 từ = 1 câu
+    expect(screen.getByLabelText(/Phần A — Số họ từ/)).toHaveValue(3);
+    expect(screen.getByLabelText(/Phần B — Số từ/)).toHaveValue(6);
+
+    await user.clear(screen.getByLabelText(/Phần A — Số họ từ/));
+    await user.type(screen.getByLabelText(/Phần A — Số họ từ/), "4");
+
+    // 4 họ từ = 20 câu, tổng khối 20 + 6
+    expect(screen.getByLabelText("Số câu")).toHaveValue(26);
+
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() =>
+      expect(examApi.updateBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-a",
+        expect.objectContaining({ question_count: 20 })),
+    );
+  });
+
+  it("lets the teacher set how many questions each word family gets", async () => {
+    // Chốt 24/08/2026: 1 set word form là 5-7 câu do giáo viên đặt, không cố định 5.
+    const user = userEvent.setup();
+    const partA = {
+      id: "part-a", order_no: 1, title: "Part A", instruction: null, question_count: 15,
+      prompt_override: "Chỉ dùng kiểu (A) nhóm theo họ từ cho toàn bộ các câu.",
+    };
+    const wfBlock = {
+      ...blocks[0]!, title: "WORD FORMATION", exercise_type: wordFormType,
+      question_count: 15, parts: [partA],
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [wfBlock, blocks[1]!] });
+    renderBuilder();
+    await screen.findByTestId("block-a");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa WORD FORMATION" }));
+    expect(screen.getByLabelText(/Số câu mỗi họ từ/)).toHaveValue(5);
+
+    await user.clear(screen.getByLabelText(/Số câu mỗi họ từ/));
+    await user.type(screen.getByLabelText(/Số câu mỗi họ từ/), "7");
+
+    // Giữ nguyên 3 họ từ -> tổng thành 21 câu
+    expect(screen.getByLabelText(/Phần A — Số họ từ/)).toHaveValue(3);
+    expect(screen.getByLabelText("Số câu")).toHaveValue(21);
+
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() =>
+      expect(examApi.updateBlockPart).toHaveBeenCalledWith("exam-1", "a", "part-a",
+        expect.objectContaining({
+          question_count: 21,
+          prompt_override: expect.stringContaining("Mỗi họ từ 7 câu."),
+        })),
+    );
+  });
+
+  it("shows no sub-part section for types without parts", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTestId("block-a");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa A" }));
+
+    expect(screen.queryByText("Số lượng từng phần")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Số câu")).toBeEnabled();
   });
 });

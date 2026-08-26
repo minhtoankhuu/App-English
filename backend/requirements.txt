@@ -20,3 +20,6 @@ pyspellchecker==0.8.2
 # Từ điển phát âm CMU (offline) để suy nguyên âm giữa từ, kiểm tra quy tắc 3-1 cho
 # dạng "âm trong từ" — xem app/services/pronunciation_sounds.py
 cmudict==1.0.32
+# Tracing LangSmith (tắt mặc định, bật bằng LANGSMITH_TRACING=true) để xem token/chi phí/
+# prompt của từng lần sinh đề — xem app/services/langsmith_tracing.py
+langsmith==0.11.1
