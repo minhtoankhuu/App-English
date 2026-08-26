@@ -6,7 +6,9 @@ import type { ExamDetailOut, ExportMode } from "../types/exam";
 import { useRouteGeneration, type RouteGenerationToken } from "../routing/useRouteGeneration";
 import { StepsIndicator } from "../components/StepsIndicator";
 
-const VARIANT_CODES = ["A", "B", "C", "D"];
+// Giao diện chỉ xuất 1 mã đề (yêu cầu chủ dự án 24/08/2026): giáo viên không dùng tới
+// trộn đề A/B/C/D, và đề in ra cũng đã bỏ dòng "MÃ ĐỀ". Backend vẫn hỗ trợ nhiều mã.
+const SINGLE_VARIANT = "A";
 
 interface SaveOperation {
   id: number;
@@ -24,7 +26,6 @@ export function ExamExportPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>("plain");
-  const [variantCount, setVariantCount] = useState(1);
   const activeSave = useRef<SaveOperation | null>(null);
   const nextOperationId = useRef(0);
 
@@ -34,7 +35,6 @@ export function ExamExportPage() {
       if (!routeGeneration.isCurrent(token) || detail.id !== targetExamId) return false;
       setExam(detail);
       setExportMode(detail.export_mode ?? "plain");
-      setVariantCount(detail.variant_count || 1);
       setError(null);
       return true;
     } catch (err) {
@@ -49,7 +49,6 @@ export function ExamExportPage() {
     setError(null);
     setSaving(false);
     setExportMode("plain");
-    setVariantCount(1);
     activeSave.current = null;
     if (!examId) return;
     const token = routeGeneration.capture();
@@ -64,13 +63,12 @@ export function ExamExportPage() {
     if (!examId || activeSave.current) return;
     const targetExamId = examId;
     const targetMode = exportMode;
-    const targetVariantCount = variantCount;
     const operation = { id: ++nextOperationId.current, route: routeGeneration.capture() };
     activeSave.current = operation;
     setSaving(true);
     setError(null);
     try {
-      await saveExportConfig(targetExamId, { export_mode: targetMode, variant_count: targetVariantCount });
+      await saveExportConfig(targetExamId, { export_mode: targetMode, variant_count: 1 });
       if (!isCurrentSave(operation)) return;
       await reload(targetExamId, operation.route);
     } catch (err) {
@@ -113,16 +111,6 @@ export function ExamExportPage() {
             </label>
           </div>
 
-          <label>
-            Số mã đề
-            <select value={variantCount} onChange={(e) => setVariantCount(Number(e.target.value))}>
-              <option value={1}>1 mã</option>
-              <option value={2}>2 mã (A/B)</option>
-              <option value={3}>3 mã (A/B/C)</option>
-              <option value={4}>4 mã (A/B/C/D)</option>
-            </select>
-          </label>
-
           <div className="export-actions">
             <button type="button" onClick={handleSave} disabled={saving} className="button primary">
               {saving ? "Đang lưu..." : "Lưu vào Đề của tôi"}
@@ -131,14 +119,9 @@ export function ExamExportPage() {
 
           {exam.status === "ready" && (
             <div style={{ marginTop: 4, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Tải DOCX:</p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {VARIANT_CODES.slice(0, exam.variant_count).map((code) => (
-                  <a key={code} href={downloadExportUrl(exam.id, code)} className="button secondary compact">
-                    Mã đề {code}
-                  </a>
-                ))}
-              </div>
+              <a href={downloadExportUrl(exam.id, SINGLE_VARIANT)} className="button secondary compact">
+                Tải DOCX
+              </a>
             </div>
           )}
         </section>

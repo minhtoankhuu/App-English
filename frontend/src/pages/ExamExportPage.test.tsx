@@ -63,7 +63,7 @@ describe("ExamExportPage route isolation", () => {
     await act(async () => oldLoad.resolve(makeExam("exam-1", "Old exam")));
 
     expect(screen.queryByText("Old exam")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Mã đề A" })).toHaveAttribute("href", "/download/exam-2/A");
+    expect(screen.getByRole("link", { name: "Tải DOCX" })).toHaveAttribute("href", "/download/exam-2/A");
   });
 
   it("does not let an old save reload the new route", async () => {
@@ -95,6 +95,26 @@ describe("ExamExportPage route isolation", () => {
     await act(async () => oldSave.reject(new Error("old failure")));
 
     expect(screen.queryByText("Chưa lưu được cấu hình xuất")).not.toBeInTheDocument();
+  });
+
+  it("offers a single download link without variant codes", async () => {
+    // Giao diện bỏ chọn số mã đề: dù đề cũ đã lưu variant_count=4 vẫn chỉ hiện 1 nút.
+    vi.mocked(examApi.getExam).mockResolvedValue({ ...makeExam("exam-1", "Current exam"), variant_count: 4 });
+    renderExport();
+
+    expect(await screen.findByRole("link", { name: "Tải DOCX" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Mã đề/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Số mã đề")).not.toBeInTheDocument();
+  });
+
+  it("always saves a single variant", async () => {
+    vi.mocked(examApi.getExam).mockResolvedValue(makeExam("exam-1", "Current exam"));
+    const user = userEvent.setup();
+    renderExport();
+
+    await user.click(await screen.findByRole("button", { name: "Lưu vào Đề của tôi" }));
+
+    expect(examApi.saveExportConfig).toHaveBeenCalledWith("exam-1", { export_mode: "plain", variant_count: 1 });
   });
 
   it("keeps the current form and shows a reload error after save", async () => {

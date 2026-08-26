@@ -217,10 +217,10 @@ def test_full_golden_flow_create_generate_review_export(client, seeded_db):
     doc = Document(io.BytesIO(resp.content))
     full_text = "\n".join(p.text for p in doc.paragraphs)
     assert "UNIT 3 — REVISION TEST" in full_text
-    assert "MÃ ĐỀ A" in full_text
+    assert "MÃ ĐỀ" not in full_text  # không in mã đề lên đầu đề
     assert "PRONUNCIATION" in full_text
     assert "School:" not in full_text
-    assert "Full name:" in full_text
+    assert "Full name:" not in full_text  # giáo viên tự thêm khối thông tin học sinh
     assert "Mark:" not in full_text
     # đáp án tô đỏ (mã đề đáp án): có ít nhất 1 run màu trong file
     red_runs = [r for p in doc.paragraphs for r in p.runs if r.font.color and r.font.color.rgb is not None]
