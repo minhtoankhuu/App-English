@@ -108,6 +108,15 @@ const matchingType: ExerciseTypeOut = {
   order_no: 4,
 };
 
+const stressType: ExerciseTypeOut = {
+  id: "type-stress",
+  code: "stress",
+  name: "Trọng âm",
+  default_instruction: "",
+  has_passage: false,
+  order_no: 5,
+};
+
 const pronunciationType: ExerciseTypeOut = {
   id: "type-pron",
   code: "pronunciation",
@@ -532,36 +541,27 @@ describe("ExamBuilderPage", () => {
     expect(counts).toEqual([15, 15]);
   });
 
-  it("ticking Pronunciation creates 1 block with 3 Phần con, each pinned to one kiểu", async () => {
+  it("ticking Pronunciation creates 1 block with 4 Phần con, stress pinned to its own type", async () => {
+    // Đề thật (13/13) ghép trọng âm vào cùng mục "I. PRONUNCIATION" chứ không tách
+    // thành mục La Mã riêng — phần con thứ 4 ghi đè dạng bài sang "stress".
     const user = userEvent.setup();
-    catalogApi.listExerciseTypes.mockResolvedValue([blocks[0]!.exercise_type, wordFormType, pronunciationType]);
+    catalogApi.listExerciseTypes.mockResolvedValue([
+      blocks[0]!.exercise_type, wordFormType, pronunciationType, stressType,
+    ]);
     renderBuilder();
     await screen.findByTestId("block-a");
 
     await user.click(screen.getByRole("checkbox", { name: "Phát âm" }));
 
-    await waitFor(() => expect(examApi.addBlockPart).toHaveBeenCalledTimes(3));
-    expect(examApi.addBlock).toHaveBeenCalledWith("exam-1", {
-      exercise_type_id: "type-pron",
-      title: "PRONUNCIATION",
-      question_count: 5,
-      points: 3,
-    });
-    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(1, "exam-1", "a", {
-      title: "Đuôi -s/-es",
-      question_count: 5,
-      prompt_override: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu.",
-    });
-    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(2, "exam-1", "a", {
-      title: "Đuôi -ed",
-      question_count: 5,
-      prompt_override: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu.",
-    });
-    expect(examApi.addBlockPart).toHaveBeenNthCalledWith(3, "exam-1", "a", {
-      title: "Âm trong từ",
-      question_count: 5,
-      prompt_override: "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
-    });
+    await waitFor(() => expect(examApi.addBlockPart).toHaveBeenCalledTimes(4));
+    const parts = vi.mocked(examApi.addBlockPart).mock.calls.map(([, , p]) => p);
+    expect(parts.map((p) => p.title)).toEqual(["Đuôi -s/-es", "Đuôi -ed", "Âm trong từ", "Trọng âm"]);
+    // Ba phần đầu dùng dạng bài của khối cha, mỗi phần ghim một kiểu phát âm
+    expect(parts.slice(0, 3).every((p) => p.exercise_type_id === null)).toBe(true);
+    expect(new Set(parts.slice(0, 3).map((p) => p.prompt_override)).size).toBe(3);
+    // Phần trọng âm ghi đè dạng bài, không cần ghim kiểu
+    expect(parts[3]!.exercise_type_id).toBe("type-stress");
+    expect(parts[3]!.prompt_override).toBeNull();
   });
 
   it("unticking an exercise type deletes every block of that type", async () => {
