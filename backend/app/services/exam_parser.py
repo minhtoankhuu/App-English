@@ -31,6 +31,8 @@ _BLANK_RE = re.compile(r"_{3,}")
 _SECTION_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("PRONUNCIATION", "pronunciation"),
     ("STRESS", "stress"),
+    ("WORD ENTRY", "word_entry"),
+    ("ENTRY DICTIONARY", "word_entry"),
     ("WORD FORMATION", "word_form"),
     ("WORD FORM", "word_form"),
     ("TRANSFORMATION", "sentence_rewrite"),
@@ -51,7 +53,7 @@ _INSTRUCTION_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("PRONOUNCED DIFFERENTLY", "pronunciation"),
 )
 # Dạng có bài đọc: dòng lựa chọn đứng một mình vô nghĩa khi tách khỏi đoạn văn.
-_PASSAGE_TYPES = frozenset({"cloze_test", "reading_true_false"})
+_PASSAGE_TYPES = frozenset({"cloze_test", "reading_true_false", "word_entry"})
 # Đoạn văn của bài đọc không đánh số và có thể không chứa chỗ trống (dạng True/False) —
 # nhận ra nó bằng độ dài, vì câu lệnh và tiêu đề bài đọc luôn ngắn hơn nhiều.
 _MIN_PASSAGE_CHARS = 80
