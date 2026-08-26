@@ -39,6 +39,13 @@ class BlockSpec:
     level_code: str
     passage_word_target: int | None = None
     prompt_override: str | None = None
+    # Câu truy vấn RAG, TÁCH RIÊNG khỏi prompt_override. Hai thứ này khác mục đích:
+    # prompt_override là chỉ thị cho model (tiếng Việt, dài, mang mệnh lệnh), còn truy
+    # vấn cần là từ khoá nội dung để khớp với mục từ trong sách. Trước đây dùng chung
+    # prompt_override làm truy vấn — đúng khi chỉ giáo viên nhập, nhưng từ khi hệ thống
+    # tự sinh chỉ thị (ghim kiểu bài, ghim họ từ) thì cả đoạn tiếng Việt đó thành câu
+    # truy vấn, làm plainto_tsquery trượt sạch và vector search lệch hẳn.
+    retrieval_query: str | None = None
 
 
 @dataclass

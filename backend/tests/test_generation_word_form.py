@@ -16,6 +16,7 @@ from app.services.generation import (
     _MAX_FAMILY_ATTEMPTS,
     _distinct_families,
     _pinned_family,
+    _retrieval_query,
     _word_form_bracket_drafts,
     _shuffle_keeping_family_groups,
     word_form_questions_per_family,
@@ -382,3 +383,62 @@ def test_bracket_check_accepts_another_form_of_the_same_family():
 def test_word_family_members():
     assert word_family_members(FAMILIES[0]) == {"science", "scientist", "scientific"}
     assert word_family_members(None) == set()
+
+
+# --- câu truy vấn RAG tách khỏi chỉ thị cho model ---------------------------
+
+CTX_UNIT = GenerationContext(
+    grade_number=7, school_stage_code="thcs", exam_level_code="A2", unit_title="Healthy Living"
+)
+
+
+def test_retrieval_query_is_english_keywords_plus_unit():
+    assert _retrieval_query(CTX_UNIT, "collect") == "collect Healthy Living"
+
+
+def test_retrieval_query_skips_empty_terms():
+    assert _retrieval_query(CTX_UNIT, None, "", "grow") == "grow Healthy Living"
+
+
+def test_retrieval_query_never_empty():
+    """OpenAI embeddings từ chối chuỗi rỗng."""
+    bare = GenerationContext(grade_number=7, school_stage_code="thcs", exam_level_code="A2")
+    assert _retrieval_query(bare, None).strip()
+
+
+def test_family_call_queries_by_seed_word_not_the_vietnamese_instruction():
+    """Trước đây cả đoạn "Cả 5 câu lần này dùng CHUNG đúng MỘT họ từ... BẮT BUỘC lấy họ
+    từ của từ 'collect'..." trở thành câu truy vấn RAG: plainto_tsquery (AND toàn bộ từ)
+    trượt sạch, vector search lệch hẳn."""
+
+    class CaptureProvider(FamilyProvider):
+        def __init__(self):
+            super().__init__()
+            self.queries: list[str | None] = []
+
+        def generate(self, spec, context):
+            self.queries.append(spec.retrieval_query)
+            return super().generate(spec, context)
+
+    provider = CaptureProvider()
+    _word_form_family_drafts(provider, replace(SPEC, question_count=10), CTX_UNIT, UNIT_WORDS)
+
+    assert provider.queries == ["collect Healthy Living", "benefit Healthy Living"]
+    # Chỉ thị vẫn đầy đủ cho model, chỉ là không dùng làm truy vấn nữa
+    assert all("dùng CHUNG đúng MỘT họ từ" in o for o in provider.seen_overrides)
+
+
+def test_bracket_call_queries_by_family_words():
+    class CaptureProvider(BracketProvider):
+        def __init__(self):
+            super().__init__()
+            self.queries: list[str | None] = []
+
+        def generate(self, spec, context):
+            self.queries.append(spec.retrieval_query)
+            return super().generate(spec, context)
+
+    provider = CaptureProvider()
+    _word_form_bracket_drafts(provider, replace(BRACKET_SPEC, question_count=3), CTX_UNIT, FAMILIES[:1])
+
+    assert provider.queries == ["science scientific scientist Healthy Living"]
