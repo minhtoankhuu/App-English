@@ -14,7 +14,7 @@ from app.models.ai_config import AIProviderConfig
 from app.models.exam import Exam, ExamBlock, ExamBlockPart, Question
 from app.models.exercise import ExerciseType
 from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, GenerationContext, QuestionDraft
-from app.services.docx_renderer import split_bracket_root, word_family_label
+from app.services.docx_renderer import normalize_bracket_root, split_bracket_root, word_family_label
 from app.services.exam_pronunciation import build_from_exam_items
 from app.services.ai_provider_factory import get_active_provider
 from app.services.crypto import decrypt_api_key
@@ -356,6 +356,9 @@ def _strip_word_form_extras(drafts: list[QuestionDraft], *, kind: str | None) ->
     """
     for draft in drafts:
         draft.options = None
+        # Đưa từ gốc về cuối câu TRƯỚC đã, rồi mới cắt — model đặt ngoặc giữa câu thì
+        # split_bracket_root không thấy gì để cắt, và bộ kiểm cũng không thấy gì để kiểm.
+        draft.prompt_text = normalize_bracket_root(draft.prompt_text)
         if kind == "family":
             sentence, root = split_bracket_root(draft.prompt_text)
             if root:
