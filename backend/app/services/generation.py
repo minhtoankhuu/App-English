@@ -504,17 +504,25 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
     for part in groups:
         count = part.question_count if part else block.question_count
         prompt_override = (part.prompt_override if part and part.prompt_override else block.prompt_override)
+        # Phần con được phép khác dạng bài với khối cha (đề thật gộp trọng âm vào mục
+        # PRONUNCIATION) — mọi thứ từ đây phải theo dạng bài CỦA PHẦN CON.
+        part_type = part.exercise_type if part and part.exercise_type_id else exercise_type
         spec = BlockSpec(
-            exercise_type_code=exercise_type.code,
+            exercise_type_code=part_type.code,
             question_count=count,
             level_code=effective_level.code,
             passage_word_target=block.passage_word_target,
             prompt_override=prompt_override,
         )
         word_form_kind = (
-            detect_word_form_kind(prompt_override) if exercise_type.code == "word_form" else None
+            detect_word_form_kind(prompt_override) if part_type.code == "word_form" else None
         )
-        drafts = _deterministic_pronunciation_drafts(spec, unit_words, exam_lines)
+        part_exam_lines = (
+            exam_examples(db, unit_id=exam.unit_id, exercise_type_code=part_type.code, limit=400)
+            if part_type.code in _PRONUNCIATION_TYPES
+            else exam_lines
+        )
+        drafts = _deterministic_pronunciation_drafts(spec, unit_words, part_exam_lines)
         if drafts is not None:
             pass
         elif word_form_kind == "family":
@@ -531,7 +539,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             # Model đôi khi trả nhiều/ít hơn số câu yêu cầu dù prompt đã ghi rõ (đề thật
             # 07/08/2026: xin 8 câu, trả 9) -> cắt đúng số câu để block không lệch.
             drafts = drafts[:count]
-            if exercise_type.code == "word_form":
+            if part_type.code == "word_form":
                 _strip_word_form_extras(drafts, kind=word_form_kind)
         draft_embeddings = _embed_drafts(embedding_client, drafts)
 
@@ -543,7 +551,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             warnings = validate_draft(
                 db,
                 draft,
-                exercise_type=exercise_type,
+                exercise_type=part_type,
                 grade_number=grade.number,
                 school_stage_id=grade.school_stage_id,
                 exam_level_rank=exam_level.rank,

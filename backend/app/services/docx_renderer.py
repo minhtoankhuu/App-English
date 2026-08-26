@@ -340,8 +340,12 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
             f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} {point_label})"
         )
         _set_font(heading_run, bold=True)
-        if block.instruction:
-            _add_block_instruction(doc, block.instruction)
+        # Khối tạo trước khi có cơ chế điền câu lệnh mặc định thì instruction để trống —
+        # rơi về câu lệnh của dạng bài ngay lúc render, để đề cũ tải lại là có luôn,
+        # không phải tạo lại đề (cùng cách với dedupe_pronunciation_suffix).
+        block_instruction = block.instruction or getattr(block.exercise_type, "default_instruction", "")
+        if block_instruction:
+            _add_block_instruction(doc, block_instruction)
 
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])
         by_id = {str(q.id): q for q in block.questions}

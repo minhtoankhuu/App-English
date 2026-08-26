@@ -29,7 +29,14 @@ import { useUsage } from "../usage/UsageContext";
 // app/services/prompts.py) — tick "Pronunciation" tạo 1 block chung "PRONUNCIATION"
 // (đánh số I/II/III như dạng bài khác) kèm sẵn 3 Phần con đánh số 1/2/3 bên trong,
 // mỗi phần ghim đúng 1 kiểu qua prompt_override, thay vì bắt giáo viên tự thêm.
-const PRONUNCIATION_PART_PRESETS: { title: string; promptOverride: string }[] = [
+// Phần con thứ 4 là TRỌNG ÂM — đề thật (13/13) ghép trọng âm vào cùng mục
+// "I. PRONUNCIATION" thay vì tách thành mục La Mã riêng. Phần đó ghi đè dạng bài
+// (exerciseTypeCode) vì trọng âm khác bộ dựng, khác bộ kiểm, khác câu mẫu.
+const PRONUNCIATION_PART_PRESETS: {
+  title: string;
+  promptOverride: string;
+  exerciseTypeCode?: string;
+}[] = [
   { title: "Đuôi -s/-es", promptOverride: "Chỉ dùng kiểu (1) đuôi -s/-es cho toàn bộ các câu." },
   { title: "Đuôi -ed", promptOverride: "Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu." },
   {
@@ -37,6 +44,7 @@ const PRONUNCIATION_PART_PRESETS: { title: string; promptOverride: string }[] = 
     promptOverride:
       "Chỉ dùng kiểu (3) so sánh âm chung trong từ (không phải đuôi -s/-es hay -ed) cho toàn bộ các câu.",
   },
+  { title: "Trọng âm", promptOverride: "", exerciseTypeCode: "stress" },
 ];
 
 // WORD FORMATION theo format đề thật gồm 2 phần không trộn được trong 1 lần sinh
@@ -310,7 +318,10 @@ export function ExamBuilderPage() {
           await addBlockPart(target.examId, created.id, {
             title: preset.title,
             question_count: 5,
-            prompt_override: preset.promptOverride,
+            prompt_override: preset.promptOverride || null,
+            exercise_type_id: preset.exerciseTypeCode
+              ? (exerciseTypes.find((t) => t.code === preset.exerciseTypeCode)?.id ?? null)
+              : null,
           });
         }
       } else {

@@ -45,6 +45,9 @@ export interface BlockPartOut {
   instruction: string | null;
   question_count: number;
   prompt_override: string | null;
+  // null = dùng dạng bài của khối cha. Đặt khác để ghép dạng khác vào cùng một mục
+  // như đề thật (trọng âm nằm trong "I. PRONUNCIATION").
+  exercise_type_id: string | null;
 }
 
 export interface BlockPartCreateRequest {
@@ -52,6 +55,7 @@ export interface BlockPartCreateRequest {
   instruction?: string | null;
   question_count: number;
   prompt_override?: string | null;
+  exercise_type_id?: string | null;
 }
 
 export type BlockPartUpdateRequest = Partial<BlockPartCreateRequest>;
