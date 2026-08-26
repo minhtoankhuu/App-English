@@ -5,7 +5,9 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v18"
+import random
+
+PROMPT_VERSION = "v19"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -166,7 +168,107 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
 }
 
 
-def build_system_prompt(exercise_type_code: str, question_count: int, level_code: str) -> str:
+# --- Kho câu mẫu ------------------------------------------------------------
+# Sách Global Success trong Knowledge_Base gần như KHÔNG có câu ví dụ: file
+# "GS7 - UNIT 1 - LESSON.docx" chỉ có 2/231 đoạn là câu tiếng Anh hoàn chỉnh, phần còn
+# lại là mục từ điển ("hobby (n) /ˈhɑː.bi/ : sở thích"). Model vì thế không có câu thật
+# nào để bắt chước, nên tự bịa câu từ vốn chung của nó — ra đề nhạt và lặp ngữ cảnh.
+#
+# Kho này bù vào chỗ đó. Mỗi lần gọi chỉ đưa một NHÓM NHỎ luân phiên, vì hai lý do:
+# đưa hết thì prompt phình và model bị kéo về một khuôn duy nhất; và model từng chép
+# nguyên câu ví dụ vào đề ("Solar energy is a ______ source of energy." — đề sinh thử
+# 07/08/2026), nên càng ít mẫu mỗi lần thì càng cần luân phiên để đề không giống nhau.
+# mcq_check/word_form_check lấy chính kho này làm danh sách "cấm chép" nên luôn đồng bộ.
+_EXAMPLES_PER_CALL = 4
+
+MULTIPLE_CHOICE_EXAMPLES: tuple[str, ...] = (
+    "Minh Khoa: Why does Duc Minh always join the school football club?\n"
+    "Bao Han: Because he is really crazy ______ sports and loves playing in his free time.\n"
+    "A. about   B. on   C. at   D. to",
+    "Khanh Ngoc: Are you keen ______ gardening or going shopping this Saturday?\n"
+    "Tu Anh: Gardening! I love growing vegetables and flowers with my grandma.\n"
+    "A. on   B. in   C. at   D. about",
+    "Lan Chi: What did your class do to help the flood victims last month?\n"
+    "Quang Huy: We ______ warm clothes and books for the children in the village.\n"
+    "A. collected   B. collect   C. collecting   D. have collected",
+    "Gia Linh: My brother spends three hours a day playing video games.\n"
+    "Phuc Hung: That is ______ long. He should go outside and get some exercise.\n"
+    "A. far too   B. much more   C. very many   D. so much",
+    "Tu Anh: Do you know the girl ______ is standing near the school gate?\n"
+    "Minh Quan: Yes, she is my cousin. She has just moved to our neighbourhood.\n"
+    "A. who   B. which   C. whose   D. whom",
+    "Bao Han: Our village is much quieter ______ the city where you live.\n"
+    "Khanh Ngoc: That is why I enjoy visiting you every summer holiday.\n"
+    "A. than   B. as   C. from   D. like",
+    "Phuc Hung: If we recycle more paper, we ______ thousands of trees every year.\n"
+    "Lan Chi: You are right. Our school should start a recycling club.\n"
+    "A. will save   B. saved   C. would save   D. have saved",
+    "Minh Quan: Would you mind ______ the window? It is quite cold in here.\n"
+    "Gia Linh: Not at all. Let me do it for you right now.\n"
+    "A. closing   B. to close   C. close   D. closed",
+    "Quang Huy: How often do you take part ______ the school English club?\n"
+    "Bao Han: Twice a week, and we always practise speaking with our teacher.\n"
+    "A. in   B. on   C. of   D. for",
+    "Khanh Ngoc: My grandmother made this bamboo basket ______ herself.\n"
+    "Tu Anh: It looks beautiful. She is really good at traditional crafts.\n"
+    "A. by   B. with   C. for   D. on",
+    "Gia Linh: The students were very ______ when they heard the exam results.\n"
+    "Minh Khoa: I understand. They had studied hard for the whole month.\n"
+    "A. excited   B. exciting   C. excitement   D. excitedly",
+    "Lan Chi: You look tired. What ______ you doing at midnight yesterday?\n"
+    "Phuc Hung: I was finishing my science project for the school contest.\n"
+    "A. were   B. are   C. did   D. have",
+)
+
+WORD_FORM_FAMILY_EXAMPLES: tuple[str, ...] = (
+    "❖ create (v) → creation (n) → creative (adj) → creatively (adv)\n"
+    "1. My sister loves to ______ small dollhouses from cardboard.\n"
+    "2. The teacher praised the ______ of every student in the art club.\n"
+    "3. Nam is a very ______ boy who always has new ideas.\n"
+    "4. She decorated the classroom ______ for the New Year party.",
+    "❖ pollute (v) → pollution (n) → polluted (adj)\n"
+    "1. Factories near the river ______ the water every single day.\n"
+    "2. Air ______ in big cities is becoming a serious problem.\n"
+    "3. Fish cannot live in such heavily ______ water.",
+)
+
+WORD_FORM_BRACKET_EXAMPLES: tuple[str, ...] = (
+    "1. I want to become a ______ when I grow up. (science)",
+    "2. The children were playing ______ in the school yard. (happy)",
+    "3. Our teacher gave us a very clear ______ of the new lesson. (explain)",
+    "4. Please be ______ when you cross this busy street. (care)",
+)
+
+
+def _rotating(pool: tuple[str, ...], offset: int | None) -> list[str]:
+    """Lấy _EXAMPLES_PER_CALL mẫu, cuốn chiếu theo offset. offset=None thì lấy ngẫu
+    nhiên — mỗi lần sinh thấy bộ mẫu khác nhau nên đề không rập một khuôn."""
+    if not pool:
+        return []
+    start = random.randrange(len(pool)) if offset is None else offset % len(pool)
+    return [pool[(start + i) % len(pool)] for i in range(min(_EXAMPLES_PER_CALL, len(pool)))]
+
+
+def example_block(exercise_type_code: str, offset: int | None = None) -> str:
+    """Khối câu mẫu chèn vào system prompt, rỗng nếu dạng bài chưa có kho mẫu."""
+    if exercise_type_code == "multiple_choice":
+        chosen = _rotating(MULTIPLE_CHOICE_EXAMPLES, offset)
+    elif exercise_type_code == "word_form":
+        chosen = _rotating(WORD_FORM_FAMILY_EXAMPLES + WORD_FORM_BRACKET_EXAMPLES, offset)
+    else:
+        return ""
+    if not chosen:
+        return ""
+    joined = "\n\n".join(chosen)
+    return (
+        "\nCÂU MẪU tham khảo về VĂN PHONG và ĐỘ KHÓ (không phải nội dung bài này) — "
+        "học cách đặt câu, đừng chép lại chữ nào:\n" + joined + "\n"
+    )
+
+
+def build_system_prompt(
+    exercise_type_code: str, question_count: int, level_code: str, example_offset: int | None = None
+) -> str:
     instruction = EXERCISE_INSTRUCTIONS.get(
         exercise_type_code, "Sinh câu hỏi tiếng Anh phù hợp trình độ mục tiêu, bám sát tài liệu nguồn được cung cấp."
     )
@@ -185,6 +287,7 @@ def build_system_prompt(exercise_type_code: str, question_count: int, level_code
         "không dấu ngoặc kép quanh phần gạch chân). CHỈ dùng markup <u>...</u> bên trong option.text — TUYỆT "
         "ĐỐI KHÔNG dùng trong prompt_text, passage_text hay bất kỳ trường nào khác (câu dẫn/câu hỏi không cần "
         "và không được gạch chân, kể cả khi nhắc lại từ/chữ cái đang so sánh — chỉ mô tả bằng lời)."
+        + example_block(exercise_type_code, example_offset)
     )
 
 

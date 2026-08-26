@@ -14,15 +14,18 @@ Bài học từ dạng phát âm: prompt-only không đủ tin cậy, phải ch�
 import re
 
 from app.services.docx_renderer import _speaker_prefix_cuts
+from app.services.prompts import MULTIPLE_CHOICE_EXAMPLES
 
 BLANK_RE = re.compile(r"_{3,}")
 
 # Câu ví dụ dùng trong prompts.py — model hay chép nguyên si thay vì tự đặt câu mới.
-_PROMPT_EXAMPLE_FRAGMENTS = (
+# Câu ví dụ của các bản prompt cũ, vẫn chặn vì đề đã sinh trước đó còn lưu trong DB.
+_LEGACY_EXAMPLE_FRAGMENTS = (
     "solar energy is a",
     "my brother often",
-    "why does duc minh always join the school football club",
 )
+# Số từ tối thiểu để coi là chép mẫu — ngắn hơn thì dễ báo oan câu bình thường.
+_MIN_COPIED_FRAGMENT_WORDS = 6
 
 
 # Lựa chọn của đề thật là từ hoặc cụm ngắn ("play", "keep in touch with"), không phải câu.
@@ -53,6 +56,33 @@ def is_two_turn_dialogue(prompt_text: str | None) -> bool:
     return cuts is not None and sum(1 for cut in cuts if cut) >= 2
 
 
+def _example_fragments() -> frozenset[str]:
+    """Danh sách "cấm chép" suy thẳng từ kho câu mẫu trong prompts.py, nên thêm mẫu mới
+    là tự động được bảo vệ — không phải nhớ cập nhật hai nơi.
+
+    Lấy phần câu SAU tên người nói, bỏ chỗ trống và dấu câu, chỉ giữ đoạn đủ dài để
+    không báo oan câu bình thường trùng vài từ thông dụng.
+    """
+    fragments: set[str] = set()
+    for example in MULTIPLE_CHOICE_EXAMPLES:
+        for line in example.split("\n"):
+            _, sep, rest = line.partition(":")
+            body = (rest if sep else line).strip().lower()
+            body = " ".join(BLANK_RE.sub(" ", body).split())
+            body = "".join(ch for ch in body if ch.isalnum() or ch.isspace())
+            if len(body.split()) >= _MIN_COPIED_FRAGMENT_WORDS:
+                fragments.add(" ".join(body.split()[:_MIN_COPIED_FRAGMENT_WORDS]))
+    return frozenset(fragments)
+
+
+def _looks_copied(prompt_text: str | None) -> bool:
+    lowered = " ".join(BLANK_RE.sub(" ", (prompt_text or "").lower()).split())
+    lowered = " ".join("".join(ch for ch in lowered if ch.isalnum() or ch.isspace()).split())
+    if any(fragment in lowered for fragment in _LEGACY_EXAMPLE_FRAGMENTS):
+        return True
+    return any(fragment in lowered for fragment in _example_fragments())
+
+
 def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -> list[str]:
     warnings: list[str] = []
 
@@ -69,8 +99,7 @@ def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -
             "— câu hội thoại chỉ đặt chỗ trống ở lượt trả lời."
         )
 
-    lowered = (prompt_text or "").lower()
-    if any(fragment in lowered for fragment in _PROMPT_EXAMPLE_FRAGMENTS):
+    if _looks_copied(prompt_text):
         warnings.append("Câu chép lại ví dụ mẫu trong hướng dẫn, không bám nội dung bài học.")
 
     if options is not None:
