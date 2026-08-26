@@ -5,7 +5,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v12"
+PROMPT_VERSION = "v17"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -73,20 +73,19 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
     ),
     "multiple_choice": (
         "Phần VOCABULARY AND GRAMMAR: trắc nghiệm 4 lựa chọn A/B/C/D, đúng 1 đáp án đúng.\n"
-        "ĐỊNH DẠNG BẮT BUỘC — prompt_text có ĐÚNG MỘT chỗ trống '______' trong TOÀN BỘ "
-        "câu (kể cả dạng hội thoại: chỉ lượt TRẢ LỜI mới có chỗ trống, lượt hỏi KHÔNG có), và "
-        "phải ĐA DẠNG, trộn đều 2 kiểu sau (khoảng nửa-nửa trong cùng một lần sinh):\n"
-        "  KIỂU 1 — câu đơn hoàn chỉnh: 'Solar energy is a ______ source of energy.'; "
-        "'My brother often ______ to school by bus.'\n"
-        "  KIỂU 2 — HỘI THOẠI 2 LƯỢT (rất hay gặp trong đề thật, phải có): lượt 1 là câu hỏi "
-        "của người A, lượt 2 là câu trả lời của người B và chỗ trống nằm trong lượt 2. Mỗi "
-        "lượt một dòng, phân cách bằng ký tự xuống dòng, dạng 'Tên: câu nói'. Ví dụ:\n"
+        "ĐỊNH DẠNG BẮT BUỘC — MỌI câu đều là HỘI THOẠI 2 LƯỢT, không có ngoại lệ, TUYỆT ĐỐI "
+        "KHÔNG dùng câu đơn kiểu 'Solar energy is a ______ source of energy.'\n"
+        "Lượt 1 là lời của người A, lượt 2 là lời đáp của người B. Mỗi lượt một dòng, phân cách "
+        "bằng ký tự xuống dòng, dạng 'Tên: câu nói'. Chỗ trống '______' chỉ nằm ở LƯỢT 2 và "
+        "toàn bộ câu có ĐÚNG MỘT chỗ trống (lượt 1 không được có chỗ trống). Ví dụ định dạng:\n"
         "  Minh Khoa: Why does Duc Minh always join the school football club?\n"
         "  Bao Han: Because he is really crazy ______ sports and loves playing in his free time.\n"
-        "  Dùng TÊN RIÊNG VIỆT NAM không dấu cho nhân vật (Minh Khoa, Bao Han, Khanh Ngoc, "
+        "Dùng TÊN RIÊNG VIỆT NAM không dấu cho nhân vật (Minh Khoa, Bao Han, Khanh Ngoc, "
         "Tu Anh, Phuc Hung, Gia Linh, Lan Chi, Quang Huy...), mỗi câu đổi cặp tên khác nhau.\n"
-        "Các câu ví dụ dưới đây chỉ để minh hoạ ĐỊNH DẠNG — TUYỆT ĐỐI KHÔNG chép lại nội "
-        "dung của chúng, phải tự đặt câu mới bám từ vựng/ngữ pháp của bài.\n"
+        "Lượt 1 phải là câu có nội dung thật (câu hỏi hoặc lời kể) dẫn dắt tự nhiên tới lượt 2, "
+        "không được là câu chào rỗng kiểu 'Hi!' / 'Hello!' chỉ để lấp chỗ.\n"
+        "Câu ví dụ trên chỉ để minh hoạ ĐỊNH DẠNG — TUYỆT ĐỐI KHÔNG chép lại nội dung của nó, "
+        "phải tự đặt câu mới bám từ vựng/ngữ pháp của bài.\n"
         "TUYỆT ĐỐI KHÔNG dùng câu đố nghĩa/dịch — SAI: "
         "\"What does 'in person' mean?\", \"Which phrase means to stay in touch?\", "
         "\"How do you say 'giao tiếp với' in English?\".\n"
@@ -132,8 +131,28 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "(hệ thống hiện chưa có ảnh thật, xem PRD 23.3 #18), câu hỏi trắc nghiệm về ý nghĩa."
     ),
     "word_form": (
-        "Cho 1 từ gốc (in hoa hoặc gạch chân trong câu), yêu cầu biến đổi đúng dạng từ loại "
-        "(danh từ/động từ/tính từ/trạng từ) để điền vào chỗ trống. answer_text là từ đã biến đổi."
+        "Dạng WORD FORMATION theo format đề thi thật, có 2 KIỂU — phần con sẽ ghi rõ dùng kiểu nào; "
+        "nếu không ghi thì dùng kiểu (A). TUYỆT ĐỐI không trộn 2 kiểu trong cùng một lần sinh. "
+        "KHÔNG sinh lựa chọn trắc nghiệm cho dạng này: trường options PHẢI là null — đây là bài ĐIỀN TỪ, "
+        "học sinh tự viết đáp án chứ không chọn A/B/C/D. "
+        "KIỂU (A) NHÓM THEO HỌ TỪ: TẤT CẢ các câu của lần sinh này dùng CHUNG ĐÚNG MỘT họ từ duy nhất — "
+        "không được mỗi câu một họ từ khác nhau. Mọi câu ghi target_knowledge Y HỆT NHAU, "
+        "theo mẫu 'adore (v) → adorable (adj) → adorably (adv)': 2-4 thành phần (KHÔNG quá 4), phân cách bằng →, "
+        "mỗi thành phần là 1 từ kèm từ loại trong ngoặc (v/n/adj/adv) — không thêm dấu hai chấm hay lời giải thích, "
+        "không lặp lại cùng một từ hai lần trong chuỗi. "
+        "Mỗi câu điền MỘT dạng KHÁC NHAU của họ từ đó, trải đều các từ loại đã liệt kê. "
+        "prompt_text TUYỆT ĐỐI KHÔNG chứa từ gốc trong ngoặc — họ từ đã in sẵn ở dòng tiêu đề nhóm, "
+        "thêm '(together)' vào cuối câu là lộ đáp án. "
+        "KIỂU (B) TỪ GỐC TRONG NGOẶC — là bài ÔN TẬP TỔNG HỢP của kiểu (A): prompt_text KẾT THÚC "
+        "bằng từ gốc trong ngoặc đơn, vd 'I want to become a ______ (science).' để điền 'scientist'. "
+        "Từ trong ngoặc PHẢI thuộc đúng họ từ được chỉ định, và PHẢI KHÁC TỪ LOẠI với dạng cần "
+        "điền — TUYỆT ĐỐI không đặt sẵn chính đáp án vào ngoặc. Chỉ 1 từ, không viết hoa toàn bộ. "
+        "Mỗi câu phải CÓ NGHĨA tự nhiên — không ghép bừa một từ vào chỗ trống cho đủ số câu "
+        "(SAI: 'To keep fit, you should ______ junk food. (benefit)'). "
+        "target_knowledge ở kiểu này mô tả chuyển đổi bằng lời, KHÔNG viết thành chuỗi họ từ. "
+        "CẢ 2 KIỂU: mỗi câu đúng MỘT chỗ trống viết bằng ______ (6 dấu gạch dưới), câu toàn tiếng Anh, "
+        "nội dung hợp ngữ cảnh học sinh THCS Việt Nam (được dùng tên riêng tiếng Việt), "
+        "answer_text là từ đã biến đổi và CHỈ 1 từ, không dùng markup <u>...</u>."
     ),
 }
 

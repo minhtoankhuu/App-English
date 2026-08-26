@@ -3,7 +3,10 @@
 
 import pytest
 
-from app.services.mcq_check import blank_count, check_multiple_choice
+from app.services.mcq_check import blank_count, check_multiple_choice, is_two_turn_dialogue
+
+# Phần này chỉ ra đề hội thoại (chốt 24/08/2026) — câu mẫu hợp lệ dùng chung cho các ca dưới.
+DIALOGUE = "Gia Linh: How do you keep in touch with your old friends?\nBao Han: I often keep in ______ through social media."
 
 OPTS = [
     {"label": "A", "text": "contact", "is_correct": True, "why_wrong": None},
@@ -43,36 +46,60 @@ def test_flags_copied_prompt_example():
 
 
 def test_valid_question_has_no_warning():
-    assert check_multiple_choice("Bao Han: I often keep in ______ through social media.", OPTS) == []
-    assert check_multiple_choice("My friends and I often ______ on social media.", OPTS) == []
+    assert check_multiple_choice(DIALOGUE, OPTS) == []
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Gia Linh: What hobby does Nam have?%sBao Han: He likes ______ teddy bears." % chr(10), True),
+        ("A: Do you have any hobbies?%sB: Yes, I would love ______ a dollhouse." % chr(10), True),
+        # câu đơn — không còn được dùng ở phần này nữa
+        ("My sister loves ______ in her free time.", False),
+        ("Gardening is a popular ______ for many people.", False),
+        # chỉ 1 lượt có tên -> chưa phải hội thoại 2 lượt
+        ("Bao Han: I often keep in ______ through social media.", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_is_two_turn_dialogue(text, expected):
+    assert is_two_turn_dialogue(text) is expected
+
+
+def test_flags_single_sentence_question():
+    """Đề thật 24/08/2026 còn lọt câu đơn ('My sister loves ______ in her free time.')
+    xen giữa các câu hội thoại — phần này chỉ ra đề hội thoại."""
+    warnings = _joined(check_multiple_choice("My sister loves ______ in her free time.", OPTS))
+    assert "HỘI THOẠI 2 LƯỢT" in warnings
 
 
 def test_flags_wrong_option_count_and_correct_count():
-    assert "đúng 4 lựa chọn" in _joined(check_multiple_choice("a ______ b", OPTS[:3]))
+    assert "đúng 4 lựa chọn" in _joined(check_multiple_choice(DIALOGUE, OPTS[:3]))
     two_correct = [{**o, "is_correct": i < 2} for i, o in enumerate(OPTS)]
-    assert "đúng 1 đáp án đúng" in _joined(check_multiple_choice("a ______ b", two_correct))
+    assert "đúng 1 đáp án đúng" in _joined(check_multiple_choice(DIALOGUE, two_correct))
 
 
 def test_flags_duplicate_options():
     dup = [{**o, "text": "contact"} for o in OPTS]
-    assert "trùng nhau" in _joined(check_multiple_choice("a ______ b", dup))
+    assert "trùng nhau" in _joined(check_multiple_choice(DIALOGUE, dup))
 
 
 def test_options_none_is_skipped():
-    assert check_multiple_choice("a ______ b", None) == []
+    assert check_multiple_choice(DIALOGUE, None) == []
 
 
 def test_flags_distractor_without_justification():
     """Không giải trình được vì sao phương án nhiễu sai -> nhiều khả năng nó CŨNG ĐÚNG."""
     no_reason = [dict(o, why_wrong=None) if not o["is_correct"] else o for o in OPTS]
-    assert "Chưa nêu được vì sao" in _joined(check_multiple_choice("I keep in ______ online.", no_reason))
+    assert "Chưa nêu được vì sao" in _joined(check_multiple_choice(DIALOGUE, no_reason))
 
     # chỉ thiếu ở 1 phương án cũng phải báo, và nêu đúng nhãn
     partial = [dict(o, why_wrong=None) if o["label"] == "C" else o for o in OPTS]
-    text = _joined(check_multiple_choice("I keep in ______ online.", partial))
+    text = _joined(check_multiple_choice(DIALOGUE, partial))
     assert "phương án C" in text
 
 
 def test_blank_why_wrong_on_correct_option_is_fine():
     """Đáp án đúng để why_wrong = null là hợp lệ, không được cảnh báo."""
-    assert check_multiple_choice("I keep in ______ online.", OPTS) == []
+    assert check_multiple_choice(DIALOGUE, OPTS) == []

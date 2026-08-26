@@ -89,7 +89,7 @@ def test_ignores_types_without_machine_checks():
 def test_multiple_choice_is_auto_fixed():
     """Trắc nghiệm cũng kiểm được bằng code (mcq_check) -> câu lỗi phải được sinh lại."""
     bad_mc = QuestionDraft(
-        prompt_text="A: How do you ______ friends?\nB: I keep in ______ online.",  # 2 cho trong
+        prompt_text="A: How do you ______ friends?\nB: I keep in ______ online.",  # 2 chỗ trống
         answer_text="A. contact", explanation="x", target_knowledge="v", level_code="A2",
         source_ref="mock",
         options=[
@@ -98,7 +98,7 @@ def test_multiple_choice_is_auto_fixed():
         ],
     )
     good_mc = QuestionDraft(
-        prompt_text="B: I keep in ______ with my friends online.",
+        prompt_text="Gia Linh: How do you keep in touch?\nBao Han: I keep in ______ online.",
         answer_text="A. contact", explanation="x", target_knowledge="v", level_code="A2",
         source_ref="mock", options=bad_mc.options,
     )

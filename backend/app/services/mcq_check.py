@@ -5,10 +5,13 @@ Sinh ra sau khi prompt v10 vẫn để lọt các lỗi lặp lại (đề sinh 
 - Câu hội thoại có HAI chỗ trống thay vì một (model đặt trống ở cả 2 lượt nói).
 - Model chép nguyên câu ví dụ mẫu trong prompt ('Solar energy is a ______ source of
   energy.') vào đề của Unit chẳng liên quan.
+- Câu đơn lọt vào dù phần này chỉ ra đề hội thoại (chốt 24/08/2026).
 Bài học từ dạng phát âm: prompt-only không đủ tin cậy, phải chốt bằng kiểm tra xác định.
 """
 
 import re
+
+from app.services.docx_renderer import _speaker_prefix_cuts
 
 BLANK_RE = re.compile(r"_{3,}")
 
@@ -24,8 +27,21 @@ def blank_count(prompt_text: str | None) -> int:
     return len(BLANK_RE.findall(prompt_text or ""))
 
 
+def is_two_turn_dialogue(prompt_text: str | None) -> bool:
+    """Dùng đúng bộ nhận diện lượt thoại mà docx_renderer dùng để in đậm tên người nói —
+    nếu ở đây nhận là hội thoại thì ra đề cũng chắc chắn in đúng định dạng."""
+    cuts = _speaker_prefix_cuts(prompt_text or "")
+    return cuts is not None and sum(1 for cut in cuts if cut) >= 2
+
+
 def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -> list[str]:
     warnings: list[str] = []
+
+    if not is_two_turn_dialogue(prompt_text):
+        warnings.append(
+            "Phần VOCABULARY AND GRAMMAR chỉ ra đề dạng HỘI THOẠI 2 LƯỢT: mỗi lượt một dòng "
+            "dạng 'Tên: câu nói', chỗ trống nằm ở lượt trả lời."
+        )
 
     n_blanks = blank_count(prompt_text)
     if n_blanks != 1:
