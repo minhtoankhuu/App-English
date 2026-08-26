@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { approveAllQuestions, deleteExam, downloadExportUrl, getExamPreview, listExams } from "../api/exams";
+import { approveAllQuestions, deleteExam, downloadExportUrl, listExams } from "../api/exams";
 import { ApiError } from "../api/client";
-import { Modal } from "../components/Modal";
-import { ExamPreview } from "../exam-preview/ExamPreview";
 import type { ExamSummaryOut } from "../types/exam";
-import type { ExamPreviewOut } from "../types/examPreview";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -13,7 +10,8 @@ const STATUS_LABEL: Record<string, string> = {
   ready: "Sẵn sàng xuất",
 };
 
-const VARIANT_CODES = ["A", "B", "C", "D"];
+// Chỉ xuất 1 mã đề — xem ExamExportPage.tsx.
+const SINGLE_VARIANT = "A";
 
 export function ExamListPage() {
   const [exams, setExams] = useState<ExamSummaryOut[] | null>(null);
@@ -21,10 +19,6 @@ export function ExamListPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  const [previewExam, setPreviewExam] = useState<ExamSummaryOut | null>(null);
-  const [previewData, setPreviewData] = useState<ExamPreviewOut | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
 
   function reload() {
     listExams()
@@ -63,16 +57,6 @@ export function ExamListPage() {
     }
   }
 
-  function loadPreview(exam: ExamSummaryOut) {
-    setPreviewExam(exam);
-    setPreviewData(null);
-    setPreviewError(null);
-    setPreviewLoading(true);
-    getExamPreview(exam.id)
-      .then(setPreviewData)
-      .catch((err: unknown) => setPreviewError(err instanceof ApiError ? err.message : "Không dựng được bản xem trước"))
-      .finally(() => setPreviewLoading(false));
-  }
 
   return (
     <section className="configuration">
@@ -101,9 +85,6 @@ export function ExamListPage() {
               <Link to={`/exams/${exam.id}/builder`} className="button secondary compact">
                 Chỉnh sửa
               </Link>
-              <button type="button" className="button secondary compact" onClick={() => loadPreview(exam)}>
-                Xem A4
-              </button>
               <Link to={`/exams/${exam.id}/review`} className="button secondary compact">
                 Duyệt câu
               </Link>
@@ -118,11 +99,9 @@ export function ExamListPage() {
                 </button>
               )}
               {exam.status === "ready" ? (
-                VARIANT_CODES.slice(0, exam.variant_count).map((code) => (
-                  <a key={code} href={downloadExportUrl(exam.id, code)} className="button secondary compact">
-                    Tải mã đề {code}
-                  </a>
-                ))
+                <a href={downloadExportUrl(exam.id, SINGLE_VARIANT)} className="button secondary compact">
+                  Tải DOCX
+                </a>
               ) : exam.status !== "draft" ? (
                 <Link to={`/exams/${exam.id}/export`} className="button secondary compact">
                   Xuất
@@ -141,26 +120,6 @@ export function ExamListPage() {
         ))}
       </div>
 
-      <Modal
-        open={previewExam !== null}
-        onClose={() => setPreviewExam(null)}
-        title={previewExam ? `Xem trước A4 — ${previewExam.title}` : "Xem trước A4"}
-        size="lg"
-      >
-        <div className="app-modal-body" style={{ maxHeight: "75vh", overflowY: "auto" }}>
-          <ExamPreview
-            preview={previewData}
-            loading={previewLoading}
-            error={previewError}
-            onRetry={() => previewExam && loadPreview(previewExam)}
-          />
-        </div>
-        <div className="app-modal-footer">
-          <button type="button" className="button secondary" onClick={() => setPreviewExam(null)}>
-            Đóng
-          </button>
-        </div>
-      </Modal>
     </section>
   );
 }
