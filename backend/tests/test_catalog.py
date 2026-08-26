@@ -106,3 +106,27 @@ def test_cambridge_certificates_map_to_cefr(client, seeded_db):
     assert response.status_code == 200
     by_code = {c["code"]: c["cefr_level"]["code"] for c in response.json()}
     assert by_code == {"Starters": "A1", "Movers": "A1", "Flyers": "A2", "KET": "B1", "PET": "B2"}
+
+
+def test_seed_refreshes_default_instruction_of_existing_types(seeded_db):
+    """Danh mục dạng bài là cấu hình của app: sửa câu lệnh trong code rồi seed lại thì
+    DB phải đổi theo. Trước đây seed chỉ tạo-nếu-chưa-có nên thay đổi không bao giờ tới
+    được DB đang chạy (báo cáo 26/08/2026)."""
+    from sqlalchemy import select
+
+    from app.models.exercise import ExerciseType
+    from app.seed import seed_exercise_types
+
+    existing = seeded_db.scalar(select(ExerciseType).where(ExerciseType.code == "multiple_choice"))
+    assert existing is not None
+    existing.default_instruction = "Câu lệnh cũ từ lần seed trước."
+    existing.name = "Tên cũ"
+    seeded_db.flush()
+
+    seed_exercise_types(seeded_db)
+    seeded_db.flush()
+
+    refreshed = seeded_db.scalar(select(ExerciseType).where(ExerciseType.code == "multiple_choice"))
+    assert refreshed.id == existing.id  # cập nhật tại chỗ, không tạo bản ghi mới
+    assert refreshed.default_instruction.startswith("Choose the word / phrase / sentence")
+    assert refreshed.name == "Trắc nghiệm"

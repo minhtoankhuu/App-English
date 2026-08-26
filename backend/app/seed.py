@@ -149,13 +149,15 @@ STRUCTURE_GROUPS = [
 EXERCISE_TYPES = [
     ("pronunciation", "Phát âm", "Choose the word whose underlined part is pronounced differently.", False),
     ("stress", "Trọng âm", "Choose the word that has a different stress pattern.", False),
-    # Câu lệnh theo đề thật: nhãn ngắn trước dấu hai chấm (in đậm khi xuất DOCX), phần
-    # còn lại là hướng dẫn làm bài (in nghiêng). Giáo viên sửa lại tự do cho từng đề.
+    # Câu lệnh lấy từ đề thật GS8 Unit 1, nhưng BỎ nhãn "Prepositions and Phrases:" —
+    # nhãn đó mô tả nội dung riêng của đề mẫu đó, đặt làm mặc định thì đề nào cũng ghi
+    # "Prepositions and Phrases" kể cả khi phần này kiểm tra thì động từ. Giáo viên tự
+    # thêm nhãn trong popup chỉnh phần; docx_renderer in đậm phần trước dấu hai chấm.
     (
         "multiple_choice",
         "Trắc nghiệm",
-        "Prepositions and Phrases: Choose the word / phrase / sentence (A, B, C or D) that best fits "
-        "the space or best answers the question given in each sentence.",
+        "Choose the word / phrase / sentence (A, B, C or D) that best fits the space or best "
+        "answers the question given in each sentence.",
         False,
     ),
     ("matching", "Matching", "Match the items in column A with the ones in column B.", False),
@@ -281,8 +283,15 @@ def seed_grammar(db: Session, levels: dict[str, ProficiencyLevel]) -> None:
 
 
 def seed_exercise_types(db: Session) -> None:
+    """Danh mục dạng bài là CẤU HÌNH CỦA APP, không phải dữ liệu giáo viên nhập — nên
+    seed ghi đè cả bản ghi đã có, khác với các bảng khác chỉ tạo-nếu-chưa-có.
+
+    Trước đây chỉ tạo mới: sửa câu lệnh mặc định trong code xong chạy seed lại thì DB
+    đang chạy vẫn giữ câu cũ, và không có đường nào để thay đổi tới được (báo cáo
+    26/08/2026). Câu lệnh giáo viên chỉnh riêng cho từng đề nằm ở ExamBlock.instruction
+    — một bản sao — nên ghi đè ở đây không đụng gì tới đề đã tạo."""
     for order_no, (code, name, instruction, has_passage) in enumerate(EXERCISE_TYPES, start=1):
-        _get_or_create(
+        exercise_type, _ = _get_or_create(
             db,
             ExerciseType,
             code=code,
@@ -293,6 +302,10 @@ def seed_exercise_types(db: Session) -> None:
                 "order_no": order_no,
             },
         )
+        exercise_type.name = name
+        exercise_type.default_instruction = instruction
+        exercise_type.has_passage = has_passage
+        exercise_type.order_no = order_no
 
 
 def seed_length_rules(db: Session, stages: dict[str, SchoolStage]) -> None:
