@@ -146,6 +146,11 @@ STRUCTURE_GROUPS = [
 ]
 
 # (code, name, default_instruction, has_passage) — Implementation Notes 1.5
+# Hai dạng dưới đây KHÔNG xuất hiện trong bất kỳ đề nào của 13 đề thật chủ dự án gửi
+# (matching 0/13, gap_fill 0/13) và chưa từng được kiểm chứng — ẩn khỏi lưới chọn dạng
+# bài thay vì xoá, để đề cũ (nếu có) vẫn xuất được. Bỏ khỏi tập này là hiện lại ngay.
+INACTIVE_EXERCISE_TYPE_CODES = frozenset({"matching", "gap_fill"})
+
 EXERCISE_TYPES = [
     ("pronunciation", "Phát âm", "Choose the word whose underlined part is pronounced differently.", False),
     ("stress", "Trọng âm", "Choose the word that has a different stress pattern.", False),
@@ -159,6 +164,15 @@ EXERCISE_TYPES = [
     # vì hai phần có cách làm khác nhau — dòng này chỉ giới thiệu chung cho cả khối.
     ("word_form", "Word form", "Give the correct form of the words.", False),
     ("sentence_rewrite", "Viết lại câu", "Rewrite the sentences using the given words.", False),
+    # Dạng WORD ENTRY: cho sẵn mục từ điển của một từ rồi bắt điền vào câu. Xuất hiện
+    # 11/13 đề thật chủ dự án gửi — phổ biến hơn cả biển báo và ngang bài đọc.
+    (
+        "word_entry",
+        "Tra mục từ điển",
+        "Look at the entry of the word in a dictionary. Use what you can get from the entry to "
+        "complete the sentences.",
+        True,
+    ),
 ]
 
 # Implementation Notes 1.6a — school_stage_code -> (min, max, is_confirmed)
