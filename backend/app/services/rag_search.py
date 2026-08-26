@@ -159,3 +159,37 @@ def hybrid_search(
         )
         for chunk_id, score in ranked_ids
     ]
+
+
+def exam_examples(
+    db: Session,
+    *,
+    unit_id: uuid.UUID | None,
+    exercise_type_code: str,
+    limit: int = 4,
+) -> list[str]:
+    """Câu mẫu lấy từ ĐỀ THẬT của đúng Unit và đúng dạng bài (chunk EXAM_ITEM).
+
+    Tách khỏi hybrid_search vì đây KHÔNG phải nguồn kiến thức để model trích nội dung —
+    đó là mẫu về văn phong, đi vào phần "CÂU MẪU" của system prompt chứ không vào phần
+    "Tài liệu nguồn". Trộn lẫn hai thứ sẽ khiến model chép nội dung đề cũ và trích dẫn
+    chúng vào source_chunk_ids.
+
+    Lấy ngẫu nhiên trong Unit thay vì luôn 4 câu đầu — mỗi lần sinh thấy mẫu khác nhau
+    nên đề không rập một khuôn (cùng lý do với kho mẫu viết tay ở prompts.py).
+    """
+    if unit_id is None:
+        return []
+    stmt = (
+        select(KnowledgeChunk.raw_text)
+        .join(KnowledgeChunk.document)
+        .where(
+            KnowledgeDocument.unit_id == unit_id,
+            KnowledgeDocument.is_published.is_(True),
+            KnowledgeChunk.chunk_type == DocumentChunkType.EXAM_ITEM,
+            KnowledgeChunk.section_title == exercise_type_code,
+        )
+        .order_by(func.random())
+        .limit(limit)
+    )
+    return [text for (text,) in db.execute(stmt)]

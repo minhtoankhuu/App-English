@@ -14,13 +14,16 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from docx import Document
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models.academic import Grade, Unit
-from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
+from app.models.knowledge import DocumentChunkType, KnowledgeChunk, KnowledgeDocument
+from app.services.exam_parser import parse_exam_items
 from app.services.knowledge_parser import parse_lesson_docx
 from app.services.knowledge_parser_g9 import parse_g9_vocabulary
 
@@ -113,6 +116,75 @@ def import_global_success(db: Session, base_path: Path, force: bool = False) -> 
     return stats
 
 
+def import_exam_papers(db: Session, base_path: Path, force: bool = False) -> ImportStats:
+    """Nhập đề thi thật từ `Knowledge_Base/Exams/G{6..9}/*.docx` thành chunk EXAM_ITEM.
+
+    Khác với sách giáo khoa (mỗi chunk là một mục từ), mỗi chunk ở đây là MỘT CÂU HỎI
+    hoàn chỉnh giữ nguyên như đề in ra — vì thứ model cần bắt chước là cả câu. Sách
+    Global Success gần như không có câu ví dụ (GS7 Unit 1: 2/231 đoạn) nên đây là nguồn
+    câu mẫu thật duy nhất. Idempotent theo checksum như import_global_success.
+    """
+    stats = ImportStats()
+    exams_dir = base_path / "Exams"
+    if not exams_dir.is_dir():
+        return stats
+
+    grades = {g.number: g for g in db.scalars(select(Grade))}
+
+    for grade_number, grade in sorted(grades.items()):
+        folder = exams_dir / f"G{grade_number}"
+        if not folder.is_dir():
+            continue
+        units_by_order = {u.order_no: u for u in db.scalars(select(Unit).where(Unit.grade_id == grade.id))}
+
+        for file_path in sorted(folder.glob("*.docx")):
+            stats.files_seen += 1
+            order_no = _unit_number(file_path.name)
+            unit = units_by_order.get(order_no) if order_no else None
+            if unit is None:
+                continue
+
+            checksum = _checksum(file_path)
+            existing = db.scalar(
+                select(KnowledgeDocument).where(
+                    KnowledgeDocument.unit_id == unit.id,
+                    KnowledgeDocument.file_name == file_path.name,
+                )
+            )
+            if existing is not None and existing.checksum == checksum and not force:
+                stats.documents_unchanged += 1
+                continue
+
+            items = parse_exam_items([p.text for p in Document(str(file_path)).paragraphs])
+
+            if existing is not None:
+                existing.checksum = checksum
+                existing.chunks.clear()
+                document = existing
+                stats.documents_updated += 1
+            else:
+                document = KnowledgeDocument(unit_id=unit.id, file_name=file_path.name, checksum=checksum)
+                db.add(document)
+                stats.documents_created += 1
+
+            for order, item in enumerate(items, start=1):
+                document.chunks.append(
+                    KnowledgeChunk(
+                        order_no=order,
+                        chunk_type=DocumentChunkType.EXAM_ITEM,
+                        # Mã dạng bài nằm ở section_title để truy xuất lọc được câu mẫu
+                        # đúng dạng đang sinh (xem rag_search.exam_examples).
+                        section_title=item.exercise_type_code,
+                        raw_text=item.text,
+                        structured=None,
+                    )
+                )
+            stats.chunks_written += len(items)
+            db.flush()
+
+    return stats
+
+
 def import_grade9_vocabulary(db: Session, base_path: Path, force: bool = False) -> ImportStats:
     """Nhập từ vựng Global Success 9 từ file gộp 12 Unit. Mỗi Unit -> 1 KnowledgeDocument
     (unit_id theo order_no), file_name chung nên checksum giống nhau cho mọi Unit —
@@ -183,6 +255,7 @@ def main() -> None:
         base_path = Path(settings.knowledge_base_dir)
         stats = import_global_success(db, base_path, force=args.force)
         g9_stats = import_grade9_vocabulary(db, base_path, force=args.force)
+        exam_stats = import_exam_papers(db, base_path, force=args.force)
         db.commit()
         print(
             f"Import OK (G6-8): {stats.files_seen} file, {stats.documents_created} mới, "
@@ -193,6 +266,11 @@ def main() -> None:
             f"Import OK (G9 vocab): {g9_stats.files_seen} unit, {g9_stats.documents_created} mới, "
             f"{g9_stats.documents_updated} cập nhật, {g9_stats.documents_unchanged} không đổi, "
             f"{g9_stats.chunks_written} chunk ghi."
+        )
+        print(
+            f"Import OK (de thi that): {exam_stats.files_seen} file, {exam_stats.documents_created} mới, "
+            f"{exam_stats.documents_updated} cập nhật, {exam_stats.documents_unchanged} không đổi, "
+            f"{exam_stats.chunks_written} câu mẫu ghi."
         )
     finally:
         db.close()

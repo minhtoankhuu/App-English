@@ -18,7 +18,7 @@ from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, G
 from app.services.langsmith_tracing import langsmith_extra, wrap_openai_client
 from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.prompts import PROMPT_VERSION, build_system_prompt, build_user_prompt
-from app.services.rag_search import RetrievedChunk, hybrid_search, retrieval_profile
+from app.services.rag_search import RetrievedChunk, exam_examples, hybrid_search, retrieval_profile
 from app.services.text_markup import dedupe_pronunciation_suffix, strip_underline_markup
 
 _MAX_ATTEMPTS = 3  # 1 lần gọi đầu + tối đa 2 lần retry (PRD 17)
@@ -146,6 +146,15 @@ class OpenAIProvider(AIProvider):
             "model": self._config.model,
         }
 
+    def _examples(self, block: BlockSpec, context: GenerationContext) -> list[str]:
+        """Câu mẫu lấy từ đề thật của đúng Unit. Lấy RIÊNG chứ không qua _retrieve, vì đây
+        là mẫu về VĂN PHONG chứ không phải nguồn kiến thức — trộn vào "Tài liệu nguồn" sẽ
+        khiến model chép nội dung đề cũ và trích dẫn chúng vào source_chunk_ids.
+        Rỗng thì build_system_prompt tự rơi về kho mẫu viết tay."""
+        return exam_examples(
+            self._db, unit_id=context.unit_id, exercise_type_code=block.exercise_type_code
+        )
+
     def _call_openai(
         self,
         system_prompt: str,
@@ -230,7 +239,12 @@ class OpenAIProvider(AIProvider):
 
     def generate(self, block: BlockSpec, context: GenerationContext) -> list[QuestionDraft]:
         retrieved = self._retrieve(block, context)
-        system_prompt = build_system_prompt(block.exercise_type_code, block.question_count, block.level_code)
+        system_prompt = build_system_prompt(
+            block.exercise_type_code,
+            block.question_count,
+            block.level_code,
+            examples=self._examples(block, context),
+        )
         user_prompt = build_user_prompt(
             context.unit_title, [(str(c.chunk_id), c.raw_text) for c in retrieved], block.prompt_override, None
         )
@@ -269,7 +283,9 @@ class OpenAIProvider(AIProvider):
         feedback: str | None = None,
     ) -> QuestionDraft:
         retrieved = self._retrieve(block, context)
-        system_prompt = build_system_prompt(block.exercise_type_code, 1, block.level_code)
+        system_prompt = build_system_prompt(
+            block.exercise_type_code, 1, block.level_code, examples=self._examples(block, context)
+        )
         user_prompt = build_user_prompt(
             context.unit_title,
             [(str(c.chunk_id), c.raw_text) for c in retrieved],
