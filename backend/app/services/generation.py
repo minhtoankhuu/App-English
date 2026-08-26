@@ -90,6 +90,25 @@ def _deterministic_pronunciation_drafts(
     return drafts
 
 
+def _prompt_key(prompt_text: str | None) -> str:
+    """Khoá so trùng: bỏ dấu câu, khoảng trắng thừa và tên nhân vật đầu mỗi lượt — model
+    hay ra lại y hệt câu cũ chỉ đổi mỗi tên người nói."""
+    lines = []
+    for line in (prompt_text or "").lower().split("\n"):
+        _, sep, rest = line.partition(":")
+        lines.append(rest if sep else line)
+    text = " ".join(" ".join(lines).split())
+    return "".join(ch for ch in text if ch.isalnum() or ch.isspace() or ch == "_")
+
+
+def _duplicate_warning(draft: QuestionDraft, seen: set[str]) -> list[str]:
+    """Đề thật 24/08/2026: câu 17, 20 và 24 giống hệt nhau ("What do people usually do to
+    ______ the Mid-Autumn Festival?") chỉ khác tên nhân vật."""
+    if _prompt_key(draft.prompt_text) in seen:
+        return ["Câu này trùng nội dung với câu đã sinh trước đó trong cùng phần."]
+    return []
+
+
 def _machine_warnings(draft: QuestionDraft, spec: BlockSpec) -> list[str]:
     """Cảnh báo kiểm được bằng code cho các dạng mà máy tự đánh giá được chất lượng —
     dùng làm điều kiện tự sinh lại trong pipeline."""
@@ -124,8 +143,9 @@ def _auto_fix_pronunciation_drafts(
     if spec.exercise_type_code not in _AUTO_FIX_TYPES:
         return drafts
     fixed: list[QuestionDraft] = []
+    seen: set[str] = set()
     for draft in drafts:
-        warnings = _machine_warnings(draft, spec)
+        warnings = _machine_warnings(draft, spec) + _duplicate_warning(draft, seen)
         attempts = 0
         while warnings and attempts < _MAX_PRONUNCIATION_REGEN:
             attempts += 1
@@ -135,9 +155,10 @@ def _auto_fix_pronunciation_drafts(
                 )
             except AIGenerationError:
                 break
-            candidate_warnings = _machine_warnings(candidate, spec)
+            candidate_warnings = _machine_warnings(candidate, spec) + _duplicate_warning(candidate, seen)
             if len(candidate_warnings) < len(warnings):
                 draft, warnings = candidate, candidate_warnings
+        seen.add(_prompt_key(draft.prompt_text))
         fixed.append(draft)
     return fixed
 

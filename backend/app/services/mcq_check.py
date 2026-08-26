@@ -6,6 +6,8 @@ Sinh ra sau khi prompt v10 vẫn để lọt các lỗi lặp lại (đề sinh 
 - Model chép nguyên câu ví dụ mẫu trong prompt ('Solar energy is a ______ source of
   energy.') vào đề của Unit chẳng liên quan.
 - Câu đơn lọt vào dù phần này chỉ ra đề hội thoại (chốt 24/08/2026).
+- Model nhét nguyên LƯỢT TRẢ LỜI vào 4 lựa chọn, mỗi lựa chọn là một câu đầy đủ còn
+  chứa chỗ trống (đề thật 24/08/2026) — học sinh không có đáp án nào để chọn.
 Bài học từ dạng phát âm: prompt-only không đủ tin cậy, phải chốt bằng kiểm tra xác định.
 """
 
@@ -21,6 +23,23 @@ _PROMPT_EXAMPLE_FRAGMENTS = (
     "my brother often",
     "why does duc minh always join the school football club",
 )
+
+
+# Lựa chọn của đề thật là từ hoặc cụm ngắn ("play", "keep in touch with"), không phải câu.
+_MAX_OPTION_WORDS = 6
+_MAX_SHARED_OPTION_WORDS = 3
+
+
+def _common_prefix_words(texts: list[str]) -> int:
+    """Số từ đầu giống nhau ở MỌI lựa chọn."""
+    if len(texts) < 2:
+        return 0
+    words = [t.split() for t in texts]
+    shortest = min(len(w) for w in words)
+    for i in range(shortest):
+        if len({w[i] for w in words}) != 1:
+            return i
+    return shortest
 
 
 def blank_count(prompt_text: str | None) -> int:
@@ -63,6 +82,32 @@ def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -
         texts = [(opt.get("text") or "").strip().lower() for opt in options]
         if len(set(texts)) != len(texts):
             warnings.append("Các lựa chọn bị trùng nhau.")
+
+        with_blank = [opt.get("label") or "?" for opt in options if blank_count(opt.get("text"))]
+        if with_blank:
+            warnings.append(
+                f"Lựa chọn {', '.join(with_blank)} còn chứa chỗ trống — chỗ trống thuộc về lượt trả lời "
+                "trong câu dẫn, lựa chọn chỉ là từ/cụm từ điền vào đó."
+            )
+
+        # 4 lựa chọn lặp chung một đoạn đầu dài = model đã nhét cả lượt trả lời vào lựa chọn.
+        prefix = _common_prefix_words(texts)
+        if prefix >= _MAX_SHARED_OPTION_WORDS:
+            warnings.append(
+                f"Cả 4 lựa chọn lặp chung {prefix} từ đầu — phần lặp đó thuộc về câu dẫn, "
+                "lựa chọn chỉ giữ phần khác nhau."
+            )
+
+        too_long = [
+            opt.get("label") or "?"
+            for opt in options
+            if len((opt.get("text") or "").split()) > _MAX_OPTION_WORDS
+        ]
+        if too_long:
+            warnings.append(
+                f"Lựa chọn {', '.join(too_long)} dài quá {_MAX_OPTION_WORDS} từ — lựa chọn là từ/cụm từ, "
+                "không phải câu hoàn chỉnh."
+            )
 
         # Model phải giải trình vì sao TỪNG phương án nhiễu sai ngay khi sinh (why_wrong).
         # Không giải trình được nghĩa là phương án đó có thể CŨNG ĐÚNG -> câu có nhiều đáp

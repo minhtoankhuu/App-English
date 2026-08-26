@@ -5,7 +5,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 được câu hỏi sinh ra từ phiên bản prompt nào khi debug chất lượng.
 """
 
-PROMPT_VERSION = "v17"
+PROMPT_VERSION = "v18"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -80,6 +80,15 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "toàn bộ câu có ĐÚNG MỘT chỗ trống (lượt 1 không được có chỗ trống). Ví dụ định dạng:\n"
         "  Minh Khoa: Why does Duc Minh always join the school football club?\n"
         "  Bao Han: Because he is really crazy ______ sports and loves playing in his free time.\n"
+        "  → 4 lựa chọn cho ví dụ trên: A. about  B. on  C. at  D. to\n"
+        "PHÂN VAI RÕ RÀNG — sai chỗ này là câu hỏng hẳn: prompt_text chứa CẢ HAI lượt và chứa "
+        "chỗ trống; option.text chỉ là TỪ hoặc CỤM TỪ NGẮN (tối đa 6 từ) điền vào chỗ trống đó. "
+        "Lựa chọn TUYỆT ĐỐI không được chứa dấu ______, không được là câu hoàn chỉnh, và 4 lựa "
+        "chọn không được lặp chung một đoạn đầu dài.\n"
+        "SAI (đề sinh thử 24/08/2026 — nhét cả lượt trả lời vào lựa chọn, học sinh không còn gì để chọn):\n"
+        "  prompt_text: 'Khanh Ngoc: What do we usually do at the firework festival?'\n"
+        "  A. We enjoy the show and ______ with friends.  B. We enjoy the show and ______ gifts.\n"
+        "MỖI CÂU MỘT NỘI DUNG KHÁC NHAU — không ra lại cùng một câu chỉ đổi tên nhân vật.\n"
         "Dùng TÊN RIÊNG VIỆT NAM không dấu cho nhân vật (Minh Khoa, Bao Han, Khanh Ngoc, "
         "Tu Anh, Phuc Hung, Gia Linh, Lan Chi, Quang Huy...), mỗi câu đổi cặp tên khác nhau.\n"
         "Lượt 1 phải là câu có nội dung thật (câu hỏi hoặc lời kể) dẫn dắt tự nhiên tới lượt 2, "
