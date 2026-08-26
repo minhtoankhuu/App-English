@@ -13,6 +13,7 @@ from app.services.docx_renderer import (
     USABLE_WIDTH_CM,
     WORD_FAMILY_BULLET,
     build_exam_document,
+    normalize_bracket_root,
     split_bracket_root,
     word_family_label,
 )
@@ -203,3 +204,48 @@ def test_part_heading_indented_but_questions_at_margin():
 
     assert round(heading.paragraph_format.left_indent.cm, 2) == PART_CONTENT_INDENT_CM
     assert question.paragraph_format.left_indent is None or question.paragraph_format.left_indent == 0
+
+
+# --- từ gốc bị đặt giữa câu (đề thật 24/08/2026) -----------------------------
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        # model đặt ngoặc ngay sau chỗ trống thay vì cuối câu
+        ("The teacher explained the ______ (formally) of the lesson plan.",
+         "The teacher explained the ______ of the lesson plan. (formally)"),
+        ("He spoke very ______ (form) during the presentation.",
+         "He spoke very ______ during the presentation. (form)"),
+        # đã ở cuối câu -> giữ nguyên
+        ("To show ______ in difficult situations. (maturity)",
+         "To show ______ in difficult situations. (maturity)"),
+        # không có ngoặc -> giữ nguyên
+        ("No bracket here at all.", "No bracket here at all."),
+        # nhiều ngoặc -> lấy cái cuối cùng làm từ gốc
+        ("She (finally) ______ the exam (succeed) last week.",
+         "She (finally) ______ the exam last week. (succeed)"),
+    ],
+)
+def test_normalize_bracket_root(raw, expected):
+    assert normalize_bracket_root(raw) == expected
+
+
+def test_render_moves_inline_bracket_to_the_right_margin():
+    """Đề cũ đã lưu sai vị trí vẫn in đúng khi tải lại, không cần sinh lại."""
+    from app.services.docx_renderer import USABLE_WIDTH_CM
+
+    exam = SimpleNamespace(
+        export_mode=ExportMode.PLAIN, title="Unit 1 Revision",
+        blocks=[_block([PART_B], [
+            _q("q1", "pb", "The teacher explained the ______ (formally) of the lesson plan.", "Chuyển từ loại"),
+        ])],
+    )
+    doc = build_exam_document(exam, SimpleNamespace(code="A", question_order={}))
+    p = _para(doc, "The teacher explained")
+
+    assert "(formally)" in [r.text for r in p.runs if r.font.bold]
+    normal = "".join(r.text for r in p.runs if not r.font.bold)
+    assert "(formally)" not in normal
+    assert normal.strip().endswith("of the lesson plan.")
+    assert [round(t.position.cm, 2) for t in p.paragraph_format.tab_stops] == [round(USABLE_WIDTH_CM, 2)]
