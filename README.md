@@ -82,6 +82,33 @@ docker compose down -v
 docker compose up --build
 ```
 
+## Theo dõi token bằng LangSmith (tuỳ chọn)
+
+Mặc định **tắt** — không gửi gì ra ngoài. Bật để xem token, chi phí và toàn bộ prompt/đáp
+trả của từng lần sinh đề trên [smith.langchain.com](https://smith.langchain.com).
+
+1. Tạo API key ở LangSmith (nút **Generate API Key** trong màn hình Tracing của project).
+2. Điền vào `.env` ở gốc repo:
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_PROJECT=EngLish
+```
+
+3. Khởi động lại backend (`docker compose up -d backend`, hoặc restart `uvicorn`).
+
+Mỗi lần gọi OpenAI sẽ thành một run trên LangSmith, đặt tên theo dạng bài
+(`generate:multiple_choice`, `regenerate:pronunciation`) kèm metadata để lọc: `grade`,
+`unit_title`, `level_code`, `prompt_version`, `model`, và `retry=true` cho những lần sinh
+lại do máy kiểm lỗi (auto-fix) — tỷ lệ này cho biết prompt đang tốt tới đâu.
+
+Token embedding (RAG + nạp corpus) cũng được đếm.
+
+> **Lưu ý riêng tư:** bật tracing tức là gửi nội dung prompt (bao gồm đoạn sách RAG trích ra)
+> lên dịch vụ LangSmith. `GenerationLog` trong DB vẫn ghi token/chi phí độc lập, không phụ
+> thuộc LangSmith.
+
 ## Chạy kiểm thử
 
 ### Backend
