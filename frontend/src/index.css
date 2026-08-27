@@ -340,23 +340,51 @@ select:focus-visible, textarea:focus-visible, input:focus-visible {
 
 .app-modal {
   width: min(420px, calc(100vw - 32px));
+  /* Cao tối đa để header/footer luôn nằm trong khung nhìn; phần thân tự cuộn. */
+  max-height: min(88vh, calc(100vh - 48px));
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 0;
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 24px 60px rgba(37, 99, 235, .2);
+  overflow: hidden;
 }
+/* Chỉ đặt display khi mở — nếu đặt trên .app-modal trần sẽ đè display:none của UA. */
+.app-modal[open] { display: flex; flex-direction: column; }
 .app-modal-lg { width: min(600px, calc(100vw - 32px)); }
 .app-modal::backdrop { background: rgba(15, 23, 42, .55); backdrop-filter: blur(4px); }
-.app-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
-.app-modal-header h2 { margin: 0; font-size: 17px; }
-.app-modal-body { display: grid; gap: 14px; padding: 20px 24px; }
-.app-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border); }
+.app-modal-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  flex: 0 0 auto;
+  padding: 18px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.app-modal-header h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+.app-modal-header .icon-button { border-radius: 999px; flex: 0 0 auto; }
+.app-modal-body {
+  display: grid; gap: 14px; padding: 20px 24px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.app-modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  flex: 0 0 auto;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
 
 .field-hint { color: var(--muted); font-weight: 500; font-size: 11.5px; }
 .editor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+/* Số phần con thay đổi theo dạng bài (4 ô phát âm, 2 ô word form...) nên để tự xếp
+   thay vì ép 3 cột — tránh dòng cuối trơ một ô. */
+.part-count-grid { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); }
 .editor-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.part-instructions { display: grid; gap: 12px; }
 
 @media (max-width: 560px) {
   .editor-grid { grid-template-columns: 1fr; }

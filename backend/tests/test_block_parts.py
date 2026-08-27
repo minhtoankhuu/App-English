@@ -90,6 +90,38 @@ def test_add_part_syncs_block_question_count(client, seeded_db):
     assert body["question_count"] == 8
 
 
+def test_add_part_accepts_a_hidden_exercise_type_by_code(client, seeded_db):
+    """Phần "Trọng âm" của mục PRONUNCIATION ghim dạng bài `stress`, mà `stress` bị ẩn
+    khỏi /catalog/exercise-types (seed.INACTIVE_EXERCISE_TYPE_CODES) nên client không
+    tra ra id — gửi mã, backend tra hộ. Không có đường này thì phần Trọng âm rơi về
+    dạng bài của khối cha và bị sinh thành câu phát âm thường."""
+    _login_as_teacher(client, seeded_db)
+    exam = _create_exam(client, seeded_db)
+    block = _create_block(client, seeded_db, exam["id"], code="pronunciation", title="PRONUNCIATION")
+
+    resp = client.post(
+        f"/exams/{exam['id']}/blocks/{block['id']}/parts",
+        json={"title": "Trọng âm", "question_count": 5, "exercise_type_code": "stress"},
+    )
+
+    assert resp.status_code == 201, resp.text
+    stress = _exercise_type(seeded_db, "stress")
+    assert resp.json()["parts"][0]["exercise_type_id"] == str(stress.id)
+
+
+def test_add_part_rejects_an_unknown_exercise_type_code(client, seeded_db):
+    _login_as_teacher(client, seeded_db)
+    exam = _create_exam(client, seeded_db)
+    block = _create_block(client, seeded_db, exam["id"])
+
+    resp = client.post(
+        f"/exams/{exam['id']}/blocks/{block['id']}/parts",
+        json={"title": "X", "question_count": 5, "exercise_type_code": "khong_co_that"},
+    )
+
+    assert resp.status_code == 400
+
+
 def test_update_part_resyncs_question_count(client, seeded_db):
     _login_as_teacher(client, seeded_db)
     exam = _create_exam(client, seeded_db)

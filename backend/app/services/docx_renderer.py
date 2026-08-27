@@ -340,17 +340,23 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
             f"{ROMAN[idx] if idx < len(ROMAN) else idx + 1}. {block.title.upper()} ({block.points} {point_label})"
         )
         _set_font(heading_run, bold=True)
-        # Khối tạo trước khi có cơ chế điền câu lệnh mặc định thì instruction để trống —
-        # rơi về câu lệnh của dạng bài ngay lúc render, để đề cũ tải lại là có luôn,
-        # không phải tạo lại đề (cùng cách với dedupe_pronunciation_suffix).
-        block_instruction = block.instruction or getattr(block.exercise_type, "default_instruction", "")
-        if block_instruction:
-            _add_block_instruction(doc, block_instruction)
-
         order = variant.question_order.get(str(block.id), [str(q.id) for q in block.questions])
         by_id = {str(q.id): q for q in block.questions}
         ordered_questions = [by_id[qid] for qid in order if qid in by_id]
         parts_by_id = {p.id: p for p in block.parts}
+
+        # Khối tạo trước khi có cơ chế điền câu lệnh mặc định thì instruction để trống —
+        # rơi về câu lệnh của dạng bài ngay lúc render, để đề cũ tải lại là có luôn,
+        # không phải tạo lại đề (cùng cách với dedupe_pronunciation_suffix).
+        block_instruction = block.instruction or getattr(block.exercise_type, "default_instruction", "")
+        # Khối chia phần con thì mỗi phần con đã tự in câu lệnh của nó ("A. Choose the
+        # word that has a different pronunciation of the ending -s/-es.", "Part B. Fill
+        # in the blanks..."), nên câu lệnh chung của khối vừa thừa vừa sai phạm vi —
+        # câu chung của PRONUNCIATION không mô tả được phần trọng âm. Đề thật cũng cho
+        # "I. PRONUNCIATION" đi thẳng xuống dòng hướng dẫn của từng phần.
+        has_rendered_parts = any(q.part_id in parts_by_id for q in ordered_questions if q.part_id)
+        if block_instruction and not has_rendered_parts:
+            _add_block_instruction(doc, block_instruction)
         # Với block Pronunciation, các Phần con (Đuôi -s/-es, Đuôi -ed, Âm trong từ)
         # chỉ là công cụ chia kiểu câu khi sinh đề — học sinh không cần thấy tiêu đề
         # phần con, và cả khối đánh số liên tục 1..15 như một bài tập duy nhất (yêu
@@ -401,7 +407,10 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
                     # chỉ còn số thứ tự (1..15 liên tục) + lựa chọn nằm sát lề trái.
                     part_letter_index += 1
                     letter = chr(ord("A") + part_letter_index - 1)
-                    instruction_text = question.prompt_text or part.title
+                    # Hướng dẫn giáo viên tự nhập cho phần con thắng câu dẫn AI sinh —
+                    # đây là dòng DUY NHẤT của phần được in ra, không còn câu lệnh chung
+                    # của khối để sửa nữa. Bỏ trống thì giữ nguyên câu dẫn như trước.
+                    instruction_text = part.instruction or question.prompt_text or part.title
                     part_line_p = _new_paragraph(doc)
                     part_line_p.paragraph_format.left_indent = Cm(prompt_indent_cm)
                     letter_run = part_line_p.add_run(f"{letter}. ")

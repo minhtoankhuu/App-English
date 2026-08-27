@@ -409,7 +409,7 @@ export function AdminKnowledgePage() {
         title={viewingDocument ? `Nội dung — ${viewingDocument.file_name}` : "Nội dung"}
         size="lg"
       >
-        <div className="app-modal-body" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+        <div className="app-modal-body">
           {viewError && <p style={{ color: "var(--danger)" }}>{viewError}</p>}
           {!viewChunks && !viewError && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
           {viewChunks && viewChunks.length === 0 && <p style={{ color: "var(--muted)" }}>Tài liệu chưa có đoạn nào.</p>}
