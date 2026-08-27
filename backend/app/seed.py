@@ -165,8 +165,11 @@ EXERCISE_TYPES = [
     (
         "multiple_choice",
         "Trắc nghiệm",
-        "Choose the word / phrase / sentence (A, B, C or D) that best fits the space or best "
-        "answers the question given in each sentence.",
+        # Đề thật luôn có nhãn chủ đề trước dấu hai chấm (11/13 dùng "Vocabulary:",
+        # còn lại "Prepositions and Phrases:", "Vocabulary 1:") — docx_renderer in đậm
+        # phần nhãn đó. Giáo viên đổi nhãn theo trọng tâm của đề trong ô Hướng dẫn.
+        "Vocabulary: Choose the word / phrase / sentence (A, B, C or D) that best fits "
+        "the space or best answers the question given in each sentence.",
         False,
     ),
     ("matching", "Matching", "Match the items in column A with the ones in column B.", False),

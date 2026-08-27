@@ -90,3 +90,21 @@ def test_rejects_underline_markup():
 def test_unknown_kind_only_checks_shared_rules():
     """Không rõ kiểu (giáo viên tự nhập) — chỉ kiểm luật chung, không ép kiểu nào."""
     assert check_word_form("She smiled ______ at the gift.", "adorably", "mô tả tự do", kind=None) == []
+
+
+def test_answer_outside_the_given_word_family_is_caught():
+    """Kiểu (A) trước đây chỉ kiểm target_knowledge có đúng định dạng chuỗi họ từ, còn
+    đáp án thì không ai đối chiếu — họ từ 'adore → adorable → adorably' mà đáp án
+    'beautiful' vẫn lọt, nhìn đề không thấy gì bất thường."""
+    family = "adore (v) → adorable (adj) → adorably (adv)"
+    warnings = check_word_form("The puppy was very ______.", "beautiful", family, kind="family")
+
+    assert any("không thuộc họ từ" in w for w in warnings)
+
+
+def test_answer_inside_the_family_passes():
+    family = "adore (v) → adorable (adj) → adorably (adv)"
+
+    assert check_word_form("The puppy was very ______.", "adorable", family, kind="family") == []
+    # Viết hoa đầu câu vẫn hợp lệ
+    assert check_word_form("______ the puppy!", "Adore", family, kind="family") == []

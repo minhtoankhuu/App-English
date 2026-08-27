@@ -36,9 +36,14 @@ SPEC = BlockSpec(
 )
 
 
-def _draft(prompt, family, options=None):
+def _draft(prompt, family, options=None, answer_text=None):
+    # Đáp án mặc định lấy TỪ CHÍNH họ từ mà câu khai: bộ kiểm đối chiếu hai chỗ này với
+    # nhau, nên đặt chỗ giữ chỗ kiểu "x" là dựng ra câu mà thực tế sẽ bị loại.
+    members = sorted(word_family_members(family))
     return QuestionDraft(
-        prompt_text=prompt, answer_text="x", explanation="e", target_knowledge=family,
+        prompt_text=prompt,
+        answer_text=answer_text or (members[0] if members else "x"),
+        explanation="e", target_knowledge=family,
         level_code="A2", source_ref="mock", options=options,
     )
 
