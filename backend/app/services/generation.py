@@ -186,7 +186,7 @@ def _repeated_answer_warning(
     """
     if spec is not None and spec.exercise_type_code != "multiple_choice":
         return []
-    answer = _answer_token(draft.answer_text)
+    answer = _answer_word(draft)
     if answer and answer in seen_answers:
         return [f"Đáp án '{draft.answer_text}' đã là đáp án của một câu trước trong cùng phần."]
     return []
@@ -284,6 +284,23 @@ def _answer_text_warnings(draft: QuestionDraft) -> list[str]:
     return []
 
 
+def _answer_word(draft: QuestionDraft) -> str:
+    """NỘI DUNG đáp án, đã quy nhãn về lựa chọn tương ứng.
+
+    Model thường ghi answer_text gọn là "A"/"B". So trùng theo chuỗi đó thì mọi câu có
+    đáp án rơi vào cùng một chữ cái đều bị coi là trùng nhau, dù nội dung khác hẳn — mà
+    câu sinh lại cũng lại rơi vào một chữ cái nào đó, nên không bao giờ được nhận. Đề
+    sinh 27/08/2026 đốt ~22 lượt gọi API vô ích đúng vì chỗ này.
+    """
+    token = _answer_token(draft.answer_text)
+    options = draft.options or []
+    if options and len(token) == 1:
+        for option in options:
+            if (option.get("label") or "").strip().rstrip(".)").upper() == token.upper():
+                return _option_token(option)
+    return token
+
+
 def _answer_token(answer_text: str | None) -> str:
     """'B. crazy' / 'crazy' / 'B' -> khoá so khớp. Bỏ nhãn dẫn đầu và markup gạch chân."""
     text = visible_text((answer_text or "").strip())
@@ -357,7 +374,7 @@ def _auto_fix_pronunciation_drafts(
             if len(candidate_warnings) < len(warnings):
                 draft, warnings = candidate, candidate_warnings
         seen.add(_duplicate_key(draft, spec))
-        seen_answers.add(_answer_token(draft.answer_text))
+        seen_answers.add(_answer_word(draft))
         fixed.append(draft)
     return fixed
 

@@ -13,6 +13,7 @@ from app.services.ai_provider import AIGenerationError, BlockSpec, GenerationCon
 from app.services.exam_pronunciation import line_kind, parse_option_line
 from app.services.generation import (
     _answer_key_warnings,
+    _answer_word,
     _repeated_answer_warning,
     _answer_text_warnings,
     _duplicate_key,
@@ -331,3 +332,34 @@ def test_an_answer_used_by_an_earlier_question_is_flagged():
 
     assert _repeated_answer_warning(draft, {"bikes"})
     assert _repeated_answer_warning(draft, {"trains"}) == []
+
+
+def _mcq(answer_text, words, correct_index):
+    return QuestionDraft(
+        prompt_text="p", answer_text=answer_text, explanation="", target_knowledge="",
+        level_code="A2", source_ref="ai",
+        options=[
+            {"label": lb, "text": t, "is_correct": i == correct_index}
+            for i, (lb, t) in enumerate(zip("ABCD", words))
+        ],
+    )
+
+
+def test_two_questions_answered_by_the_same_letter_are_not_duplicates():
+    """Model thường ghi answer_text gọn là "A"/"B". So theo chuỗi đó thì mọi câu có đáp
+    án rơi vào cùng một chữ cái đều bị coi là trùng dù nội dung khác hẳn — mà câu sinh
+    lại cũng rơi vào một chữ cái nào đó nên không bao giờ được nhận. Đề sinh 27/08/2026
+    đốt ~22 lượt gọi API vô ích đúng vì chỗ này."""
+    first = _mcq("A", ["gardening", "cleaning", "studying", "reading"], 0)
+    second = _mcq("A", ["cycling", "painting", "cooking", "singing"], 0)
+    seen = {_answer_word(first)}
+
+    assert _repeated_answer_warning(second, seen) == []
+
+
+def test_the_same_answer_word_under_a_different_letter_is_still_a_duplicate():
+    first = _mcq("A", ["gardening", "cleaning", "studying", "reading"], 0)
+    second = _mcq("B", ["swimming", "gardening", "dancing", "drawing"], 1)
+    seen = {_answer_word(first)}
+
+    assert _repeated_answer_warning(second, seen)
