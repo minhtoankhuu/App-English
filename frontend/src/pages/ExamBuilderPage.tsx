@@ -4,8 +4,10 @@ import {
   addBlock,
   addBlockPart,
   deleteBlock,
+  deleteBlockPart,
   generateExam,
   getExam,
+  reorderBlockParts,
   reorderBlocks,
   setGrammarSelection,
   updateBlock,
@@ -46,6 +48,8 @@ const PRONUNCIATION_PART_PRESETS: {
   },
   { title: "Trọng âm", promptOverride: "", exerciseTypeCode: "stress" },
 ];
+
+const PRONUNCIATION_PART_DEFAULT_COUNT = 5;
 
 // WORD FORMATION theo format đề thật gồm 2 phần không trộn được trong 1 lần sinh
 // (xem prompts.py): Phần A gom câu theo họ từ (dòng "❖ adore (v) → adorable (adj) → ..."),
@@ -160,6 +164,10 @@ export function ExamBuilderPage() {
   const [editShuffleQuestions, setEditShuffleQuestions] = useState(true);
   const [editShuffleAnswers, setEditShuffleAnswers] = useState(true);
   const [editPromptOverride, setEditPromptOverride] = useState("");
+  // Hướng dẫn làm bài của từng phần con, khoá theo part.id. Khối có phần con thì
+  // câu lệnh chung của khối KHÔNG được in ra đề (mỗi phần tự in dòng của nó), nên
+  // ô nhập cũng phải chuyển về từng phần — xem docx_renderer._add_block_instruction.
+  const [partInstructions, setPartInstructions] = useState<Record<string, string>>({});
 
   const [editingExamTitle, setEditingExamTitle] = useState(false);
   const [examTitleDraft, setExamTitleDraft] = useState("");
@@ -312,17 +320,18 @@ export function ExamBuilderPage() {
         const created = await addBlock(target.examId, {
           exercise_type_id: type.id,
           title: DEFAULT_BLOCK_TITLE_BY_CODE[type.code] ?? type.name,
-          question_count: 5,
+          question_count: PRONUNCIATION_PART_DEFAULT_COUNT,
           points: 3,
         });
         for (const preset of PRONUNCIATION_PART_PRESETS) {
           await addBlockPart(target.examId, created.id, {
             title: preset.title,
-            question_count: 5,
+            question_count: PRONUNCIATION_PART_DEFAULT_COUNT,
             prompt_override: preset.promptOverride || null,
-            exercise_type_id: preset.exerciseTypeCode
-              ? (exerciseTypes.find((t) => t.code === preset.exerciseTypeCode)?.id ?? null)
-              : null,
+            // Gửi MÃ, không tra id ở client: "stress" bị ẩn khỏi /catalog/exercise-types
+            // nên find() luôn trả undefined -> phần Trọng âm mất dạng bài và bị sinh
+            // thành câu phát âm thường (lỗi thấy trên đề sinh ngày 27/08/2026).
+            exercise_type_code: preset.exerciseTypeCode ?? null,
           });
         }
       } else {
@@ -391,6 +400,60 @@ export function ExamBuilderPage() {
     }
   }
 
+  // Đề thật chia mục PRONUNCIATION làm 4 phần (đuôi -s/-es + đuôi -ed + âm trong từ +
+  // trọng âm — format lớp 8) hoặc 3 phần (một kiểu đuôi + âm trong từ + trọng âm —
+  // format lớp 7 và 9); 13/13 đề khảo sát ngày 27/08/2026 rơi vào một trong hai. Nên
+  // để giáo viên bật/tắt từng phần thay vì chốt cứng 4 phần.
+  async function handleTogglePronunciationPart(preset: (typeof PRONUNCIATION_PART_PRESETS)[number]) {
+    if (!editingBlock || mutationSaving) return;
+    const existing = editingBlock.parts.find((part) => part.title === preset.title);
+    // Bỏ hết phần con thì khối quay về một bài tập trộn lẫn các kiểu — giữ lại tối thiểu 1.
+    if (existing && editingBlock.parts.length <= 1) return;
+    const target = beginMutation();
+    if (!target) return;
+    try {
+      let fresh: BlockOut;
+      if (existing) {
+        fresh = await deleteBlockPart(target.examId, editingBlock.id, existing.id);
+      } else {
+        fresh = await addBlockPart(target.examId, editingBlock.id, {
+          title: preset.title,
+          question_count: PRONUNCIATION_PART_DEFAULT_COUNT,
+          prompt_override: preset.promptOverride || null,
+          exercise_type_code: preset.exerciseTypeCode ?? null,
+        });
+        // Phần mới luôn nằm cuối — xếp lại theo thứ tự preset để đề in ra giữ đúng
+        // trình tự A. đuôi -s/-es -> B. đuôi -ed -> C. âm trong từ -> D. trọng âm.
+        const order = PRONUNCIATION_PART_PRESETS.map(
+          (item) => fresh.parts.find((part) => part.title === item.title)?.id,
+        ).filter((id): id is string => Boolean(id));
+        if (order.length === fresh.parts.length) {
+          fresh = await reorderBlockParts(target.examId, editingBlock.id, order);
+        }
+      }
+      if (!isActiveOperation(target)) return;
+      // Cập nhật riêng phần con, KHÔNG gọi openEditBlock: giáo viên có thể đang sửa dở
+      // tiêu đề/hướng dẫn trong cùng popup, nạp lại hết là mất.
+      setEditingBlock(fresh);
+      setEditCount(fresh.question_count);
+      setPartInstructions(Object.fromEntries(fresh.parts.map((part) => [part.id, part.instruction ?? ""])));
+      setPartCounts(Object.fromEntries(fresh.parts.map((part) => [part.id, part.question_count])));
+      setPartPerFamily(
+        Object.fromEntries(fresh.parts.map((part) => [part.id, readPerFamily(part.prompt_override)])),
+      );
+      await refreshBuilder(target);
+    } catch (err) {
+      if (isActiveOperation(target)) {
+        setError({
+          generation: target.generation,
+          value: err instanceof ApiError ? err.message : "Không cập nhật được phần con",
+        });
+      }
+    } finally {
+      finishMutation(target);
+    }
+  }
+
   function openEditBlock(block: BlockOut) {
     const gradeNumber = exam ? grades.find((g) => g.id === exam.grade_id)?.number : undefined;
     const range = passageRangeFor(gradeNumber);
@@ -405,6 +468,7 @@ export function ExamBuilderPage() {
     setEditShuffleQuestions(block.shuffle_questions);
     setEditShuffleAnswers(block.shuffle_answers);
     setEditPromptOverride(block.prompt_override ?? "");
+    setPartInstructions(Object.fromEntries(block.parts.map((part) => [part.id, part.instruction ?? ""])));
     setPartCounts(Object.fromEntries(block.parts.map((part) => [part.id, part.question_count])));
     setPartPerFamily(Object.fromEntries(block.parts.map((part) => [part.id, readPerFamily(part.prompt_override)])));
   }
@@ -452,10 +516,17 @@ export function ExamBuilderPage() {
           ? writePerFamily(part.prompt_override, perFamily)
           : part.prompt_override;
         const count = value === "" || value === undefined ? part.question_count : value;
-        if (count === part.question_count && promptOverride === part.prompt_override) continue;
+        const instruction = (partInstructions[part.id] ?? part.instruction ?? "").trim() || null;
+        if (
+          count === part.question_count &&
+          promptOverride === part.prompt_override &&
+          instruction === part.instruction
+        ) {
+          continue;
+        }
         await updateBlockPart(target.examId, editingBlock.id, part.id, {
           title: part.title,
-          instruction: part.instruction,
+          instruction,
           question_count: count,
           prompt_override: promptOverride,
         });
@@ -717,15 +788,46 @@ export function ExamBuilderPage() {
               <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
             </label>
 
-            <label>
-              Hướng dẫn làm bài
-              <input
-                type="text"
-                placeholder="Ví dụ: Choose the best answer A, B, C or D."
-                value={editInstruction}
-                onChange={(e) => setEditInstruction(e.target.value)}
-              />
-            </label>
+            {/* Khối chia phần con thì câu lệnh chung KHÔNG được in ra đề — mỗi phần con
+                tự in dòng hướng dẫn của nó, đúng như đề thật. Hiện ô chung ở đây chỉ tạo
+                ra ô nhập chết, nên chuyển hẳn sang ô cho từng phần. */}
+            {editingBlock.parts.length === 0 ? (
+              <label>
+                Hướng dẫn làm bài
+                <input
+                  type="text"
+                  placeholder="Ví dụ: Choose the best answer A, B, C or D."
+                  value={editInstruction}
+                  onChange={(e) => setEditInstruction(e.target.value)}
+                />
+              </label>
+            ) : (
+              <div className="part-instructions">
+                <div className="section-heading block-heading">
+                  <div>
+                    <h3>Hướng dẫn từng phần</h3>
+                    <p>
+                      Mỗi phần in một dòng hướng dẫn riêng dưới tiêu đề mục. Để trống thì
+                      dùng câu dẫn AI sinh ra cho phần đó.
+                    </p>
+                  </div>
+                </div>
+                {sortedParts.map((part, index) => (
+                  <label key={part.id}>
+                    {`${String.fromCharCode(65 + index)}. ${part.title}`}
+                    <input
+                      type="text"
+                      aria-label={`Hướng dẫn ${part.title}`}
+                      placeholder="Ví dụ: Choose the word that has a different pronunciation of the ending -ed."
+                      value={partInstructions[part.id] ?? ""}
+                      onChange={(e) =>
+                        setPartInstructions((prev) => ({ ...prev, [part.id]: e.target.value }))
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
 
             <div className="editor-grid">
               <label>
@@ -779,6 +881,40 @@ export function ExamBuilderPage() {
               </label>
             </div>
 
+            {editingBlock.exercise_type.code === "pronunciation" && (
+              <div>
+                <div className="section-heading block-heading">
+                  <div>
+                    <h3>Các phần của mục này</h3>
+                    <p>
+                      Đề thật lớp 8 đủ 4 phần; đề lớp 7 và 9 thường 3 phần — bỏ bớt một kiểu
+                      đuôi. Bỏ tick là xóa phần đó cùng các câu đã sinh trong phần.
+                    </p>
+                  </div>
+                </div>
+                <div className="editor-checks">
+                  {PRONUNCIATION_PART_PRESETS.map((preset) => {
+                    const enabled = editingBlock.parts.some((part) => part.title === preset.title);
+                    return (
+                      <label key={preset.title} className="type-option">
+                        {/* aria-label riêng: ô "Số lượng từng phần" bên dưới cũng mang
+                            tên phần, trùng tên thì không phân biệt được bật/tắt phần
+                            với sửa số câu của phần. */}
+                        <input
+                          type="checkbox"
+                          aria-label={`Có phần ${preset.title}`}
+                          checked={enabled}
+                          disabled={mutationSaving || (enabled && editingBlock.parts.length <= 1)}
+                          onChange={() => handleTogglePronunciationPart(preset)}
+                        />
+                        {preset.title}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {editingBlock.parts.length > 0 && (
               <div>
                 <div className="section-heading block-heading">
@@ -790,7 +926,7 @@ export function ExamBuilderPage() {
                     </p>
                   </div>
                 </div>
-                <div className="editor-grid">
+                <div className="editor-grid part-count-grid">
                   {sortedParts.map((part) => {
                     const isFamily = isWordFormFamilyPart(editingBlock, part);
                     // Để trống được khi đang gõ (nếu chặn rỗng thì xóa không được, gõ "7" vào "5"
@@ -810,8 +946,12 @@ export function ExamBuilderPage() {
                       <Fragment key={part.id}>
                         <label>
                           {partCountLabel(editingBlock, part)}
+                          {/* aria-label cố định: dòng chú thích bên dưới nằm trong
+                              <label> nên tên nhãn suy từ text sẽ kèm cả "— 5 câu", và
+                              ô tick bật/tắt phần ở trên cũng mang tên phần. */}
                           <input
                             type="number"
+                            aria-label={partCountLabel(editingBlock, part)}
                             min={1}
                             max={20}
                             value={raw === "" ? "" : Math.max(1, Math.round(raw / perWord))}

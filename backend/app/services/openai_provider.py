@@ -26,6 +26,14 @@ _MAX_ATTEMPTS = 3  # 1 lần gọi đầu + tối đa 2 lần retry (PRD 17)
 _MARKUP_ALLOWED_TYPES = frozenset({"pronunciation", "stress"})
 
 
+def _clean_label(label: str | None) -> str | None:
+    """'A.' / 'A)' / ' a ' -> 'A'. Giữ nguyên nếu không phải nhãn 1 chữ cái."""
+    if not label:
+        return label
+    stripped = label.strip().rstrip(".)").strip()
+    return stripped.upper() if len(stripped) == 1 and stripped.isalpha() else label
+
+
 def _sanitize_options(options: list[dict] | None, exercise_type_code: str = "") -> list[dict] | None:
     """Chặn lỗi model nhân đôi ký tự đuôi phát âm ngay khi lưu (vd 'cats<u>s</u>' →
     'cat<u>s</u>') để cả DOCX lẫn preview web đều sạch, không phụ thuộc render (xem
@@ -35,6 +43,9 @@ def _sanitize_options(options: list[dict] | None, exercise_type_code: str = "") 
     cleaned = [
         {**opt, "text": dedupe_pronunciation_suffix(opt["text"])} if opt.get("text") else opt for opt in options
     ]
+    # Nhãn phải là chữ cái trần: model hay trả "A." kèm sẵn dấu chấm, mà cả DOCX lẫn web
+    # đều tự thêm ". " sau nhãn -> in ra "A.. birds" (đề sinh 27/08/2026).
+    cleaned = [{**opt, "label": _clean_label(opt.get("label"))} for opt in cleaned]
     # Markup <u>...</u> CHỈ dành cho dạng phát âm/trọng âm. Model vẫn lỡ chèn vào dạng
     # khác (đề thật 07/08/2026: lựa chọn "A method of <u>communicating</u> with thoughts"
     # bị in gạch chân đậm vô nghĩa) -> gỡ sạch thay vì tin prompt.
@@ -244,6 +255,7 @@ class OpenAIProvider(AIProvider):
             block.question_count,
             block.level_code,
             examples=self._examples(block, context),
+            prompt_override=block.prompt_override,
         )
         user_prompt = build_user_prompt(
             context.unit_title, [(str(c.chunk_id), c.raw_text) for c in retrieved], block.prompt_override, None
@@ -284,7 +296,11 @@ class OpenAIProvider(AIProvider):
     ) -> QuestionDraft:
         retrieved = self._retrieve(block, context)
         system_prompt = build_system_prompt(
-            block.exercise_type_code, 1, block.level_code, examples=self._examples(block, context)
+            block.exercise_type_code,
+            1,
+            block.level_code,
+            examples=self._examples(block, context),
+            prompt_override=block.prompt_override,
         )
         user_prompt = build_user_prompt(
             context.unit_title,

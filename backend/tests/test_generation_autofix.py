@@ -14,25 +14,30 @@ from app.services.generation import (
 )
 
 
-def _opts(words):
-    return [{"label": lb, "text": t, "is_correct": i == 0} for i, (lb, t) in enumerate(zip("ABCD", words))]
+def _opts(words, answer_index):
+    return [
+        {"label": lb, "text": t, "is_correct": i == answer_index}
+        for i, (lb, t) in enumerate(zip("ABCD", words))
+    ]
 
 
-def _draft(prompt, words):
+def _draft(prompt, words, answer_index=0):
     return QuestionDraft(
         prompt_text=prompt,
-        answer_text=words[0],
+        answer_text=words[answer_index],
         explanation="x",
         target_knowledge="pron",
         level_code="A2",
         source_ref="mock",
-        options=_opts(words),
+        options=_opts(words, answer_index),
     )
 
 
 # Câu lỗi: từ bịa (foring/woring/soring). Câu sạch: 3 /z/ + 1 /s/ (rings/endings/saves/shoots).
 BAD = _draft("P", ["b<u>or</u>ing", "f<u>or</u>ing", "w<u>or</u>ing", "s<u>or</u>ing"])
-CLEAN = _draft("P", ["ring<u>s</u>", "ending<u>s</u>", "save<u>s</u>", "shoot<u>s</u>"])
+# Đáp án phải đánh vào 'shoots' (/s/, khác 3 từ /z/ còn lại) — bộ kiểm đối chiếu chỗ
+# đánh đáp án với âm đọc được, đánh nhầm chỗ là câu hỏng dù 4 từ hoàn toàn hợp lệ.
+CLEAN = _draft("P", ["ring<u>s</u>", "ending<u>s</u>", "save<u>s</u>", "shoot<u>s</u>"], answer_index=3)
 CTX = GenerationContext(grade_number=7, school_stage_code="thcs", exam_level_code="A2")
 SPEC = BlockSpec(exercise_type_code="pronunciation", question_count=1, level_code="A2")
 

@@ -333,7 +333,16 @@ def add_block_part(
     exam = _get_owned_exam(db, exam_id, current_user)
     block = _get_owned_block(exam, block_id)
     next_order = (max((p.order_no for p in block.parts), default=0)) + 1
-    part = ExamBlockPart(block_id=block.id, order_no=next_order, **payload.model_dump())
+    fields = payload.model_dump()
+    # Dạng bài ẩn (vd "stress") không có trong /catalog/exercise-types nên client gửi
+    # mã thay vì id — tra ở đây để phần con vẫn ghim đúng dạng.
+    code = fields.pop("exercise_type_code", None)
+    if code and not fields.get("exercise_type_id"):
+        exercise_type = db.scalar(select(ExerciseType).where(ExerciseType.code == code))
+        if exercise_type is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Không có dạng bài mã {code!r}")
+        fields["exercise_type_id"] = exercise_type.id
+    part = ExamBlockPart(block_id=block.id, order_no=next_order, **fields)
     db.add(part)
     db.flush()
     db.refresh(block, attribute_names=["parts"])

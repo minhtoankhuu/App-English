@@ -15,6 +15,7 @@ const examApi = vi.hoisted(() => ({
   deleteBlockPart: vi.fn(),
   generateExam: vi.fn(),
   getExam: vi.fn(),
+  reorderBlockParts: vi.fn(),
   reorderBlocks: vi.fn(),
   setGrammarSelection: vi.fn(),
   updateBlock: vi.fn(),
@@ -108,15 +109,6 @@ const matchingType: ExerciseTypeOut = {
   order_no: 4,
 };
 
-const stressType: ExerciseTypeOut = {
-  id: "type-stress",
-  code: "stress",
-  name: "Trọng âm",
-  default_instruction: "",
-  has_passage: false,
-  order_no: 5,
-};
-
 const pronunciationType: ExerciseTypeOut = {
   id: "type-pron",
   code: "pronunciation",
@@ -206,6 +198,7 @@ describe("ExamBuilderPage", () => {
     examApi.addBlockPart.mockResolvedValue(blocks[0]);
     examApi.updateBlockPart.mockResolvedValue(blocks[0]);
     examApi.deleteBlockPart.mockResolvedValue(blocks[0]);
+    examApi.reorderBlockParts.mockResolvedValue(blocks[0]);
   });
 
   it("loads the exam", async () => {
@@ -541,12 +534,15 @@ describe("ExamBuilderPage", () => {
     expect(counts).toEqual([15, 15]);
   });
 
-  it("ticking Pronunciation creates 1 block with 4 Phần con, stress pinned to its own type", async () => {
+  it("ticking Pronunciation creates 1 block with 4 Phần con, stress pinned by code", async () => {
     // Đề thật (13/13) ghép trọng âm vào cùng mục "I. PRONUNCIATION" chứ không tách
     // thành mục La Mã riêng — phần con thứ 4 ghi đè dạng bài sang "stress".
+    // Ghim bằng MÃ chứ không tra id: "stress" bị ẩn khỏi /catalog/exercise-types nên
+    // KHÔNG có trong danh sách trả về dưới đây — tra id ở client luôn ra undefined và
+    // phần Trọng âm mất dạng bài (lỗi trên đề sinh ngày 27/08/2026).
     const user = userEvent.setup();
     catalogApi.listExerciseTypes.mockResolvedValue([
-      blocks[0]!.exercise_type, wordFormType, pronunciationType, stressType,
+      blocks[0]!.exercise_type, wordFormType, pronunciationType,
     ]);
     renderBuilder();
     await screen.findByTestId("block-a");
@@ -557,10 +553,10 @@ describe("ExamBuilderPage", () => {
     const parts = vi.mocked(examApi.addBlockPart).mock.calls.map(([, , p]) => p);
     expect(parts.map((p) => p.title)).toEqual(["Đuôi -s/-es", "Đuôi -ed", "Âm trong từ", "Trọng âm"]);
     // Ba phần đầu dùng dạng bài của khối cha, mỗi phần ghim một kiểu phát âm
-    expect(parts.slice(0, 3).every((p) => p.exercise_type_id === null)).toBe(true);
+    expect(parts.slice(0, 3).every((p) => p.exercise_type_code === null)).toBe(true);
     expect(new Set(parts.slice(0, 3).map((p) => p.prompt_override)).size).toBe(3);
     // Phần trọng âm ghi đè dạng bài, không cần ghim kiểu
-    expect(parts[3]!.exercise_type_id).toBe("type-stress");
+    expect(parts[3]!.exercise_type_code).toBe("stress");
     expect(parts[3]!.prompt_override).toBeNull();
   });
 
@@ -657,8 +653,100 @@ describe("ExamBuilderPage", () => {
     expect(screen.queryByLabelText("Tiêu đề phần con")).not.toBeInTheDocument();
 
     // Mỗi phần con là một ô số ngay trong form chính
-    expect(screen.getByLabelText(/Đuôi -s\/-es/)).toHaveValue(5);
-    expect(screen.getByLabelText(/Đuôi -ed/)).toHaveValue(5);
+    expect(screen.getByLabelText("1. Đuôi -s/-es")).toHaveValue(5);
+    expect(screen.getByLabelText("2. Đuôi -ed")).toHaveValue(5);
+  });
+
+  it("lets the teacher drop a Pronunciation sub-part to get the 3-part format", async () => {
+    // Đề thật lớp 8 có 4 phần (đuôi -s/-es + -ed + âm trong từ + trọng âm), đề lớp 7 và
+    // 9 chỉ 3 phần — bỏ bớt một kiểu đuôi. 13/13 đề khảo sát rơi vào một trong hai.
+    const user = userEvent.setup();
+    const pronunciationParts = [
+      { id: "p1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5, prompt_override: "kiểu (1)" },
+      { id: "p2", order_no: 2, title: "Đuôi -ed", instruction: null, question_count: 5, prompt_override: "kiểu (2)" },
+      { id: "p3", order_no: 3, title: "Âm trong từ", instruction: null, question_count: 5, prompt_override: "kiểu (3)" },
+      { id: "p4", order_no: 4, title: "Trọng âm", instruction: null, question_count: 5, prompt_override: null },
+    ];
+    const pronunciationBlock = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 20, parts: pronunciationParts,
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [pronunciationBlock, blocks[1]!] });
+    examApi.deleteBlockPart.mockResolvedValue({
+      ...pronunciationBlock, question_count: 15, parts: pronunciationParts.filter((p) => p.id !== "p1"),
+    });
+    renderBuilder();
+    await screen.findByTestId("block-pron-block");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+    await user.click(screen.getByLabelText("Có phần Đuôi -s/-es"));
+
+    expect(examApi.deleteBlockPart).toHaveBeenCalledWith("exam-1", "pron-block", "p1");
+    // Popup nhận ngay khối mới, không cần đóng mở lại
+    await waitFor(() => expect(screen.queryByLabelText("1. Đuôi -s/-es")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Số câu")).toHaveValue(15);
+  });
+
+  it("adds a Pronunciation sub-part back in the order the real exams use", async () => {
+    const user = userEvent.setup();
+    const remaining = [
+      { id: "p2", order_no: 1, title: "Đuôi -ed", instruction: null, question_count: 5, prompt_override: "kiểu (2)" },
+      { id: "p3", order_no: 2, title: "Âm trong từ", instruction: null, question_count: 5, prompt_override: "kiểu (3)" },
+      { id: "p4", order_no: 3, title: "Trọng âm", instruction: null, question_count: 5, prompt_override: null },
+    ];
+    const pronunciationBlock = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 15, parts: remaining,
+    };
+    const withAdded = {
+      ...pronunciationBlock, question_count: 20,
+      parts: [...remaining, { id: "p1", order_no: 4, title: "Đuôi -s/-es", instruction: null, question_count: 5, prompt_override: "kiểu (1)" }],
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [pronunciationBlock, blocks[1]!] });
+    examApi.addBlockPart.mockResolvedValue(withAdded);
+    examApi.reorderBlockParts.mockResolvedValue(withAdded);
+    renderBuilder();
+    await screen.findByTestId("block-pron-block");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+    await user.click(screen.getByLabelText("Có phần Đuôi -s/-es"));
+
+    await waitFor(() => expect(examApi.reorderBlockParts).toHaveBeenCalled());
+    // Phần mới bị API thêm vào cuối -> xếp lại để đề in ra vẫn A. -s/-es -> B. -ed -> ...
+    expect(examApi.reorderBlockParts).toHaveBeenCalledWith("exam-1", "pron-block", ["p1", "p2", "p3", "p4"]);
+  });
+
+  it("edits the instruction per sub-part instead of one for the whole block", async () => {
+    // Khối có phần con thì câu lệnh chung KHÔNG in ra đề (mỗi phần tự in dòng của nó),
+    // nên ô "Hướng dẫn làm bài" chung là ô nhập chết.
+    const user = userEvent.setup();
+    const pronunciationParts = [
+      { id: "p1", order_no: 1, title: "Đuôi -s/-es", instruction: null, question_count: 5, prompt_override: "kiểu (1)" },
+      { id: "p2", order_no: 2, title: "Đuôi -ed", instruction: "Cũ", question_count: 5, prompt_override: "kiểu (2)" },
+    ];
+    const pronunciationBlock = {
+      ...blocks[0]!, id: "pron-block", title: "PRONUNCIATION", exercise_type: pronunciationType,
+      question_count: 10, parts: pronunciationParts,
+    };
+    examApi.getExam.mockResolvedValue({ ...exam, blocks: [pronunciationBlock, blocks[1]!] });
+    renderBuilder();
+    await screen.findByTestId("block-pron-block");
+
+    await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
+
+    expect(screen.queryByLabelText("Hướng dẫn làm bài")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Hướng dẫn Đuôi -ed")).toHaveValue("Cũ");
+
+    await user.type(screen.getByLabelText("Hướng dẫn Đuôi -s/-es"), "Choose the odd one.");
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+
+    await waitFor(() => expect(examApi.updateBlockPart).toHaveBeenCalled());
+    expect(examApi.updateBlockPart).toHaveBeenCalledWith(
+      "exam-1", "pron-block", "p1",
+      expect.objectContaining({ instruction: "Choose the odd one." }),
+    );
+    // Phần không đổi gì thì không gọi lại API
+    expect(examApi.updateBlockPart).toHaveBeenCalledTimes(1);
   });
 
   it("updates the block question total live while typing a sub-part count", async () => {
@@ -678,8 +766,8 @@ describe("ExamBuilderPage", () => {
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
     expect(screen.getByLabelText("Số câu")).toHaveValue(10);
 
-    await user.clear(screen.getByLabelText(/Đuôi -ed/));
-    await user.type(screen.getByLabelText(/Đuôi -ed/), "8");
+    await user.clear(screen.getByLabelText("2. Đuôi -ed"));
+    await user.type(screen.getByLabelText("2. Đuôi -ed"), "8");
 
     // 5 + 8 = 13, cập nhật ngay chứ không đợi bấm Lưu
     expect(screen.getByLabelText("Số câu")).toHaveValue(13);
@@ -700,8 +788,8 @@ describe("ExamBuilderPage", () => {
     await screen.findByTestId("block-pron-block");
 
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa PRONUNCIATION" }));
-    await user.clear(screen.getByLabelText(/Đuôi -ed/));
-    await user.type(screen.getByLabelText(/Đuôi -ed/), "8");
+    await user.clear(screen.getByLabelText("2. Đuôi -ed"));
+    await user.type(screen.getByLabelText("2. Đuôi -ed"), "8");
     await user.click(screen.getByRole("button", { name: "Lưu" }));
 
     // Chỉ phần đổi mới được gửi đi; tiêu đề/prompt giữ nguyên
@@ -739,11 +827,11 @@ describe("ExamBuilderPage", () => {
     await user.click(screen.getByRole("button", { name: "Chỉnh sửa WORD FORMATION" }));
 
     // Phần A hiện 3 (họ từ) chứ không phải 15 (câu); Phần B 1 từ = 1 câu
-    expect(screen.getByLabelText(/Phần A — Số họ từ/)).toHaveValue(3);
+    expect(screen.getByLabelText("Phần A — Số họ từ")).toHaveValue(3);
     expect(screen.getByLabelText(/Phần B — Số từ/)).toHaveValue(6);
 
-    await user.clear(screen.getByLabelText(/Phần A — Số họ từ/));
-    await user.type(screen.getByLabelText(/Phần A — Số họ từ/), "4");
+    await user.clear(screen.getByLabelText("Phần A — Số họ từ"));
+    await user.type(screen.getByLabelText("Phần A — Số họ từ"), "4");
 
     // 4 họ từ = 20 câu, tổng khối 20 + 6
     expect(screen.getByLabelText("Số câu")).toHaveValue(26);
@@ -777,7 +865,7 @@ describe("ExamBuilderPage", () => {
     await user.type(screen.getByLabelText(/Số câu mỗi họ từ/), "7");
 
     // Giữ nguyên 3 họ từ -> tổng thành 21 câu
-    expect(screen.getByLabelText(/Phần A — Số họ từ/)).toHaveValue(3);
+    expect(screen.getByLabelText("Phần A — Số họ từ")).toHaveValue(3);
     expect(screen.getByLabelText("Số câu")).toHaveValue(21);
 
     await user.click(screen.getByRole("button", { name: "Lưu" }));

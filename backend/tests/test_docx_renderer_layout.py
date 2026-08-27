@@ -41,6 +41,8 @@ def _left_indent_cm(p):
     return 0.0 if indent is None else round(indent.cm, 3)
 
 
+_NL = chr(10)
+
 PRON_S = "Choose the word that has a different pronunciation of the ending -s/-es."
 PRON_SOUND = "Choose the word that has a different sound in the underlined part."
 
@@ -219,9 +221,40 @@ def test_no_student_info_line():
 
 
 def _instruction_doc(instruction):
+    # Khối KHÔNG chia phần con: chỉ khi đó câu lệnh chung của khối mới được in
+    # (khối có phần con thì từng phần con tự in câu lệnh riêng).
     block = _pronunciation_block()
+    block.parts = []
+    for question in block.questions:
+        question.part_id = None
     block.instruction = instruction
     return build_exam_document(*_exam(block))
+
+
+def test_teacher_instruction_on_a_part_wins_over_the_generated_prompt():
+    """Dòng hướng dẫn của phần con là dòng DUY NHẤT được in cho phần đó — giáo viên sửa
+    ở popup thì phải thấy trên đề, không còn câu lệnh chung của khối để sửa nữa."""
+    block = _pronunciation_block()
+    block.parts[0].instruction = "Choose the word with a different -s/-es ending sound."
+    doc = build_exam_document(*_exam(block))
+
+    full_text = _NL.join(p.text for p in doc.paragraphs)
+    assert "different -s/-es ending sound" in full_text
+    assert PRON_S not in full_text  # câu dẫn AI sinh bị thay
+    assert PRON_SOUND in full_text  # phần để trống vẫn giữ câu dẫn
+
+
+def test_block_instruction_hidden_when_parts_print_their_own():
+    """Đề thật: "I. PRONUNCIATION" đi thẳng xuống dòng hướng dẫn của từng phần con,
+    không có câu lệnh chung của khối ở giữa (câu chung không mô tả nổi phần trọng âm)."""
+    block = _pronunciation_block()
+    block.instruction = "Choose the word whose underlined part is pronounced differently."
+    doc = build_exam_document(*_exam(block))
+
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "whose underlined part" not in full_text
+    assert PRON_S in full_text
+    assert PRON_SOUND in full_text
 
 
 def test_instruction_label_bold_and_body_italic():

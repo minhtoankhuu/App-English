@@ -72,6 +72,11 @@ class BlockPartCreateRequest(BaseModel):
     # None = dùng dạng bài của khối cha. Đặt khác để ghép dạng khác vào cùng một mục
     # như đề thật (trọng âm nằm trong "I. PRONUNCIATION").
     exercise_type_id: uuid.UUID | None = None
+    # Đường vào theo MÃ dạng bài, cho những dạng bị ẩn khỏi /catalog/exercise-types
+    # (seed.INACTIVE_EXERCISE_TYPE_CODES) nên client không tra ra id: "stress" chỉ tồn
+    # tại dưới dạng phần con của PRONUNCIATION, không phải mục riêng để tick. Chỉ dùng
+    # khi exercise_type_id bỏ trống.
+    exercise_type_code: str | None = None
 
 
 class BlockPartUpdateRequest(BaseModel):

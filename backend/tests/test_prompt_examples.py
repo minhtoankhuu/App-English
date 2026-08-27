@@ -19,6 +19,39 @@ from app.services.prompts import (
 NL = chr(10)
 
 
+def test_pronunciation_prompt_only_carries_the_pinned_kind():
+    """Phần con nào cũng ghim sẵn 1 kiểu, nên gửi cả 3 kiểu là trả tiền cho ~600-880
+    token/lượt mô tả những kiểu model bị CẤM dùng."""
+    ed = build_system_prompt(
+        "pronunciation", 5, "A2", prompt_override="Chỉ dùng kiểu (2) đuôi -ed cho toàn bộ các câu."
+    )
+
+    assert "Đuôi -ed" in ed
+    assert "(1) Đuôi -s/-es" not in ed
+    assert "(3) So sánh âm chung" not in ed
+    # Luật chung (quy tắc 3-1, từ đơn, gạch chân) vẫn phải còn
+    assert "QUY TẮC 3-1 VỀ ÂM" in ed
+    assert len(ed) < len(build_system_prompt("pronunciation", 5, "A2"))
+
+
+def test_pronunciation_prompt_keeps_all_three_kinds_when_none_is_pinned():
+    """Giáo viên tự tạo phần không ghim kiểu -> model vẫn được chọn, như trước."""
+    text = build_system_prompt("pronunciation", 5, "A2")
+
+    for marker in ("(1) Đuôi -s/-es", "(2) Đuôi -ed", "(3) So sánh âm chung"):
+        assert marker in text
+
+
+def test_stress_prompt_forbids_underlining():
+    """Bộ kiểm coi gạch chân âm tiết trong câu trọng âm là lộ đáp án và loại câu đó.
+    Prompt từng BẮT BUỘC gạch chân — mâu thuẫn không lộ ra khi mục trọng âm còn dựng
+    bằng code, nhưng từ 27/08/2026 AI sinh nên mọi câu AI viết đều bị loại."""
+    prompt = build_system_prompt("stress", 5, "A2")
+
+    assert "KHÔNG gạch chân" in prompt
+    assert "<u>han</u>dsome" not in prompt
+
+
 def test_multiple_choice_prompt_carries_examples():
     text = build_system_prompt("multiple_choice", 5, "A2", example_offset=0)
     assert "CÂU MẪU" in text

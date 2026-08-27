@@ -143,11 +143,43 @@ def stress_positions(words: list[str]) -> tuple[list[int], str] | None:
     return positions, "trọng âm"
 
 
+# Nguyên âm giảm đứng trước /z/ hay /d/ báo hiệu âm tiết phụ /ɪz/, /ɪd/ ('classes'
+# K L AE1 S AH0 Z, 'wanted' W AA1 N T IH0 D). ĐÚNG hai âm này thôi: gộp cả IY0 vào là
+# đọc nhầm 'married' (M EH1 R IY0 D) thành /ɪd/ — IY0 ở đó là chữ 'i' của gốc từ
+# 'marri-', không phải nguyên âm của đuôi -ed.
+_REDUCED_VOWELS = frozenset({"AH0", "IH0"})
+
+
+def _dict_ending_sound(word: str, voiced: str, voiceless: str, extra: str) -> str | None:
+    """Âm đuôi tra thẳng từ cmudict, None khi từ không có trong từ điển hoặc âm cuối
+    không phải đuôi đang xét.
+
+    Quy tắc theo chính tả đoán sai với từ mà chữ 's'/'ed' cuối KHÔNG phải đuôi biến
+    cách: 'bus' bị đọc thành /z/ như 'dogs' (đề sinh 27/08/2026 lọt câu
+    'bus, games, cousins, classes' — thật ra s-z-z-ɪz, không có đáp án duy nhất).
+    """
+    prons = _cmu_dict().get(word)
+    if not prons:
+        return None
+    phones = [p for p in prons[0]]
+    if not phones:
+        return None
+    last = _STRESS_DIGIT_RE.sub("", phones[-1])
+    if last not in (voiced.upper(), voiceless.upper()):
+        return None
+    if len(phones) >= 2 and phones[-2] in _REDUCED_VOWELS:
+        return extra
+    return voiced if last == voiced.upper() else voiceless
+
+
 def s_ending_sound(word: str) -> str | None:
     """'s' | 'z' | 'iz' — hoặc None khi không suy chắc chắn được."""
     w = word.lower()
     if not w.isalpha() or not w.endswith("s"):
         return None
+    from_dict = _dict_ending_sound(w, "z", "s", "iz")
+    if from_dict is not None:
+        return from_dict
     if w.endswith(_S_UNKNOWN):
         return None
     if w.endswith(_S_SIBILANT):
@@ -162,6 +194,9 @@ def ed_ending_sound(word: str) -> str | None:
     w = word.lower()
     if not w.isalpha() or not w.endswith("ed"):
         return None
+    from_dict = _dict_ending_sound(w, "d", "t", "id")
+    if from_dict is not None:
+        return from_dict
     if w.endswith(_ED_ID):
         return "id"
     if w.endswith(_ED_UNKNOWN):

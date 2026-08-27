@@ -201,3 +201,22 @@ def test_sanitize_options_keeps_markup_for_pronunciation_and_stress():
 
     assert _sanitize_options([{"label": "A", "text": "cl<u>ea</u>n"}], "pronunciation")[0]["text"] == "cl<u>ea</u>n"
     assert _sanitize_options([{"label": "A", "text": "be<u>gin</u>"}], "stress")[0]["text"] == "be<u>gin</u>"
+
+
+def test_sanitize_options_strips_the_dot_the_model_puts_in_the_label():
+    """Model hay trả label 'A.' kèm sẵn dấu chấm, mà DOCX lẫn web đều tự thêm '. ' sau
+    nhãn -> in ra 'A.. birds' (đề sinh 27/08/2026)."""
+    from app.services.openai_provider import _sanitize_options
+
+    opts = [{"label": "A.", "text": "bird<u>s</u>"}, {"label": "B)", "text": "cat<u>s</u>"}]
+    cleaned = _sanitize_options(opts, "pronunciation")
+
+    assert [o["label"] for o in cleaned] == ["A", "B"]
+
+
+def test_sanitize_options_leaves_a_plain_label_alone():
+    from app.services.openai_provider import _sanitize_options
+
+    cleaned = _sanitize_options([{"label": "C", "text": "dog<u>s</u>"}], "pronunciation")
+
+    assert cleaned[0]["label"] == "C"

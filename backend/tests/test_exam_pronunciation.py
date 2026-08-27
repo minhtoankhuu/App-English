@@ -5,13 +5,19 @@ Ca lấy nguyên văn từ các đề chủ dự án nạp vào Knowledge_Base/E
 
 import pytest
 
-from app.services.exam_pronunciation import build_from_exam_items, odd_one_out, parse_option_line
+from app.services.exam_pronunciation import (
+    build_from_exam_items,
+    line_kind,
+    odd_one_out,
+    parse_option_line,
+)
 
 TAB = chr(9)
 
 VOWEL_LINE = f"A. m<u>u</u>scle{TAB}B. s<u>u</u>gar{TAB}C. p<u>u</u>zzle{TAB}D. h<u>u</u>nting"
 STRESS_LINE = f"A. relation{TAB}B. relative{TAB}C. dependence{TAB}D. description"
 ENDING_LINE = f"A. book<u>s</u>{TAB}B. cup<u>s</u>{TAB}C. dog<u>s</u>{TAB}D. map<u>s</u>"
+ED_LINE = f"A. work<u>ed</u>{TAB}B. want<u>ed</u>{TAB}C. wash<u>ed</u>{TAB}D. help<u>ed</u>"
 
 
 def test_parse_option_line_keeps_underline_markup():
@@ -92,3 +98,50 @@ def test_build_respects_the_requested_count():
 
 def test_build_returns_nothing_without_exam_items():
     assert build_from_exam_items([], is_pronunciation=True, count=5) == []
+
+
+def test_line_kind_separates_the_three_pronunciation_shapes():
+    assert line_kind(parse_option_line(ENDING_LINE)) == "s"
+    assert line_kind(parse_option_line(ED_LINE)) == "ed"
+    assert line_kind(parse_option_line(VOWEL_LINE)) == "vowel"
+
+
+def test_build_only_takes_lines_of_the_requested_kind():
+    """Phần con ghim kiểu nào chỉ được bốc câu kiểu đó — không lọc thì cả ba phần con
+    lấy chung một rổ và ra đề trộn lẫn đuôi -s/-es với -ed với nguyên âm."""
+    drafts = build_from_exam_items(
+        [ENDING_LINE, ED_LINE, VOWEL_LINE], is_pronunciation=True, count=3, kind="ed"
+    )
+
+    assert len(drafts) == 1
+    assert [o["text"] for o in drafts[0].options] == parse_option_line(ED_LINE)
+
+
+def test_build_prompt_names_the_kind_of_the_part():
+    by_kind = {
+        k: build_from_exam_items([line], is_pronunciation=True, count=1, kind=k)[0].prompt_text
+        for k, line in (("s", ENDING_LINE), ("ed", ED_LINE), ("vowel", VOWEL_LINE))
+    }
+
+    assert "-s/-es" in by_kind["s"]
+    assert "-ed" in by_kind["ed"]
+    assert "underlined part" in by_kind["vowel"]
+    assert len(set(by_kind.values())) == 3
+
+
+def test_build_skips_groups_already_used_by_an_earlier_part():
+    """Rổ câu đọc được của một Unit chỉ vài câu mỗi kiểu, nên phần con sau phải biết
+    phần con trước đã dùng nhóm nào."""
+    used = {frozenset(parse_option_line(VOWEL_LINE))}
+    drafts = build_from_exam_items(
+        [VOWEL_LINE], is_pronunciation=True, count=1, kind="vowel", exclude=used
+    )
+
+    assert drafts == []
+
+
+def test_build_does_not_mutate_the_exclude_set_it_was_given():
+    used: set[frozenset[str]] = set()
+    build_from_exam_items([VOWEL_LINE], is_pronunciation=True, count=1, exclude=used)
+
+    assert used == set()

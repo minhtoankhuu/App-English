@@ -56,6 +56,9 @@ export interface BlockPartCreateRequest {
   question_count: number;
   prompt_override?: string | null;
   exercise_type_id?: string | null;
+  // Dạng bài ẩn khỏi /catalog/exercise-types (vd "stress") không tra được id ở client
+  // — gửi mã, backend tra hộ. Xem BlockPartCreateRequest ở schemas/exam.py.
+  exercise_type_code?: string | null;
 }
 
 export type BlockPartUpdateRequest = Partial<BlockPartCreateRequest>;
