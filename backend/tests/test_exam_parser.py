@@ -26,7 +26,7 @@ NL = chr(10)
         ("TRANSFORMATION PATTERNS", "sentence_rewrite"),
         ("READING COMPREHENSION", "reading_true_false"),
         ("SIGNS/ PICTURES", "sign_reading"),
-        ("WORD ENTRY", None),  # dạng đề thật chưa có trong hệ thống
+        ("WORD ENTRY", "word_entry"),
     ],
 )
 def test_section_exercise_type(heading, expected):
@@ -108,3 +108,21 @@ def test_lines_before_the_first_section_are_ignored():
 def test_short_fragments_are_dropped():
     items = parse_exam_items(["I. PRONUNCIATION", "1. A. a", "2. abc"])
     assert items == []
+
+
+def test_word_entry_section_is_recognised():
+    """Dạng WORD ENTRY xuất hiện 11/13 đề thật; trước khi có mã riêng thì mọi câu của
+    mục này bị vứt vì section_exercise_type trả None."""
+    assert section_exercise_type("WORD ENTRY") == "word_entry"
+    assert section_exercise_type("ENTRY DICTIONARY") == "word_entry"
+
+
+def test_word_entry_keeps_the_dictionary_prompt_and_its_questions():
+    items = parse_exam_items([
+        "VII. WORD ENTRY",
+        'Look at the entry of the word "leisure" in a dictionary. Use what you can get from the entry.',
+        "1. On weekends, I usually spend my __________ on reading comics or painting pictures.",
+        "2. After school, Ky Duyen likes to __________ by walking around the lake near her house.",
+    ])
+    assert [i.exercise_type_code for i in items] == ["word_entry", "word_entry", "word_entry"]
+    assert items[0].text.startswith("Look at the entry")

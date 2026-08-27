@@ -87,6 +87,7 @@ const DEFAULT_BLOCK_TITLE_BY_CODE: Record<string, string> = {
   sign_reading: "PICTURE / SIGN READING",
   word_form: "WORD FORMATION",
   sentence_rewrite: "SENTENCE TRANSFORMATION",
+  word_entry: "WORD ENTRY",
 };
 
 // Mỗi phần con quy đổi bao nhiêu câu trên một "từ": Phần A word form là 1 họ từ = 5 câu,

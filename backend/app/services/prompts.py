@@ -7,7 +7,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v20"
+PROMPT_VERSION = "v21"
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "pronunciation": (
@@ -140,6 +140,21 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
     "sign_reading": (
         "Đọc hiểu biển báo/thông báo ngắn — mô tả biển báo bằng văn bản trong passage_text "
         "(hệ thống hiện chưa có ảnh thật, xem PRD 23.3 #18), câu hỏi trắc nghiệm về ý nghĩa."
+    ),
+    "word_entry": (
+        "Dạng WORD ENTRY (tra mục từ điển) — xuất hiện 11/13 đề thật: cho sẵn MỤC TỪ ĐIỂN của một từ, "
+        "học sinh đọc mục đó rồi điền dạng đúng vào câu.\n"
+        "passage_text là mục từ điển, viết như từ điển thật: từ, phiên âm, rồi từng nghĩa đánh số kèm "
+        "từ loại và ví dụ. Mẫu:\n"
+        "  leisure /ˈleʒər/\n"
+        "  1. (n) time when you are not working and can do what you enjoy: I read comics in my leisure time.\n"
+        "  2. leisurely (adj) done slowly, without hurrying: We had a leisurely walk around the lake.\n"
+        "Mục từ PHẢI có ít nhất 2 nghĩa/dạng từ khác nhau, nếu không thì câu hỏi không cần tra mục từ.\n"
+        "Mỗi câu hỏi có ĐÚNG MỘT chỗ trống ______ và điền được nhờ ĐỌC MỤC TỪ ở trên — mỗi câu dùng một "
+        "nghĩa/dạng KHÁC nhau của mục từ đó. Câu toàn tiếng Anh, hợp ngữ cảnh học sinh THCS Việt Nam "
+        "(được dùng tên riêng tiếng Việt). answer_text là từ đã điền, chỉ 1 từ.\n"
+        "KHÔNG sinh lựa chọn A/B/C/D: options PHẢI là null, đây là bài điền từ.\n"
+        "KHÔNG đặt từ gốc trong ngoặc ở cuối câu — mục từ điển đã cho sẵn, thêm nữa là thừa."
     ),
     "word_form": (
         "Dạng WORD FORMATION theo format đề thi thật, có 2 KIỂU — phần con sẽ ghi rõ dùng kiểu nào; "

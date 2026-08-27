@@ -8,6 +8,7 @@ from app.db import get_db
 from app.deps import require_any_role
 from app.models.academic import CambridgeCertificate, Grade, ProficiencyLevel, SchoolStage, Unit
 from app.models.exercise import ExerciseType, PassageLengthRule, SentenceLengthRule
+from app.seed import INACTIVE_EXERCISE_TYPE_CODES
 from app.models.grammar import GrammarGroup, GrammarPoint, GrammarTopic
 from app.schemas.catalog import (
     CambridgeCertificateOut,
@@ -75,7 +76,15 @@ def list_grammar_topics(db: Session = Depends(get_db)) -> list[GrammarTopic]:
 
 @router.get("/exercise-types", response_model=list[ExerciseTypeOut])
 def list_exercise_types(db: Session = Depends(get_db)) -> list[ExerciseType]:
-    return list(db.scalars(select(ExerciseType).order_by(ExerciseType.order_no)))
+    # Ẩn dạng bài không dùng tới (xem seed.INACTIVE_EXERCISE_TYPE_CODES). Lọc ở backend
+    # chứ không ở giao diện: đây là quyết định về sản phẩm, mọi client phải thấy như nhau.
+    return list(
+        db.scalars(
+            select(ExerciseType)
+            .where(ExerciseType.code.notin_(INACTIVE_EXERCISE_TYPE_CODES))
+            .order_by(ExerciseType.order_no)
+        )
+    )
 
 
 @router.get("/sentence-length-rules", response_model=list[SentenceLengthRuleOut])
