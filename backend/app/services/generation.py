@@ -15,10 +15,11 @@ from app.models.exam import Exam, ExamBlock, ExamBlockPart, Question
 from app.models.exercise import ExerciseType
 from app.services.ai_provider import AIGenerationError, AIProvider, BlockSpec, GenerationContext, QuestionDraft
 from app.services.docx_renderer import normalize_bracket_root, split_bracket_root, word_family_label
-from app.services.exam_pronunciation import build_from_exam_items
+from app.services.exam_pronunciation import build_from_exam_items, odd_one_out
 from app.services.ai_provider_factory import get_active_provider
 from app.services.crypto import decrypt_api_key
 from app.services.openai_embedding import OpenAIEmbeddingClient
+from app.services.prompts import detect_pronunciation_kind as _detect_pronunciation_kind
 from app.services.pronunciation_builder import build_pronunciation_questions
 from app.services.mcq_check import check_multiple_choice
 from app.services.pronunciation_check import check_pronunciation_options
@@ -27,40 +28,33 @@ from app.services.unit_vocabulary import unit_vocabulary_words
 from app.services.validation import validate_draft
 from app.services.word_form_check import check_word_form, detect_word_form_kind, word_family_members
 
-# Dạng phát âm/trọng âm: kiểm chứng thực tế cho thấy LLM gần như không sinh đúng
-# (gpt-4o-mini 0/8 với -s/-es), re-roll cũng vô ích (báo cáo 02/08/2026). Nên DỰNG
-# BẰNG CODE (pronunciation_builder) — luôn đúng quy tắc 3 giống - 1 khác — thay vì gọi
-# LLM. Chỉ khi builder không dựng được mới rơi về LLM + auto-fix như trước (phòng hờ).
+# Dạng phát âm/trọng âm: AI SINH, CODE KIỂM (đổi ngày 27/08/2026).
+#
+# Trước đó code vừa sinh vừa kiểm — vì đo được LLM gần như không sinh đúng (gpt-4o-mini
+# 0/8 với -s/-es, báo cáo 02/08/2026). Nhưng bộ dựng bốc thẳng nhóm 4 từ từ đề thật ra
+# dùng lại, nên mục phát âm không gọi AI lần nào và đề nào cũng lặp lại đúng mấy câu
+# của đề gốc — trái hẳn mục đích của app (yêu cầu chủ dự án 27/08/2026).
+#
+# Giờ đề thật chỉ vào prompt làm CÂU MẪU (openai_provider._examples), câu thì AI viết
+# mới. Cái giữ chất lượng là bộ kiểm bằng code (`check_pronunciation_options`) — câu
+# nào máy đọc ra sai quy tắc 3 giống - 1 khác thì sinh lại, sinh lại vẫn sai thì BỎ và
+# bù bằng bộ dựng code. Đề vẫn luôn đủ câu và không có câu sai đáp án, nhưng phần AI
+# làm được thì là câu mới. Model càng khá thì tỉ lệ câu mới càng cao.
 _PRONUNCIATION_TYPES = {"pronunciation", "stress"}
 _MAX_PRONUNCIATION_REGEN = 2  # tối đa 2 lần sinh lại/câu — chặn vòng lặp + giới hạn chi phí
 # Dạng tự đánh giá được bằng code -> câu lỗi được tự sinh lại trong pipeline.
 _AUTO_FIX_TYPES = _PRONUNCIATION_TYPES | {"multiple_choice", "word_form"}
 
 
-def _detect_pronunciation_kind(prompt_override: str | None) -> str | None:
-    """Suy 'kiểu' bài phát âm từ prompt_override của Phần con (preset ở ExamBuilder ghi
-    'kiểu (1)/(2)/(3)'). None = không rõ kiểu -> caller dựng bộ trộn."""
-    text = (prompt_override or "").lower()
-    # Ưu tiên mã kiểu tường minh "(1)/(2)/(3)" TRƯỚC khi dò từ khoá: preset kiểu (3) mô
-    # tả là "so sánh âm chung trong từ (KHÔNG PHẢI đuôi -s/-es hay -ed)" — có chứa
-    # "-s/-es" trong mệnh đề loại trừ, nên dò từ khoá trước sẽ nhận nhầm thành kiểu (1),
-    # khiến Phần con thứ 3 ra đề trùng hệt Phần A (báo cáo giáo viên 07/08/2026).
-    for marker, kind in (("(3)", "vowel"), ("(2)", "ed"), ("(1)", "s")):
-        if marker in text:
-            return kind
-    # Không có mã kiểu (giáo viên tự nhập) -> dò từ khoá, xét "âm trong từ" trước vì mô
-    # tả kiểu này thường nhắc lại tên 2 kiểu đuôi kia để loại trừ.
-    if "âm chung" in text or "âm trong từ" in text:
-        return "vowel"
-    if "-ed" in text or "đuôi -ed" in text:
-        return "ed"
-    if "-s/-es" in text or "đuôi -s" in text:
-        return "s"
-    return None
+def _option_key(draft: QuestionDraft) -> frozenset[str]:
+    return frozenset(o["text"] for o in draft.options)
 
 
 def _deterministic_pronunciation_drafts(
-    spec: BlockSpec, unit_words: list[str] | None = None, exam_lines: list[str] | None = None
+    spec: BlockSpec,
+    unit_words: list[str] | None = None,
+    exam_lines: list[str] | None = None,
+    used: set[frozenset[str]] | None = None,
 ) -> list[QuestionDraft] | None:
     """Dựng câu phát âm/trọng âm bằng code.
     None = không thuộc dạng này hoặc dựng không đủ câu -> caller rơi về LLM.
@@ -69,49 +63,102 @@ def _deterministic_pronunciation_drafts(
     độ khó thật) -> vốn từ của Unit -> bộ từ chuẩn viết tay. Đề thật không ghi đáp án nên
     đáp án được suy bằng chính bộ phân tích âm dùng để kiểm tra; nhóm nào không suy chắc chắn
     thì bỏ, thiếu bao nhiêu bù bằng bộ dựng cũ (xem exam_pronunciation.py).
+
+    `used` là các nhóm 4 từ đã dùng ở phần con TRƯỚC trong cùng khối, và được cập nhật
+    thêm trước khi trả về. Rổ câu đọc được của một Unit chỉ vài câu mỗi kiểu (đo ngày
+    27/08/2026: G8 Unit 1 có 3 câu đuôi -s/-es, 2 câu -ed, 2 câu nguyên âm), nên không
+    chặn xuyên phần con là các phần lặp lại nguyên câu của nhau.
     """
     if spec.exercise_type_code not in _PRONUNCIATION_TYPES:
         return None
 
     is_pronunciation = spec.exercise_type_code == "pronunciation"
+    # Kiểu phải chốt TRƯỚC khi bốc câu từ đề thật: bốc xong mới xét kiểu thì phần con
+    # nào cũng lấy chung một rổ, ra đề trộn lẫn đuôi -s/-es với -ed với nguyên âm dù câu
+    # lệnh của phần ghi rõ một kiểu (lỗi thấy trên đề sinh ngày 27/08/2026).
+    kind = _detect_pronunciation_kind(spec.prompt_override) if is_pronunciation else None
+    if used is None:
+        used = set()
+
     drafts_from_exam = build_from_exam_items(
-        exam_lines or [], is_pronunciation=is_pronunciation, count=spec.question_count
+        exam_lines or [],
+        is_pronunciation=is_pronunciation,
+        count=spec.question_count,
+        kind=kind,
+        exclude=used,
     )
     if len(drafts_from_exam) >= spec.question_count:
         for draft in drafts_from_exam:
             draft.level_code = spec.level_code
+        used.update(_option_key(d) for d in drafts_from_exam)
         return drafts_from_exam
 
     if spec.exercise_type_code == "stress":
         drafts = build_pronunciation_questions("stress", spec.question_count, unit_words=unit_words)
+    elif kind is not None:
+        drafts = build_pronunciation_questions(kind, spec.question_count, unit_words=unit_words)
     else:
-        kind = _detect_pronunciation_kind(spec.prompt_override)
-        if kind is not None:
-            drafts = build_pronunciation_questions(kind, spec.question_count, unit_words=unit_words)
-        else:
-            # Không rõ kiểu -> trộn -s/-es, -ed, nguyên âm cho đa dạng, đan xen.
-            kinds = ["s", "ed", "vowel"]
-            pools = {
-                k: build_pronunciation_questions(k, spec.question_count, unit_words=unit_words) for k in kinds
-            }
-            drafts = []
-            i = 0
-            while len(drafts) < spec.question_count and any(pools.values()):
-                pool = pools[kinds[i % len(kinds)]]
-                if pool:
-                    drafts.append(pool.pop(0))
-                i += 1
+        # Không rõ kiểu -> trộn -s/-es, -ed, nguyên âm cho đa dạng, đan xen.
+        kinds = ["s", "ed", "vowel"]
+        pools = {
+            k: build_pronunciation_questions(k, spec.question_count, unit_words=unit_words) for k in kinds
+        }
+        drafts = []
+        i = 0
+        while len(drafts) < spec.question_count and any(pools.values()):
+            pool = pools[kinds[i % len(kinds)]]
+            if pool:
+                drafts.append(pool.pop(0))
+            i += 1
     # Bù cho đủ số câu bằng bộ dựng cũ, đặt đề thật lên trước.
-    used = {frozenset(o["text"] for o in d.options) for d in drafts_from_exam}
-    drafts = drafts_from_exam + [
-        d for d in drafts if frozenset(o["text"] for o in d.options) not in used
-    ]
+    seen = used | {_option_key(d) for d in drafts_from_exam}
+    drafts = drafts_from_exam + [d for d in drafts if _option_key(d) not in seen]
     drafts = drafts[: spec.question_count]
     if not drafts:
         return None
     for draft in drafts:
         draft.level_code = spec.level_code
+    used.update(_option_key(d) for d in drafts)
     return drafts
+
+
+def _pronunciation_drafts(
+    provider: AIProvider,
+    spec: BlockSpec,
+    context: GenerationContext,
+    unit_words: list[str],
+    exam_lines: list[str],
+    used: set[frozenset[str]],
+) -> list[QuestionDraft]:
+    """Câu phát âm/trọng âm: AI sinh trước, bộ dựng bằng code chỉ bù cho đủ số câu.
+
+    Chỉ giữ câu QUA được bộ kiểm bằng code. Sai quy tắc 3 giống - 1 khác nghĩa là câu
+    không có đáp án duy nhất — đó là câu hỏng, không phải câu "cần xem lại", nên không
+    áp nguyên tắc "cảnh báo, không chặn cứng" ở đây: bỏ và bù bằng câu dựng được.
+    """
+    try:
+        drafts = provider.generate(spec, context)
+    except AIGenerationError:
+        drafts = []
+    drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
+
+    kept: list[QuestionDraft] = []
+    for draft in drafts:
+        if len(kept) >= spec.question_count:
+            break
+        key = _option_key(draft)
+        if key in used or _machine_warnings(draft, spec):
+            continue
+        used.add(key)
+        kept.append(draft)
+
+    missing = spec.question_count - len(kept)
+    if missing > 0:
+        fill = _deterministic_pronunciation_drafts(
+            replace(spec, question_count=missing), unit_words, exam_lines, used
+        )
+        kept += fill or []
+    return kept
 
 
 def _prompt_key(prompt_text: str | None) -> str:
@@ -125,11 +172,61 @@ def _prompt_key(prompt_text: str | None) -> str:
     return "".join(ch for ch in text if ch.isalnum() or ch.isspace() or ch == "_")
 
 
-def _duplicate_warning(draft: QuestionDraft, seen: set[str]) -> list[str]:
+def _duplicate_key(draft: QuestionDraft, spec: BlockSpec | None = None) -> str:
+    """Khoá so trùng của một câu.
+
+    Dạng phát âm/trọng âm so theo BỘ 4 LỰA CHỌN, không phải câu dẫn: cả phần con dùng
+    chung đúng một câu dẫn ("Choose the word that has a different pronunciation of the
+    ending -s/-es.") nên so theo câu dẫn thì từ câu thứ 2 trở đi câu nào cũng bị báo
+    trùng dù 4 từ khác hẳn nhau. Mỗi câu như vậy đốt thêm _MAX_PRONUNCIATION_REGEN lượt
+    gọi API, mà bản thay thế cũng mang đúng câu dẫn đó nên không bao giờ được nhận —
+    tiền mất mà câu không đổi (đo trên đề sinh 27/08/2026).
+    """
+    if spec is not None and spec.exercise_type_code in _PRONUNCIATION_TYPES and draft.options:
+        return "|".join(sorted((o.get("text") or "").lower() for o in draft.options))
+    return _prompt_key(draft.prompt_text)
+
+
+def _duplicate_warning(
+    draft: QuestionDraft, seen: set[str], spec: BlockSpec | None = None
+) -> list[str]:
     """Đề thật 24/08/2026: câu 17, 20 và 24 giống hệt nhau ("What do people usually do to
     ______ the Mid-Autumn Festival?") chỉ khác tên nhân vật."""
-    if _prompt_key(draft.prompt_text) in seen:
+    if _duplicate_key(draft, spec) in seen:
         return ["Câu này trùng nội dung với câu đã sinh trước đó trong cùng phần."]
+    return []
+
+
+_OPTION_LABELS = ("A", "B", "C", "D")
+
+
+def _answer_key_warnings(draft: QuestionDraft, *, is_pronunciation: bool) -> list[str]:
+    """Lựa chọn đánh dấu đúng phải CHÍNH LÀ lựa chọn khác 3 cái còn lại.
+
+    `check_pronunciation_options` chỉ nhận 4 chuỗi lựa chọn nên không nhìn thấy đáp án
+    đánh ở đâu — đề sinh 27/08/2026 có câu 'birds /z/, friends /z/, cats /s/, dogs /z/'
+    đánh đáp án vào 'dogs' (giải thích cũng bịa theo). Câu sai đáp án là câu hỏng nặng
+    nhất: học sinh làm đúng vẫn bị chấm sai, mà nhìn đề thì không thấy gì bất thường.
+
+    Nhóm nào máy KHÔNG đọc được âm cũng bị loại. Không đọc được nghĩa là không bảo đảm
+    được, mà câu phát âm sai thì không cứu bằng cảnh báo — đề sinh cùng ngày lọt
+    'heavy/season/please/bear' (2-2) và 'cartoon/carrier/carry/carpet' (2-2) đúng vì
+    `vowel_sounds` trả None rồi bộ kiểm im lặng cho qua.
+    """
+    options = draft.options or []
+    if len(options) != 4:
+        return []
+    texts = [o.get("text") or "" for o in options]
+    odd = odd_one_out(texts, is_pronunciation=is_pronunciation)
+    if odd is None:
+        return [
+            "Không đọc được âm của cả 4 lựa chọn để đối chiếu đáp án — hãy dùng từ thông "
+            "dụng, đánh vần đúng, và bọc <u> đúng một cụm nguyên âm."
+        ]
+    marked = [i for i, option in enumerate(options) if option.get("is_correct")]
+    if marked != [odd]:
+        expected = f"{_OPTION_LABELS[odd]}. {texts[odd]}"
+        return [f"Đáp án đánh sai chỗ — lựa chọn khác 3 cái còn lại là {expected}."]
     return []
 
 
@@ -151,10 +248,11 @@ def _machine_warnings(draft: QuestionDraft, spec: BlockSpec) -> list[str]:
         )
     if code not in _PRONUNCIATION_TYPES or not draft.options:
         return []
+    is_pronunciation = code == "pronunciation"
     return check_pronunciation_options(
         [opt.get("text", "") for opt in draft.options],
-        is_pronunciation=code == "pronunciation",
-    )
+        is_pronunciation=is_pronunciation,
+    ) + _answer_key_warnings(draft, is_pronunciation=is_pronunciation)
 
 
 def _auto_fix_pronunciation_drafts(
@@ -169,7 +267,7 @@ def _auto_fix_pronunciation_drafts(
     fixed: list[QuestionDraft] = []
     seen: set[str] = set()
     for draft in drafts:
-        warnings = _machine_warnings(draft, spec) + _duplicate_warning(draft, seen)
+        warnings = _machine_warnings(draft, spec) + _duplicate_warning(draft, seen, spec)
         attempts = 0
         while warnings and attempts < _MAX_PRONUNCIATION_REGEN:
             attempts += 1
@@ -179,10 +277,12 @@ def _auto_fix_pronunciation_drafts(
                 )
             except AIGenerationError:
                 break
-            candidate_warnings = _machine_warnings(candidate, spec) + _duplicate_warning(candidate, seen)
+            candidate_warnings = _machine_warnings(candidate, spec) + _duplicate_warning(
+                candidate, seen, spec
+            )
             if len(candidate_warnings) < len(warnings):
                 draft, warnings = candidate, candidate_warnings
-        seen.add(_prompt_key(draft.prompt_text))
+        seen.add(_duplicate_key(draft, spec))
         fixed.append(draft)
     return fixed
 
@@ -298,6 +398,17 @@ def _batch_family(drafts: list[QuestionDraft]) -> str | None:
         if family:
             return family
     return None
+
+
+_RETRIEVAL_SAMPLE_WORDS = 5
+
+
+def _sample_words(words: list[str]) -> list[str]:
+    """Vài từ của Unit làm từ khoá truy vấn. Ít từ thôi: `plainto_tsquery` nối các từ
+    bằng AND nên câu truy vấn càng dài càng dễ không khớp đoạn nào."""
+    if len(words) <= _RETRIEVAL_SAMPLE_WORDS:
+        return list(words)
+    return random.sample(words, _RETRIEVAL_SAMPLE_WORDS)
 
 
 def _retrieval_query(context: GenerationContext, *terms: str | None) -> str:
@@ -498,6 +609,9 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
     # Họ từ Phần A, chuyển sang Phần B — các phần con sinh theo thứ tự order_no nên
     # Phần A luôn xong trước.
     word_form_families: list[str] = []
+    # Chặn trùng câu phát âm/trọng âm XUYÊN các phần con của cùng khối (xem
+    # _deterministic_pronunciation_drafts).
+    used_pronunciation: set[frozenset[str]] = set()
     locked_orders = {q.order_no for q in block.questions if q.is_locked}
     order_no = 0
     created: list[Question] = []
@@ -513,6 +627,16 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             level_code=effective_level.code,
             passage_word_target=block.passage_word_target,
             prompt_override=prompt_override,
+            # Phát âm/trọng âm giờ do AI sinh nên phải tìm ĐÚNG đoạn từ vựng của Unit.
+            # Bỏ trống thì openai_provider lấy prompt_override làm câu truy vấn, mà đó
+            # là chỉ thị tiếng Việt ("Chỉ dùng kiểu (1) đuôi -s/-es...") — FTS trượt
+            # sạch, vector lệch hẳn (xem BlockSpec.retrieval_query). Lấy ngẫu nhiên vài
+            # từ trong bài để mỗi lần sinh bốc trúng đoạn khác nhau, đề đỡ rập khuôn.
+            retrieval_query=(
+                _retrieval_query(context, " ".join(_sample_words(unit_words)))
+                if part_type.code in _PRONUNCIATION_TYPES
+                else None
+            ),
         )
         word_form_kind = (
             detect_word_form_kind(prompt_override) if part_type.code == "word_form" else None
@@ -522,9 +646,10 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             if part_type.code in _PRONUNCIATION_TYPES
             else exam_lines
         )
-        drafts = _deterministic_pronunciation_drafts(spec, unit_words, part_exam_lines)
-        if drafts is not None:
-            pass
+        if part_type.code in _PRONUNCIATION_TYPES:
+            drafts = _pronunciation_drafts(
+                provider, spec, context, unit_words, part_exam_lines, used_pronunciation
+            )
         elif word_form_kind == "family":
             # Phần A word form: gọi từng họ từ một (xem _word_form_family_drafts) nên số câu
             # đã đúng theo thiết kế, không cắt theo count nữa.

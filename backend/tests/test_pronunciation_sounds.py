@@ -52,15 +52,32 @@ def test_ed_ending_sound(word, expected):
     assert ed_ending_sound(word) == expected
 
 
-@pytest.mark.parametrize("word", ["months", "paths", "laughs", "sighs"])
-def test_s_ambiguous_spellings_return_none(word):
-    """Chính tả nhập nhằng -> None để bên gọi bỏ qua, KHÔNG cảnh báo nhầm."""
-    assert s_ending_sound(word) is None
+# Chính tả không suy nổi ('-ths', '-ghs', '-sed', '-ghed') nhưng cmudict tra được —
+# trước đây cả nhóm này bị bỏ, giờ dùng được, nên vốn câu phát âm rộng ra đáng kể.
+@pytest.mark.parametrize(
+    "word, expected",
+    [("months", "s"), ("paths", "z"), ("laughs", "s"), ("sighs", "z")],
+)
+def test_s_spellings_the_rules_cannot_read_come_from_the_dictionary(word, expected):
+    assert s_ending_sound(word) == expected
 
 
-@pytest.mark.parametrize("word", ["used", "promised", "closed", "based", "laughed", "sighed"])
-def test_ed_ambiguous_spellings_return_none(word):
-    assert ed_ending_sound(word) is None
+@pytest.mark.parametrize(
+    "word, expected",
+    [
+        ("used", "d"), ("promised", "t"), ("closed", "d"),
+        ("based", "t"), ("laughed", "t"), ("sighed", "d"),
+    ],
+)
+def test_ed_spellings_the_rules_cannot_read_come_from_the_dictionary(word, expected):
+    assert ed_ending_sound(word) == expected
+
+
+@pytest.mark.parametrize("word", ["zorths", "zorghed"])
+def test_unknown_word_the_rules_cannot_read_still_returns_none(word):
+    """Chính tả nhập nhằng mà từ điển cũng không có -> None để bên gọi bỏ qua,
+    KHÔNG cảnh báo nhầm."""
+    assert s_ending_sound(word) is None or ed_ending_sound(word) is None
 
 
 def test_ending_sounds_returns_none_for_mixed_or_vowel_type():
@@ -191,3 +208,27 @@ def test_stress_skips_when_word_not_in_dictionary():
     # từ bịa không tra được -> bỏ qua kiểm tra vị trí trọng âm (vẫn cảnh báo từ bịa riêng)
     warnings = _stress(["<u>za</u>bblary", "<u>hap</u>py", "<u>luc</u>ky", "<u>sun</u>ny"])
     assert "Nhóm trọng âm" not in _joined(warnings)
+
+
+def test_non_inflectional_s_is_read_from_the_dictionary():
+    """'bus' không phải số nhiều — chữ 's' thuộc gốc từ, đọc /s/. Suy theo chính tả thì
+    mọi từ tận cùng 's' đều thành /z/, khiến đề sinh 27/08/2026 lọt câu
+    'bus, games, cousins, classes' (thật ra s-z-z-ɪz, không có đáp án duy nhất)."""
+    assert s_ending_sound("bus") == "s"
+    assert s_ending_sound("gas") == "s"
+    # Số nhiều thật vẫn đọc đúng như trước
+    assert s_ending_sound("dogs") == "z"
+    assert s_ending_sound("cats") == "s"
+    assert s_ending_sound("classes") == "iz"
+
+
+def test_ed_endings_still_read_correctly_through_the_dictionary():
+    assert ed_ending_sound("wanted") == "id"
+    assert ed_ending_sound("watched") == "t"
+    assert ed_ending_sound("played") == "d"
+
+
+def test_word_outside_the_dictionary_falls_back_to_spelling():
+    """cmudict không phủ hết — từ lạ vẫn phải suy được theo quy tắc chính tả."""
+    assert s_ending_sound("zorbs") == "z"
+    assert ed_ending_sound("zorbed") == "d"

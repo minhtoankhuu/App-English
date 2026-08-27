@@ -7,70 +7,65 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v21"
+PROMPT_VERSION = "v23"
+
+# Hướng dẫn dạng phát âm tách theo KIỂU. Phần con nào cũng đã ghim đúng 1 kiểu qua
+# prompt_override, nên gửi cả 3 kiểu là trả tiền cho ~600-880 token/lượt mô tả những
+# kiểu model bị cấm dùng (đo 27/08/2026: hướng dẫn dạng này 1543 token, riêng phần
+# chung 502).
+_PRON_INTRO_ALL = 'Dạng chọn từ có phần phát âm khác 3 từ còn lại. Có 3 KIỂU — CHỌN ĐÚNG 1 KIỂU DUY NHẤT (kiểu phù hợp nhất với từ vựng có sẵn trong nguồn) rồi ÁP DỤNG ĐÚNG KIỂU ĐÓ CHO TOÀN BỘ số câu được yêu cầu trong lần sinh này — KHÔNG trộn nhiều kiểu khác nhau trong cùng 1 lần sinh (giáo viên muốn nhiều kiểu sẽ tự tạo nhiều lượt/phần riêng, không phải việc của bạn tự đổi kiểu giữa chừng):\n'
+_PRON_KIND: dict[str, str] = {
+    "s": "(1) Đuôi -s/-es: mọi từ đều tận cùng -s/-es nhưng đọc khác nhau /s/, /z/ hoặc /ɪz/ tùy âm đứng trước — vd 'look<u>s</u>' /s/, 'game<u>s</u>' /z/, 'dress<u>es</u>' /ɪz/. CHỈ bọc đúng chữ cái 's' hoặc 'es' VỐN ĐÃ CÓ SẴN ở cuối từ thật — KHÔNG bọc thêm chữ nào trước đó (SAI: 'dre<u>sses</u>'; ĐÚNG: 'dress<u>es</u>') và TUYỆT ĐỐI KHÔNG được thêm/nhân đôi ký tự 's' để tự tạo ra đuôi giả cho từ vốn đã đúng chính tả — nếu từ đã tận cùng bằng đúng 1 chữ 's' (vd 'stars', 'cars', 'bus', 'class', 'glass') thì dùng NGUYÊN từ đó, chỉ bọc <u> quanh chữ 's' có sẵn (SAI: 'star' → 'star<u>s</u>s' hay 'starss'; ĐÚNG: 'star<u>s</u>'. SAI: 'bus' → 'bu<u>s</u>s'; ĐÚNG: 'bu<u>s</u>' — từ sau khi bỏ markup phải là 1 từ tiếng Anh có thật, đánh vần đúng).\n",
+    "ed": "(2) Đuôi -ed: mọi từ đều tận cùng -ed nhưng đọc khác nhau /t/, /d/ hoặc /ɪd/ tùy âm đứng trước — vd 'watch<u>ed</u>' /t/, 'lov<u>ed</u>' /d/, 'want<u>ed</u>' /ɪd/. CHỈ bọc đúng 2 chữ 'ed' VỐN ĐÃ CÓ SẴN ở cuối từ thật, không bọc thêm chữ nào trước đó và cũng không được thêm/nhân đôi ký tự để tạo đuôi giả — áp dụng đúng quy tắc chính tả -ed như 'watch'+'ed'='watch<u>ed</u>', không phải chèn thêm chữ tùy tiện.\n",
+    "vowel": "(3) So sánh âm chung không phải đuôi -s/-es hay -ed: cả 4 lựa chọn cùng chứa ĐÚNG MỘT cụm chữ cái GIỐNG HỆT NHAU, 3 từ đọc cụm đó giống nhau và đúng 1 từ đọc khác — vd 'cl<u>ea</u>n', 'br<u>ea</u>d', 't<u>ea</u>ch', 't<u>ea</u>m' (đáp án 'bread' vì phát âm /e/, ba từ còn lại /iː/). Ba ràng buộc BẮT BUỘC của kiểu này:\n  • Phần bọc <u> phải đúng cụm chữ cái đang so sánh và NGẮN NHẤT có thể (thường 1-3 chữ cái, chỉ nguyên âm/cụm nguyên âm hoặc phụ âm đang xét) — KHÔNG bọc lan sang phần còn lại của từ (SAI: 'g<u>ather</u>', 'd<u>ifferent</u>', 'c<u>onfusing</u>'; ĐÚNG: 'g<u>a</u>ther', 'd<u>i</u>fferent', 'conf<u>u</u>sing').\n  • Cụm bọc <u> của CẢ 4 lựa chọn phải là CÙNG một chuỗi chữ cái (SAI: 3 từ bọc 'ar' nhưng từ còn lại bọc 'a'; SAI: 3 từ bọc 'ather' nhưng từ còn lại bọc 'other').\n  • TUYỆT ĐỐI KHÔNG bịa từ để cho đủ bộ 4: không được đổi 1 chữ cái của từ có thật để tạo từ mới (SAI: từ 'boring' chế ra 'foring'/'woring'/'soring' — không phải từ tiếng Anh). Nếu không tìm đủ 4 từ CÓ THẬT cùng cụm chữ cái, hãy đổi sang cụm chữ cái khác.\n",
+}
+_PRON_COMMON = "BẮT BUỘC với MỌI câu, không phân biệt kiểu nào:\n- QUY TẮC 3-1 VỀ ÂM (quan trọng nhất, kiểm tra lại từng câu trước khi trả kết quả): trong 4 lựa chọn phải có ĐÚNG 3 từ phát âm phần đang xét GIỐNG NHAU và ĐÚNG 1 từ khác — tuyệt đối không được 2-2 hay 1-1-1-1. Với đuôi -s/-es hãy tự đọc thầm âm cuối từng từ rồi đếm: SAI 'twins /z/, types /s/, separates /s/, overalls /z/' (2-2, không có đáp án duy nhất); ĐÚNG 'rings /z/, endings /z/, saves /z/, shoots /s/'. Với đuôi -ed: SAI 'saved /d/, loved /d/, wanted /ɪd/, visited /ɪd/' (2-2) và SAI 'learned /d/, played /d/, worked /t/, talked /t/' (2-2); ĐÚNG 'wanted /ɪd/, visited /ɪd/, decided /ɪd/, escaped /t/'.\n- 4 lựa chọn phải là 4 TỪ ĐƠN KHÁC NHAU: đúng MỘT từ, KHÔNG có dấu cách và KHÔNG có dấu gạch nối (SAI: 'native languages', 'southeast Asia', 'black-and-white', 'computer games', 'free time'; ĐÚNG: 'languages', 'films', 'voices').\n- KHÔNG thêm -s vào trạng từ hay từ không có dạng số nhiều/ngôi thứ 3 (SAI: 'magicallys', 'wiselys', 'violentlys' — trạng từ không bao giờ thêm -s).\n- Mỗi lựa chọn sau khi bỏ markup <u>...</u> đi PHẢI là 1 từ tiếng Anh có thật, đánh vần đúng chính tả — không tự chế/nhân đôi ký tự để khớp đuôi.\n- CẢ 4 lựa chọn (kể cả các lựa chọn sai) đều phải bọc phần đang so sánh trong <u>...</u> — không được bỏ sót lựa chọn nào.\nGiải thích nêu rõ ký hiệu IPA khác biệt."
+_PRON_INTRO_ONE = (
+    "Dạng chọn từ có phần phát âm khác 3 từ còn lại. Phần này ĐÃ CHỐT sẵn đúng 1 kiểu — "
+    "áp dụng kiểu mô tả dưới đây cho TOÀN BỘ số câu, không dùng kiểu nào khác:\n"
+)
+
+
+def detect_pronunciation_kind(prompt_override: str | None) -> str | None:
+    """Suy 'kiểu' bài phát âm từ prompt_override của Phần con (preset ở ExamBuilder ghi
+    'kiểu (1)/(2)/(3)'). None = không rõ kiểu -> gửi cả 3 kiểu."""
+    text = (prompt_override or "").lower()
+    # Ưu tiên mã kiểu tường minh "(1)/(2)/(3)" TRƯỚC khi dò từ khoá: preset kiểu (3) mô
+    # tả là "so sánh âm chung trong từ (KHÔNG PHẢI đuôi -s/-es hay -ed)" — có chứa
+    # "-s/-es" trong mệnh đề loại trừ, nên dò từ khoá trước sẽ nhận nhầm thành kiểu (1),
+    # khiến Phần con thứ 3 ra đề trùng hệt Phần A (báo cáo giáo viên 07/08/2026).
+    for marker, kind in (("(3)", "vowel"), ("(2)", "ed"), ("(1)", "s")):
+        if marker in text:
+            return kind
+    # Không có mã kiểu (giáo viên tự nhập) -> dò từ khoá, xét "âm trong từ" trước vì mô
+    # tả kiểu này thường nhắc lại tên 2 kiểu đuôi kia để loại trừ.
+    if "âm chung" in text or "âm trong từ" in text:
+        return "vowel"
+    if "-ed" in text or "đuôi -ed" in text:
+        return "ed"
+    if "-s/-es" in text or "đuôi -s" in text:
+        return "s"
+    return None
+
+
+def pronunciation_instruction(kind: str | None) -> str:
+    """Chỉ gửi luật của kiểu đang ra đề; kiểu không rõ thì gửi cả 3 như trước."""
+    if kind is None or kind not in _PRON_KIND:
+        return _PRON_INTRO_ALL + _PRON_KIND["s"] + _PRON_KIND["ed"] + _PRON_KIND["vowel"] + _PRON_COMMON
+    return _PRON_INTRO_ONE + _PRON_KIND[kind] + _PRON_COMMON
+
 
 EXERCISE_INSTRUCTIONS: dict[str, str] = {
-    "pronunciation": (
-        "Dạng chọn từ có phần phát âm khác 3 từ còn lại. Có 3 KIỂU — CHỌN ĐÚNG 1 KIỂU DUY "
-        "NHẤT (kiểu phù hợp nhất với từ vựng có sẵn trong nguồn) rồi ÁP DỤNG ĐÚNG KIỂU ĐÓ CHO "
-        "TOÀN BỘ số câu được yêu cầu trong lần sinh này — KHÔNG trộn nhiều kiểu khác nhau "
-        "trong cùng 1 lần sinh (giáo viên muốn nhiều kiểu sẽ tự tạo nhiều lượt/phần riêng, "
-        "không phải việc của bạn tự đổi kiểu giữa chừng):\n"
-        "(1) Đuôi -s/-es: mọi từ đều tận cùng -s/-es nhưng đọc khác nhau /s/, /z/ hoặc /ɪz/ "
-        "tùy âm đứng trước — vd 'look<u>s</u>' /s/, 'game<u>s</u>' /z/, 'dress<u>es</u>' /ɪz/. "
-        "CHỈ bọc đúng chữ cái 's' hoặc 'es' VỐN ĐÃ CÓ SẴN ở cuối từ thật — KHÔNG bọc thêm chữ "
-        "nào trước đó (SAI: 'dre<u>sses</u>'; ĐÚNG: 'dress<u>es</u>') và TUYỆT ĐỐI KHÔNG được "
-        "thêm/nhân đôi ký tự 's' để tự tạo ra đuôi giả cho từ vốn đã đúng chính tả — nếu từ đã "
-        "tận cùng bằng đúng 1 chữ 's' (vd 'stars', 'cars', 'bus', 'class', 'glass') thì dùng "
-        "NGUYÊN từ đó, chỉ bọc <u> quanh chữ 's' có sẵn (SAI: 'star' → 'star<u>s</u>s' hay "
-        "'starss'; ĐÚNG: 'star<u>s</u>'. SAI: 'bus' → 'bu<u>s</u>s'; ĐÚNG: 'bu<u>s</u>' — từ "
-        "sau khi bỏ markup phải là 1 từ tiếng Anh có thật, đánh vần đúng).\n"
-        "(2) Đuôi -ed: mọi từ đều tận cùng -ed nhưng đọc khác nhau /t/, /d/ hoặc /ɪd/ tùy âm "
-        "đứng trước — vd 'watch<u>ed</u>' /t/, 'lov<u>ed</u>' /d/, 'want<u>ed</u>' /ɪd/. CHỈ "
-        "bọc đúng 2 chữ 'ed' VỐN ĐÃ CÓ SẴN ở cuối từ thật, không bọc thêm chữ nào trước đó và "
-        "cũng không được thêm/nhân đôi ký tự để tạo đuôi giả — áp dụng đúng quy tắc chính tả "
-        "-ed như 'watch'+'ed'='watch<u>ed</u>', không phải chèn thêm chữ tùy tiện.\n"
-        "(3) So sánh âm chung không phải đuôi -s/-es hay -ed: cả 4 lựa chọn cùng chứa ĐÚNG MỘT "
-        "cụm chữ cái GIỐNG HỆT NHAU, 3 từ đọc cụm đó giống nhau và đúng 1 từ đọc khác — vd "
-        "'cl<u>ea</u>n', 'br<u>ea</u>d', 't<u>ea</u>ch', 't<u>ea</u>m' (đáp án 'bread' vì phát "
-        "âm /e/, ba từ còn lại /iː/). Ba ràng buộc BẮT BUỘC của kiểu này:\n"
-        "  • Phần bọc <u> phải đúng cụm chữ cái đang so sánh và NGẮN NHẤT có thể (thường 1-3 chữ "
-        "cái, chỉ nguyên âm/cụm nguyên âm hoặc phụ âm đang xét) — KHÔNG bọc lan sang phần còn lại "
-        "của từ (SAI: 'g<u>ather</u>', 'd<u>ifferent</u>', 'c<u>onfusing</u>'; ĐÚNG: "
-        "'g<u>a</u>ther', 'd<u>i</u>fferent', 'conf<u>u</u>sing').\n"
-        "  • Cụm bọc <u> của CẢ 4 lựa chọn phải là CÙNG một chuỗi chữ cái (SAI: 3 từ bọc 'ar' "
-        "nhưng từ còn lại bọc 'a'; SAI: 3 từ bọc 'ather' nhưng từ còn lại bọc 'other').\n"
-        "  • TUYỆT ĐỐI KHÔNG bịa từ để cho đủ bộ 4: không được đổi 1 chữ cái của từ có thật để "
-        "tạo từ mới (SAI: từ 'boring' chế ra 'foring'/'woring'/'soring' — không phải từ tiếng "
-        "Anh). Nếu không tìm đủ 4 từ CÓ THẬT cùng cụm chữ cái, hãy đổi sang cụm chữ cái khác.\n"
-        "BẮT BUỘC với MỌI câu, không phân biệt kiểu nào:\n"
-        "- QUY TẮC 3-1 VỀ ÂM (quan trọng nhất, kiểm tra lại từng câu trước khi trả kết quả): "
-        "trong 4 lựa chọn phải có ĐÚNG 3 từ phát âm phần đang xét GIỐNG NHAU và ĐÚNG 1 từ khác "
-        "— tuyệt đối không được 2-2 hay 1-1-1-1. Với đuôi -s/-es hãy tự đọc thầm âm cuối từng "
-        "từ rồi đếm: SAI 'twins /z/, types /s/, separates /s/, overalls /z/' (2-2, không có đáp "
-        "án duy nhất); ĐÚNG 'rings /z/, endings /z/, saves /z/, shoots /s/'. Với đuôi -ed: SAI "
-        "'saved /d/, loved /d/, wanted /ɪd/, visited /ɪd/' (2-2) và SAI 'learned /d/, played "
-        "/d/, worked /t/, talked /t/' (2-2); ĐÚNG 'wanted /ɪd/, visited /ɪd/, decided /ɪd/, "
-        "escaped /t/'.\n"
-        "- 4 lựa chọn phải là 4 TỪ ĐƠN KHÁC NHAU: đúng MỘT từ, KHÔNG có dấu cách và KHÔNG có "
-        "dấu gạch nối (SAI: 'native languages', 'southeast Asia', 'black-and-white', 'computer "
-        "games', 'free time'; ĐÚNG: 'languages', 'films', 'voices').\n"
-        "- KHÔNG thêm -s vào trạng từ hay từ không có dạng số nhiều/ngôi thứ 3 (SAI: "
-        "'magicallys', 'wiselys', 'violentlys' — trạng từ không bao giờ thêm -s).\n"
-        "- Mỗi lựa chọn sau khi bỏ markup <u>...</u> đi PHẢI là 1 từ tiếng Anh có thật, đánh "
-        "vần đúng chính tả — không tự chế/nhân đôi ký tự để khớp đuôi.\n"
-        "- CẢ 4 lựa chọn (kể cả các lựa chọn sai) đều phải bọc phần đang so sánh trong "
-        "<u>...</u> — không được bỏ sót lựa chọn nào.\n"
-        "Giải thích nêu rõ ký hiệu IPA khác biệt."
-    ),
+    "pronunciation": pronunciation_instruction(None),
     "stress": (
         "Dạng chọn từ có trọng âm khác 3 từ còn lại. BẮT BUỘC: 4 lựa chọn phải là 4 TỪ ĐƠN "
         "KHÁC NHAU (không trùng từ, không phải cụm từ/câu) có CÙNG số âm tiết — 3 từ trọng âm "
         "rơi vào cùng vị trí âm tiết, đúng 1 từ trọng âm rơi vào vị trí khác (đó là đáp án "
-        "đúng). CẢ 4 lựa chọn (kể cả lựa chọn sai) đều phải bọc âm tiết mang trọng âm trong "
-        "<u>...</u> — không bỏ sót lựa chọn nào. Ví dụ 4 lựa chọn "
-        "hợp lệ (2 âm tiết): '<u>han</u>dsome', '<u>tra</u>vel', 'be<u>gin</u>', '<u>mod</u>ern' "
-        "— đáp án 'begin' vì trọng âm rơi vào âm tiết 2, ba từ còn lại rơi vào âm tiết 1. "
+        "đúng). TUYỆT ĐỐI KHÔNG gạch chân, KHÔNG dùng <u>...</u> trong bất kỳ lựa chọn nào: "
+        "gạch chân âm tiết mang trọng âm chính là chỉ sẵn đáp án cho học sinh, đề thật để từ "
+        "trần. option.text chỉ là từ viết thường bình thường. Ví dụ 4 lựa chọn hợp lệ (2 âm "
+        "tiết): 'handsome', 'travel', 'begin', 'modern' — đáp án 'begin' vì trọng âm rơi vào "
+        "âm tiết 2, ba từ còn lại rơi vào âm tiết 1. "
         "Giải thích nêu rõ vị trí trọng âm (âm tiết thứ mấy) của từng từ."
     ),
     "multiple_choice": (
@@ -299,10 +294,16 @@ def build_system_prompt(
     level_code: str,
     example_offset: int | None = None,
     examples: list[str] | None = None,
+    prompt_override: str | None = None,
 ) -> str:
-    instruction = EXERCISE_INSTRUCTIONS.get(
-        exercise_type_code, "Sinh câu hỏi tiếng Anh phù hợp trình độ mục tiêu, bám sát tài liệu nguồn được cung cấp."
-    )
+    if exercise_type_code == "pronunciation":
+        # Chỉ gửi luật của kiểu phần con này ghim (xem pronunciation_instruction).
+        instruction = pronunciation_instruction(detect_pronunciation_kind(prompt_override))
+    else:
+        instruction = EXERCISE_INSTRUCTIONS.get(
+            exercise_type_code,
+            "Sinh câu hỏi tiếng Anh phù hợp trình độ mục tiêu, bám sát tài liệu nguồn được cung cấp.",
+        )
     return (
         "Bạn là trợ lý tạo đề thi tiếng Anh THCS cho giáo viên Việt Nam. "
         f"Sinh đúng {question_count} câu hỏi dạng '{exercise_type_code}', trình độ mục tiêu {level_code}. "
@@ -312,8 +313,9 @@ def build_system_prompt(
         "ngoài phạm vi đó. Nếu tài liệu nguồn không đủ để sinh đúng số câu yêu cầu, vẫn sinh tối đa có thể "
         "và ghi rõ lý do vào insufficient_source_warning; nếu đủ thì để insufficient_source_warning là null. "
         "source_chunk_ids của mỗi câu phải là ID (trong ngoặc vuông trước mỗi đoạn nguồn) đã thực sự dùng. "
-        "Khi cần đánh dấu phần gạch chân trong 1 lựa chọn (bắt buộc với dạng phát âm/trọng âm, xem hướng dẫn "
-        "dạng bài ở trên), bọc đúng phần đó bằng <u>...</u> ngay trong option.text — hệ thống sẽ tự render "
+        "Khi cần đánh dấu phần gạch chân trong 1 lựa chọn (bắt buộc với dạng phát âm; dạng TRỌNG ÂM thì "
+        "ngược lại, tuyệt đối không gạch chân — xem hướng dẫn dạng bài ở trên), bọc đúng phần đó "
+        "bằng <u>...</u> ngay trong option.text — hệ thống sẽ tự render "
         "thành gạch chân thật khi xuất file, không cần và không được dùng ký hiệu nào khác (không markdown **, "
         "không dấu ngoặc kép quanh phần gạch chân). CHỈ dùng markup <u>...</u> bên trong option.text — TUYỆT "
         "ĐỐI KHÔNG dùng trong prompt_text, passage_text hay bất kỳ trường nào khác (câu dẫn/câu hỏi không cần "

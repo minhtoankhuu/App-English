@@ -22,10 +22,30 @@ from app.services.pronunciation_sounds import ending_sounds, stress_positions, v
 _OPTION_SPLIT_RE = re.compile(r"(?:^|[\s\t])([A-D])\s*[.)]\s*")
 _LABELS = ("A", "B", "C", "D")
 
+# Câu lệnh in ra đề, theo KIỂU của phần con. Đề thật dùng chung một câu cho cả ba kiểu
+# phát âm ("Which word has the underlined part pronounced differently...") vì các nhóm
+# không đánh nhãn A/B/C; app có nhãn nên nói rõ kiểu, giúp học sinh biết phải nhìn đuôi
+# hay nhìn nguyên âm.
 _PROMPTS = {
+    "s": "Choose the word that has a different pronunciation of the ending -s/-es.",
+    "ed": "Choose the word that has a different pronunciation of the ending -ed.",
+    "vowel": "Choose the word that has a different pronunciation of the underlined part.",
     "pronunciation": "Choose the word that has a different pronunciation of the underlined part.",
     "stress": "Choose the word that has a different stress pattern.",
 }
+
+
+def line_kind(option_texts: list[str]) -> str | None:
+    """'s' | 'ed' | 'vowel' — kiểu câu phát âm của một dòng đề thật, None nếu không đọc
+    được âm. Đi đúng thứ tự suy âm của `odd_one_out` để kiểu và đáp án không lệch nhau:
+    nhóm nào `ending_sounds` đọc được thì là câu so đuôi, còn lại là câu so nguyên âm."""
+    words = [visible_text(t) for t in option_texts]
+    ending = ending_sounds(words)
+    if ending is not None:
+        return "ed" if ending[1] == "đuôi -ed" else "s"
+    if vowel_sounds(option_texts) is not None:
+        return "vowel"
+    return None
 
 
 def parse_option_line(text: str) -> list[str] | None:
@@ -71,9 +91,24 @@ def odd_one_out(option_texts: list[str], *, is_pronunciation: bool) -> int | Non
 
 
 def build_from_exam_items(
-    lines: list[str], *, is_pronunciation: bool, count: int, seed: int | None = None
+    lines: list[str],
+    *,
+    is_pronunciation: bool,
+    count: int,
+    seed: int | None = None,
+    kind: str | None = None,
+    exclude: set[frozenset[str]] | None = None,
 ) -> list[QuestionDraft]:
     """Tối đa `count` câu dựng từ các dòng lựa chọn của đề thật, không trùng nhau.
+
+    `kind` ('s' | 'ed' | 'vowel') lọc đúng kiểu câu mà phần con yêu cầu — thiếu bộ lọc
+    này thì cả ba phần con đều bốc từ chung một rổ, ra đề trộn lẫn đuôi -s/-es với -ed
+    với nguyên âm dù câu lệnh của phần ghi rõ một kiểu.
+
+    `exclude` là các nhóm 4 từ ĐÃ dùng ở phần con trước trong cùng khối. Mỗi phần con
+    gọi hàm này một lần nên `seen` nội bộ không chặn được trùng giữa các phần — rổ câu
+    đọc được của một Unit khá nhỏ, không truyền `exclude` là y như rằng phần B lặp lại
+    nguyên câu của phần A.
 
     Mỗi câu vẫn phải qua `check_pronunciation_options` như bộ dựng bằng code — đề thật
     cũng có thể gõ sai, và ta không có quyền tin tuyệt đối vào nguồn ngoài.
@@ -82,9 +117,12 @@ def build_from_exam_items(
     pool = list(lines)
     rng.shuffle(pool)
 
-    prompt = _PROMPTS["pronunciation" if is_pronunciation else "stress"]
+    if not is_pronunciation:
+        prompt = _PROMPTS["stress"]
+    else:
+        prompt = _PROMPTS[kind or "pronunciation"]
     out: list[QuestionDraft] = []
-    seen: set[frozenset[str]] = set()
+    seen: set[frozenset[str]] = set(exclude or ())
 
     for line in pool:
         if len(out) >= count:
@@ -94,6 +132,8 @@ def build_from_exam_items(
             continue
         key = frozenset(options_text)
         if key in seen:
+            continue
+        if is_pronunciation and kind is not None and line_kind(options_text) != kind:
             continue
         odd = odd_one_out(options_text, is_pronunciation=is_pronunciation)
         if odd is None:
