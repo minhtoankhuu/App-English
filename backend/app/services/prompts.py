@@ -7,7 +7,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v24"
+PROMPT_VERSION = "v25"
 
 # Hướng dẫn dạng phát âm tách theo KIỂU. Phần con nào cũng đã ghim đúng 1 kiểu qua
 # prompt_override, nên gửi cả 3 kiểu là trả tiền cho ~600-880 token/lượt mô tả những
@@ -72,10 +72,12 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "Phần VOCABULARY AND GRAMMAR: trắc nghiệm 4 lựa chọn A/B/C/D, đúng 1 đáp án đúng.\n"
         "ĐỊNH DẠNG BẮT BUỘC — MỌI câu đều là HỘI THOẠI 2 LƯỢT, không có ngoại lệ, TUYỆT ĐỐI "
         "KHÔNG dùng câu đơn kiểu 'Solar energy is a ______ source of energy.'\n"
-        "Lượt 1 là lời của người A, lượt 2 là lời đáp của người B. Mỗi lượt một dòng, phân cách "
-        "bằng ký tự xuống dòng, dạng 'Tên: câu nói'. Toàn bộ câu có ĐÚNG MỘT chỗ trống "
-        "'______', đặt ở lượt 1 HOẶC lượt 2 (đề thật dùng cả hai, lượt 1 hơi nhiều hơn) — "
-        "lượt còn lại không được có chỗ trống nào. Ví dụ định dạng:\n"
+        "prompt_text BẮT BUỘC có ĐÚNG HAI DÒNG, mỗi dòng một lượt nói dạng 'Tên: câu nói', "
+        "phân cách bằng ký tự xuống dòng. MỘT DÒNG LÀ SAI — dù câu đó hay đến mấy: thiếu "
+        "lượt đáp thì không còn là hội thoại (SAI: 'Bao Han: I enjoy planting flowers in my "
+        "______. How about you?' — chỉ có 1 người nói).\n"
+        "Toàn bộ câu có ĐÚNG MỘT chỗ trống '______', đặt ở lượt 1 HOẶC lượt 2 (đề thật dùng "
+        "cả hai, lượt 1 hơi nhiều hơn) — lượt còn lại không được có chỗ trống nào. Ví dụ định dạng:\n"
         "  Minh Khoa: Why does Duc Minh always join the school football club?\n"
         "  Bao Han: Because he is really crazy ______ sports and loves playing in his free time.\n"
         "  → 4 lựa chọn cho ví dụ trên: A. about  B. on  C. at  D. to\n"

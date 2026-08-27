@@ -42,6 +42,18 @@ def test_pronunciation_prompt_keeps_all_three_kinds_when_none_is_pinned():
         assert marker in text
 
 
+def test_multiple_choice_prompt_demands_exactly_two_turns():
+    """Nới ràng buộc vị trí chỗ trống (đề thật đặt ở lượt 1 tới 56%) đã vô tình bỏ luôn
+    mỏ neo "LƯỢT 2", và model đánh mất kỷ luật hai lượt: đề sinh 27/08/2026 có 4/15 câu
+    chỉ một người nói."""
+    text = build_system_prompt("multiple_choice", 5, "A2")
+
+    assert "ĐÚNG HAI DÒNG" in text
+    assert "MỘT DÒNG LÀ SAI" in text
+    # Vẫn cho phép chỗ trống ở cả hai lượt như đề thật
+    assert "lượt 1 HOẶC lượt 2" in text
+
+
 def test_stress_prompt_forbids_underlining():
     """Bộ kiểm coi gạch chân âm tiết trong câu trọng âm là lộ đáp án và loại câu đó.
     Prompt từng BẮT BUỘC gạch chân — mâu thuẫn không lộ ra khi mục trọng âm còn dựng
