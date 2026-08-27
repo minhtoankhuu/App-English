@@ -83,6 +83,45 @@ def _looks_copied(prompt_text: str | None) -> bool:
     return any(fragment in lowered for fragment in _example_fragments())
 
 
+_STOPWORDS = frozenset(
+    "a an the to of in on at for with and or but my your his her its our their this that "
+    "these those i you he she it we they is are was were be been do does did have has had "
+    "not no so very too also more most much many some any".split()
+)
+
+
+def _content_words(text: str | None) -> set[str]:
+    """Từ mang nghĩa trong một đoạn, đã bỏ đuôi số nhiều đơn giản."""
+    words = set()
+    for raw in re.findall(r"[A-Za-z]+", (text or "").lower()):
+        if raw in _STOPWORDS or len(raw) < 3:
+            continue
+        words.add(raw)
+        if raw.endswith("es") and len(raw) > 4:
+            words.add(raw[:-2])
+        elif raw.endswith("s"):
+            words.add(raw[:-1])
+    return words
+
+
+def _options_echoing_the_sentence(prompt_text: str | None, options: list[dict]) -> list[str]:
+    """Nhãn các lựa chọn nhắc lại từ mang nghĩa đã có trong câu dẫn.
+
+    Chỉ báo khi ĐA SỐ lựa chọn cùng nhắc lại: một lựa chọn trùng từ với câu dẫn có thể
+    là cố ý (bẫy), nhưng 3-4 lựa chọn cùng kèm một danh từ đã nằm sẵn trong câu thì
+    chắc chắn là model nhét cả cụm vào lựa chọn.
+    """
+    sentence = _content_words(prompt_text)
+    if not sentence:
+        return []
+    echoed = [
+        opt.get("label") or "?"
+        for opt in options
+        if _content_words(opt.get("text")) & sentence
+    ]
+    return echoed if len(echoed) >= 3 else []
+
+
 def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -> list[str]:
     warnings: list[str] = []
 
@@ -125,6 +164,18 @@ def check_multiple_choice(prompt_text: str | None, options: list[dict] | None) -
             warnings.append(
                 f"Cả 4 lựa chọn lặp chung {prefix} từ đầu — phần lặp đó thuộc về câu dẫn, "
                 "lựa chọn chỉ giữ phần khác nhau."
+            )
+
+        # Lựa chọn nhắc lại danh từ ĐÃ CÓ trong câu -> điền vào là câu hỏng ngữ pháp.
+        # Đề sinh 27/08/2026: "I like to ______ old coins from different countries." với
+        # 4 lựa chọn "collect coin / buy coins / sell coins / look coins" — điền vào
+        # thành "I like to collect coin old coins...". Bộ kiểm cũ chỉ dò phần lặp ở ĐẦU
+        # các lựa chọn nên không thấy phần lặp nằm ở đuôi.
+        echoed = _options_echoing_the_sentence(prompt_text, options)
+        if echoed:
+            warnings.append(
+                f"Lựa chọn {', '.join(echoed)} nhắc lại từ đã có sẵn trong câu — điền vào "
+                "sẽ thành câu lặp từ, sai ngữ pháp. Lựa chọn chỉ giữ phần điền vào chỗ trống."
             )
 
         too_long = [

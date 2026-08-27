@@ -141,3 +141,45 @@ def test_short_options_sharing_a_word_are_fine():
     warnings = _joined(check_multiple_choice(DIALOGUE, opts))
     assert "lặp chung" not in warnings
     assert "dài quá" not in warnings
+
+
+def _opts4(words, correct=0):
+    return [
+        {"label": lb, "text": t, "is_correct": i == correct, "why_wrong": None if i == correct else "x"}
+        for i, (lb, t) in enumerate(zip("ABCD", words))
+    ]
+
+
+def test_options_repeating_a_noun_from_the_sentence_are_caught():
+    """Đề sinh 27/08/2026: "I like to ______ old coins from different countries." với 4
+    lựa chọn "collect coin / buy coins / sell coins / look coins" — điền vào thành "I
+    like to collect coin old coins...". Bộ kiểm cũ chỉ dò phần lặp ở ĐẦU các lựa chọn
+    nên không thấy phần lặp nằm ở đuôi."""
+    prompt = (
+        "Tu Anh: What hobby do you have?" + chr(10)
+        + "Phuc Hung: I like to ______ old coins from different countries."
+    )
+    warnings = check_multiple_choice(prompt, _opts4(["collect coin", "buy coins", "sell coins", "look coins"]))
+
+    assert any("nhắc lại từ đã có sẵn" in w for w in warnings)
+
+
+def test_one_option_sharing_a_word_with_the_sentence_is_allowed():
+    """Một lựa chọn trùng từ với câu dẫn có thể là bẫy cố ý — chỉ báo khi đa số cùng lặp."""
+    prompt = (
+        "Minh Khoa: What do you like to do in your free time?" + chr(10)
+        + "Gia Linh: I enjoy ______ because it helps me relax and have fun."
+    )
+    warnings = check_multiple_choice(prompt, _opts4(["gardening", "cleaning", "studying", "relaxing"]))
+
+    assert not any("nhắc lại từ đã có sẵn" in w for w in warnings)
+
+
+def test_a_blank_in_the_first_turn_is_not_a_defect():
+    """Đo 1.625 câu hội thoại của đề thật: 56% đặt chỗ trống ở lượt 1, 43% ở lượt 2."""
+    prompt = (
+        "Ngoc Bich: Do you enjoy ______ with your family?" + chr(10)
+        + "Minh Hoang: Yes! We often go to the garden together."
+    )
+
+    assert check_multiple_choice(prompt, _opts4(["gardening", "watching TV", "doing chores", "playing games"])) == []

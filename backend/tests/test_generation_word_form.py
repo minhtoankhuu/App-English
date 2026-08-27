@@ -105,7 +105,9 @@ def test_pins_a_different_seed_word_each_call():
     _word_form_family_drafts(provider, SPEC, CTX, UNIT_WORDS)
 
     seeds = [re.search(r"h\u1ecd t\u1eeb c\u1ee7a t\u1eeb '([a-z]+)'", o).group(1) for o in provider.seen_overrides]
-    assert seeds == ["collect", "benefit", "outdoor"]
+    # Từ có đuôi phái sinh được thử trước (xem _rank_seed_words), còn lại giữ thứ tự.
+    assert seeds == ["creative", "collect", "benefit"]
+    assert len(set(seeds)) == len(seeds)
 
 
 def test_later_calls_also_list_families_already_used():
@@ -113,7 +115,8 @@ def test_later_calls_also_list_families_already_used():
     _word_form_family_drafts(provider, SPEC, CTX, UNIT_WORDS)
 
     assert "ĐÃ RA" not in provider.seen_overrides[0]
-    assert "collect (v)" in provider.seen_overrides[1]
+    # Hạt giống đầu là "creative" (xem _rank_seed_words) -> lượt sau phải liệt kê họ đó.
+    assert "creative" in provider.seen_overrides[1]
 
 
 def test_groups_are_five_questions_each_with_distinct_families():
@@ -136,7 +139,10 @@ def test_retries_with_next_seed_when_model_repeats_a_family():
 
     # Họ từ 1 nhận ngay; họ từ 2 và 3 mỗi cái thử tối đa _MAX_FAMILY_ATTEMPTS lần.
     assert provider.calls == 1 + 2 * _MAX_FAMILY_ATTEMPTS
-    assert len(drafts) == 3 * WORD_FORM_QUESTIONS_PER_FAMILY  # vẫn đủ câu, không rơi rớt
+    # Thử hết lượt vẫn trùng -> BỎ. Trước đây batch trùng vẫn được nhận, nên đề sinh
+    # 27/08/2026 ra cả mục WORD FORMATION chung một họ từ 'amaze'. Thà thiếu câu còn hơn.
+    assert len(drafts) == WORD_FORM_QUESTIONS_PER_FAMILY
+    assert len(_distinct_families(drafts)) == 1
 
 
 def test_works_without_unit_vocabulary():
@@ -153,7 +159,8 @@ def test_skips_seed_words_too_short_to_have_a_family():
     _word_form_family_drafts(provider, SPEC, CTX, ["a", "go", "benefit", "outdoor", "creative"])
 
     seeds = [re.search(r"h\u1ecd t\u1eeb c\u1ee7a t\u1eeb '([a-z]+)'", o).group(1) for o in provider.seen_overrides]
-    assert seeds == ["benefit", "outdoor", "creative"]
+    assert "a" not in seeds and "go" not in seeds
+    assert seeds == ["creative", "benefit", "outdoor"]
 
 
 def test_strips_multiple_choice_options():
@@ -447,7 +454,7 @@ def test_family_call_queries_by_seed_word_not_the_vietnamese_instruction():
     provider = CaptureProvider()
     _word_form_family_drafts(provider, replace(SPEC, question_count=10), CTX_UNIT, UNIT_WORDS)
 
-    assert provider.queries == ["collect Healthy Living", "benefit Healthy Living"]
+    assert provider.queries == ["creative Healthy Living", "collect Healthy Living"]
     # Chỉ thị vẫn đầy đủ cho model, chỉ là không dùng làm truy vấn nữa
     assert all("dùng CHUNG đúng MỘT họ từ" in o for o in provider.seen_overrides)
 
@@ -466,3 +473,117 @@ def test_bracket_call_queries_by_family_words():
     _word_form_bracket_drafts(provider, replace(BRACKET_SPEC, question_count=3), CTX_UNIT, FAMILIES[:1])
 
     assert provider.queries == ["science scientific scientist Healthy Living"]
+
+
+# --- bù cho đủ số câu khi model trả thiếu ------------------------------------
+
+
+class ShortProvider:
+    """Trả đúng những câu được giao sẵn, ghi lại mỗi lần bị hỏi xin bao nhiêu câu."""
+
+    def __init__(self, extra):
+        self._extra = list(extra)
+        self.asked: list[int] = []
+
+    def generate(self, spec, context):
+        self.asked.append(spec.question_count)
+        return self._extra
+
+    def regenerate_one(self, spec, context, exclude_prompt=None, feedback=None):
+        raise AssertionError("không cần sinh lại khi câu đã sạch")
+
+
+def test_short_block_is_topped_up_to_the_requested_count():
+    """Prompt đã ghi "PHẢI có đúng N phần tử" mà model vẫn trả thiếu (đề sinh
+    27/08/2026: xin 15 câu, gpt-4o-mini trả 13). Trước đây chỗ này chỉ CẮT phần thừa,
+    không bù phần thiếu — đề ngắn đi mà không màn hình nào báo."""
+    from app.services.generation import _top_up_drafts
+
+    spec = BlockSpec(exercise_type_code="reading_true_false", question_count=5, level_code="A2")
+    first = [_draft(f"Cau {i} ______ .", "use (v) → usage (n)") for i in range(3)]
+    later = [_draft(f"Bu them {i} ______ .", "use (v) → usage (n)") for i in range(2)]
+    provider = ShortProvider(later)
+
+    drafts = _top_up_drafts(provider, spec, CTX, list(first))
+
+    assert len(drafts) == 5
+    assert provider.asked == [2]  # chỉ xin đúng phần còn thiếu
+
+
+def test_a_block_already_full_does_not_call_the_provider_again():
+    from app.services.generation import _top_up_drafts
+
+    spec = BlockSpec(exercise_type_code="reading_true_false", question_count=3, level_code="A2")
+    first = [_draft(f"Cau {i} ______ .", "use (v) → usage (n)") for i in range(3)]
+    provider = ShortProvider([])
+
+    assert len(_top_up_drafts(provider, spec, CTX, list(first))) == 3
+    assert provider.asked == []
+
+
+# --- chọn hạt giống và chặn trùng họ từ --------------------------------------
+
+
+def test_words_that_can_form_a_family_are_tried_first():
+    """Vốn từ của Unit phần lớn là danh từ/tính từ cụt (đo G7 Unit 1: chỉ 35/106 từ có
+    dấu hiệu phái sinh). Lấy hạt giống theo đúng thứ tự danh sách thì 2 trong 4 từ đầu
+    là 'cardboard', 'club' — không dựng nổi họ từ, model bèn quay về một họ nó thích."""
+    from app.services.generation import _rank_seed_words
+
+    ranked = _rank_seed_words(["cardboard", "club", "amazing", "creativity", "glue"])
+
+    assert ranked[:2] == ["amazing", "creativity"]
+    # Từ cụt không bị loại, chỉ đẩy xuống cuối — Unit nghèo từ phái sinh vẫn cần hạt giống
+    assert set(ranked) == {"cardboard", "club", "amazing", "creativity", "glue"}
+
+
+class OneFamilyProvider:
+    """Lần nào cũng trả đúng một họ từ, bất kể hạt giống được ghim là gì."""
+
+    def __init__(self, family):
+        self._family = family
+        self.calls = 0
+
+    def generate(self, spec, context):
+        self.calls += 1
+        return [_draft(f"Cau {self.calls}-{i} ______ .", self._family) for i in range(spec.question_count)]
+
+    def regenerate_one(self, spec, context, exclude_prompt=None, feedback=None):
+        raise AssertionError("không cần sinh lại khi câu đã sạch")
+
+
+def test_a_family_already_used_is_dropped_instead_of_shipped_twice():
+    """Đề sinh 27/08/2026: cả 10 câu Phần A đều là họ 'amaze' (in ra thành 4 dòng ❖ chỉ
+    vì nhãn ghi khác nhau đôi chút), rồi Phần B ôn lại đúng họ đó nên 10/10 câu đều
+    '(amaze)'. Hết lượt thử mà vẫn trùng thì thà thiếu câu."""
+    provider = OneFamilyProvider("amaze (v) → amazing (adj) → amazingly (adv)")
+    spec = BlockSpec(
+        exercise_type_code="word_form", question_count=10, level_code="A2",
+        prompt_override="Chỉ dùng kiểu (A) nhóm theo họ từ cho toàn bộ các câu. Mỗi họ từ 5 câu.",
+    )
+
+    drafts = _word_form_family_drafts(provider, spec, CTX, UNIT_WORDS)
+
+    assert len(_distinct_families(drafts)) == 1
+    assert len(drafts) == 5  # chỉ nhận họ từ đầu tiên, không dồn 10 câu vào một họ
+
+
+def test_machine_warnings_ride_along_with_the_question():
+    """Cảnh báo của bộ kiểm bằng code phải ĐI THEO câu ra đề, không chỉ dùng làm điều
+    kiện sinh lại. Đề sinh 27/08/2026 có 2 câu Phần A đáp án nằm ngoài họ từ được giao
+    (sinh lại 2 lần vẫn hỏng nên câu vẫn ra đề) mà trang Duyệt hiện warnings rỗng."""
+    from app.services.generation import _machine_warnings
+
+    spec = BlockSpec(
+        exercise_type_code="word_form", question_count=5, level_code="A2",
+        prompt_override="Chỉ dùng kiểu (A) nhóm theo họ từ cho toàn bộ các câu.",
+    )
+    lac = _draft(
+        "This movie is based on an ______ story.",
+        "actually (adv) → actual (adj) → actively (adv)",
+        answer_text="activities",
+    )
+
+    warnings = _machine_warnings(lac, spec)
+
+    assert any("không thuộc họ từ" in w for w in warnings)

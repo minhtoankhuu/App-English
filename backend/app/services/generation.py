@@ -172,6 +172,26 @@ def _prompt_key(prompt_text: str | None) -> str:
     return "".join(ch for ch in text if ch.isalnum() or ch.isspace() or ch == "_")
 
 
+def _repeated_answer_warning(
+    draft: QuestionDraft, seen_answers: set[str], spec: BlockSpec | None = None
+) -> list[str]:
+    """Đáp án lặp lại đáp án của câu trước trong cùng phần.
+
+    Câu dẫn khác nhau nên `_duplicate_warning` không thấy, nhưng học sinh làm bài thì
+    thấy ngay: đề sinh 27/08/2026 có 'gardening' là đáp án của 3/13 câu mục II.
+
+    CHỈ áp cho trắc nghiệm. Word form Phần A cho 5 câu chung một họ từ, mà họ từ thường
+    chỉ 3 thành viên nên dùng lại là bình thường — đề thật cũng vậy (G8 Unit 1: 6 câu
+    cho họ 3 từ).
+    """
+    if spec is not None and spec.exercise_type_code != "multiple_choice":
+        return []
+    answer = _answer_token(draft.answer_text)
+    if answer and answer in seen_answers:
+        return [f"Đáp án '{draft.answer_text}' đã là đáp án của một câu trước trong cùng phần."]
+    return []
+
+
 def _duplicate_key(draft: QuestionDraft, spec: BlockSpec | None = None) -> str:
     """Khoá so trùng của một câu.
 
@@ -313,8 +333,13 @@ def _auto_fix_pronunciation_drafts(
         return drafts
     fixed: list[QuestionDraft] = []
     seen: set[str] = set()
+    seen_answers: set[str] = set()
     for draft in drafts:
-        warnings = _machine_warnings(draft, spec) + _duplicate_warning(draft, seen, spec)
+        warnings = (
+            _machine_warnings(draft, spec)
+            + _duplicate_warning(draft, seen, spec)
+            + _repeated_answer_warning(draft, seen_answers, spec)
+        )
         attempts = 0
         while warnings and attempts < _MAX_PRONUNCIATION_REGEN:
             attempts += 1
@@ -324,12 +349,15 @@ def _auto_fix_pronunciation_drafts(
                 )
             except AIGenerationError:
                 break
-            candidate_warnings = _machine_warnings(candidate, spec) + _duplicate_warning(
-                candidate, seen, spec
+            candidate_warnings = (
+                _machine_warnings(candidate, spec)
+                + _duplicate_warning(candidate, seen, spec)
+                + _repeated_answer_warning(candidate, seen_answers, spec)
             )
             if len(candidate_warnings) < len(warnings):
                 draft, warnings = candidate, candidate_warnings
         seen.add(_duplicate_key(draft, spec))
+        seen_answers.add(_answer_token(draft.answer_text))
         fixed.append(draft)
     return fixed
 
@@ -572,6 +600,28 @@ def _word_form_bracket_drafts(
     return drafts[:total]
 
 
+# Đuôi báo hiệu từ có họ từ phái sinh. Vốn từ của Unit phần lớn là danh từ/tính từ cụt
+# (đo G7 Unit 1: chỉ 35/106 từ có dấu hiệu này), mà hạt giống trước đây lấy theo đúng
+# thứ tự trong danh sách nên 2 trong 4 từ đầu là 'cardboard', 'club' — không dựng nổi họ
+# từ. Gặp từ cụt, model dùng đường thoát trong prompt và quay về một họ từ nó thích.
+_FAMILY_SUFFIXES = (
+    "tion", "sion", "ment", "ness", "ity", "ance", "ence", "ist", "ism", "ive",
+    "ous", "ful", "less", "able", "ible", "ate", "ify", "ise", "ize", "ing", "ed", "ly",
+)
+
+
+def _rank_seed_words(unit_words: list[str]) -> list[str]:
+    """Vốn từ của Unit, xếp từ có khả năng dựng được họ từ lên trước.
+
+    Không LỌC BỎ từ cụt mà chỉ đẩy xuống cuối: Unit nghèo từ phái sinh vẫn phải có hạt
+    giống để dùng, thà hạt giống yếu còn hơn không có hạt giống nào.
+    """
+    seeds = [w for w in unit_words if len(w) >= _MIN_SEED_WORD_LEN]
+    strong = [w for w in seeds if w.lower().endswith(_FAMILY_SUFFIXES)]
+    weak = [w for w in seeds if not w.lower().endswith(_FAMILY_SUFFIXES)]
+    return strong + weak
+
+
 def _word_form_family_drafts(
     provider: AIProvider,
     spec: BlockSpec,
@@ -590,13 +640,16 @@ def _word_form_family_drafts(
     per_family = word_form_questions_per_family(spec.prompt_override)
     drafts: list[QuestionDraft] = []
     used: list[str] = []
-    seeds = [w for w in unit_words if len(w) >= _MIN_SEED_WORD_LEN]
+    seeds = _rank_seed_words(unit_words)
     seed_pos = 0
 
     for _ in range(word_form_family_count(spec.question_count, per_family)):
-        batch: list[QuestionDraft] = []
+        accepted: list[QuestionDraft] = []
+        last: list[QuestionDraft] = []
+        had_seed = False
         for _attempt in range(_MAX_FAMILY_ATTEMPTS):
             seed = seeds[seed_pos] if seed_pos < len(seeds) else None
+            had_seed = had_seed or seed is not None
             seed_pos += 1
             sub = replace(
                 spec,
@@ -609,13 +662,63 @@ def _word_form_family_drafts(
             batch = _auto_fix_pronunciation_drafts(provider, sub, context, batch)
             _strip_word_form_extras(batch, kind="family")
             _unify_family_label(batch)
+            last = batch
             family = _batch_family(batch)
             if family is not None and family not in used:
                 used.append(family)
+                accepted = batch
                 break
             # Trùng họ từ đã ra (hoặc không nhận ra họ từ) -> thử lại với hạt giống kế tiếp.
-        drafts.extend(batch)
+        # Hết lượt thử mà vẫn trùng họ từ -> BỎ, thà thiếu câu còn hơn dồn cả mục vào một
+        # họ từ. Đề sinh 27/08/2026 ra 10 câu Phần A đều là họ 'amaze' (in thành 4 dòng ❖
+        # chỉ vì nhãn ghi khác nhau đôi chút), rồi Phần B ôn lại đúng họ đó nên 10/10 câu
+        # đều '(amaze)' — vì batch cuối trước đây được nhận vô điều kiện.
+        # KHÔNG bỏ khi Unit chưa nạp vốn từ: không có hạt giống thì ta không có cách nào
+        # lái model sang họ khác, bỏ đi chỉ làm đề ngắn mà không sửa được gì.
+        drafts.extend(accepted if (accepted or had_seed) else last)
     return drafts
+
+_MAX_TOP_UP_ROUNDS = 2
+
+
+def _top_up_drafts(
+    provider: AIProvider,
+    spec: BlockSpec,
+    context: GenerationContext,
+    drafts: list[QuestionDraft],
+) -> list[QuestionDraft]:
+    """Xin thêm cho đủ số câu khi model trả thiếu.
+
+    Prompt đã ghi "Mảng questions PHẢI có đúng N phần tử" mà model vẫn trả thiếu (đề
+    sinh 27/08/2026: xin 15 câu, gpt-4o-mini trả 13). Trước đây chỗ này chỉ CẮT phần
+    thừa, không bù phần thiếu — đề ngắn đi mà không màn hình nào báo, giáo viên phải tự
+    đếm mới biết.
+
+    Câu xin thêm vẫn qua đúng bộ kiểm và bộ chặn trùng như câu sinh lượt đầu.
+    """
+    missing = spec.question_count - len(drafts)
+    if missing <= 0:
+        return drafts
+    seen = {_duplicate_key(d, spec) for d in drafts}
+    for _ in range(_MAX_TOP_UP_ROUNDS):
+        if missing <= 0:
+            break
+        try:
+            extra = provider.generate(replace(spec, question_count=missing), context)
+        except AIGenerationError:
+            break
+        extra = _auto_fix_pronunciation_drafts(provider, spec, context, extra)
+        for draft in extra:
+            key = _duplicate_key(draft, spec)
+            if key in seen or _machine_warnings(draft, spec):
+                continue
+            seen.add(key)
+            drafts.append(draft)
+            missing -= 1
+            if missing <= 0:
+                break
+    return drafts
+
 
 def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[Question]:
     """Xoá toàn bộ câu chưa khóa của block rồi sinh mới đủ question_count.
@@ -711,6 +814,7 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             # Model đôi khi trả nhiều/ít hơn số câu yêu cầu dù prompt đã ghi rõ (đề thật
             # 07/08/2026: xin 8 câu, trả 9) -> cắt đúng số câu để block không lệch.
             drafts = drafts[:count]
+            drafts = _top_up_drafts(provider, spec, context, drafts)
             if part_type.code == "word_form":
                 _strip_word_form_extras(drafts, kind=word_form_kind)
         draft_embeddings = _embed_drafts(embedding_client, drafts)
@@ -720,7 +824,12 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             while order_no in locked_orders:
                 order_no += 1
             level = db.scalar(select(ProficiencyLevel).where(ProficiencyLevel.code == draft.level_code)) or exam_level
-            warnings = validate_draft(
+            # Cảnh báo của bộ kiểm bằng code phải ĐI THEO câu, không chỉ dùng làm điều
+            # kiện sinh lại: sinh lại tối đa _MAX_PRONUNCIATION_REGEN lần, sinh lại vẫn
+            # lỗi thì câu vẫn ra đề — mà trước đây ra đề với warnings rỗng, giáo viên
+            # không thấy gì. Đề sinh 27/08/2026 có 2 câu Phần A đáp án nằm ngoài họ từ
+            # được giao mà trang Duyệt không hề báo.
+            warnings = _machine_warnings(draft, spec) + validate_draft(
                 db,
                 draft,
                 exercise_type=part_type,
