@@ -139,7 +139,14 @@ class ExamBlockPart(Base):
     instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
     question_count: Mapped[int] = mapped_column(Integer, nullable=False)
     prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Phần con ĐƯỢC PHÉP khác dạng bài với khối cha. Đề thật gộp trọng âm thành một phần
+    # con của "I. PRONUNCIATION" (13/13 đề), mà phát âm và trọng âm là hai dạng bài khác
+    # nhau: khác bộ dựng, khác bộ kiểm, khác câu mẫu. NULL = dùng dạng bài của khối cha.
+    exercise_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("exercise_types.id"), nullable=True
+    )
 
+    exercise_type = relationship("ExerciseType")
     block = relationship("ExamBlock", back_populates="parts")
     questions: Mapped[list["Question"]] = relationship(
         back_populates="part", order_by="Question.order_no", cascade="all, delete-orphan"

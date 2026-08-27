@@ -216,3 +216,48 @@ def test_no_student_info_line():
 
     assert "Full name" not in full_text
     assert "Class:" not in full_text
+
+
+def _instruction_doc(instruction):
+    block = _pronunciation_block()
+    block.instruction = instruction
+    return build_exam_document(*_exam(block))
+
+
+def test_instruction_label_bold_and_body_italic():
+    """Đề thật: "Prepositions and Phrases:" in đậm, phần hướng dẫn làm bài in nghiêng."""
+    doc = _instruction_doc("Prepositions and Phrases: Choose the word that best fits the space.")
+    p = _paragraph_by_text(doc, "Prepositions and Phrases")
+
+    bold = [r.text for r in p.runs if r.font.bold]
+    italic = [r.text for r in p.runs if r.font.italic]
+    assert bold == ["Prepositions and Phrases: "]
+    assert italic == ["Choose the word that best fits the space."]
+
+
+def test_instruction_without_label_is_all_italic():
+    doc = _instruction_doc("Choose the best answer A, B, C or D.")
+    p = _paragraph_by_text(doc, "Choose the best answer")
+
+    assert all(r.font.italic for r in p.runs if r.text.strip())
+    assert not any(r.font.bold for r in p.runs)
+
+
+def test_long_lead_in_is_not_treated_as_a_label():
+    """Câu lệnh có dấu hai chấm giữa câu không được cắt thành nhãn."""
+    text = "Read the passage and decide whether the statements below are True or False: write your answer."
+    doc = _instruction_doc(text)
+    p = _paragraph_by_text(doc, "Read the passage")
+
+    assert not any(r.font.bold for r in p.runs)
+    assert p.text == text
+
+
+def test_option_labels_are_bold_but_option_text_is_not():
+    """Nhãn A. B. C. D. luôn in đậm, phần chữ của lựa chọn giữ chữ thường."""
+    doc = build_exam_document(*_exam(_pronunciation_block()))
+    p = next(p for p in doc.paragraphs if "A." in p.text and "D." in p.text)
+
+    bold = [r.text for r in p.runs if r.font.bold]
+    assert {"A. ", "B. ", "C. ", "D. "} <= set(bold)
+    assert not any(r.font.bold for r in p.runs if r.text.strip() in {"dresses", "kisses"})

@@ -67,8 +67,8 @@ def test_exercise_types_flag_passage(client, seeded_db):
 
     assert response.status_code == 200
     by_code = {e["code"]: e for e in response.json()}
-    # 11 dạng trong danh mục trừ 2 dạng bị ẩn (xem INACTIVE_EXERCISE_TYPE_CODES).
-    assert len(by_code) == 9
+    # 11 dạng trong danh mục trừ 3 dạng bị ẩn (xem INACTIVE_EXERCISE_TYPE_CODES).
+    assert len(by_code) == 8
     assert by_code["cloze_test"]["has_passage"] is True
     assert by_code["reading_true_false"]["has_passage"] is True
     assert by_code["multiple_choice"]["has_passage"] is False
@@ -109,6 +109,29 @@ def test_cambridge_certificates_map_to_cefr(client, seeded_db):
     assert by_code == {"Starters": "A1", "Movers": "A1", "Flyers": "A2", "KET": "B1", "PET": "B2"}
 
 
+def test_seed_refreshes_default_instruction_of_existing_types(seeded_db):
+    """Danh mục dạng bài là cấu hình của app: sửa câu lệnh trong code rồi seed lại thì
+    DB phải đổi theo. Trước đây seed chỉ tạo-nếu-chưa-có nên thay đổi không bao giờ tới
+    được DB đang chạy (báo cáo 26/08/2026)."""
+    from sqlalchemy import select
+
+    from app.models.exercise import ExerciseType
+    from app.seed import seed_exercise_types
+
+    existing = seeded_db.scalar(select(ExerciseType).where(ExerciseType.code == "multiple_choice"))
+    assert existing is not None
+    existing.default_instruction = "Câu lệnh cũ từ lần seed trước."
+    existing.name = "Tên cũ"
+    seeded_db.flush()
+
+    seed_exercise_types(seeded_db)
+    seeded_db.flush()
+
+    refreshed = seeded_db.scalar(select(ExerciseType).where(ExerciseType.code == "multiple_choice"))
+    assert refreshed.id == existing.id  # cập nhật tại chỗ, không tạo bản ghi mới
+    assert refreshed.default_instruction.startswith("Choose the word / phrase / sentence")
+    assert refreshed.name == "Trắc nghiệm"
+
 def test_unused_exercise_types_are_hidden_from_the_picker(client, seeded_db):
     """matching và gap_fill không xuất hiện trong bất kỳ đề nào của 13 đề thật, và chưa
     từng được kiểm chứng — ẩn khỏi lưới chọn thay vì xoá (chốt 26/08/2026)."""
@@ -121,3 +144,5 @@ def test_unused_exercise_types_are_hidden_from_the_picker(client, seeded_db):
     assert not (set(codes) & INACTIVE_EXERCISE_TYPE_CODES)
     assert "word_entry" in codes  # dạng dùng 11/13 đề, mới thêm
     assert "multiple_choice" in codes
+    # Trọng âm giờ là phần con của PRONUNCIATION, không còn ô tick riêng.
+    assert "stress" not in codes

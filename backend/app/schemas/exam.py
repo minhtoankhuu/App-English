@@ -69,6 +69,9 @@ class BlockPartCreateRequest(BaseModel):
     instruction: str | None = None
     question_count: int = Field(ge=1, le=50)
     prompt_override: str | None = None
+    # None = dùng dạng bài của khối cha. Đặt khác để ghép dạng khác vào cùng một mục
+    # như đề thật (trọng âm nằm trong "I. PRONUNCIATION").
+    exercise_type_id: uuid.UUID | None = None
 
 
 class BlockPartUpdateRequest(BaseModel):
@@ -142,6 +145,7 @@ class BlockPartOut(BaseModel):
     instruction: str | None
     question_count: int
     prompt_override: str | None
+    exercise_type_id: uuid.UUID | None
 
 
 class BlockOut(BaseModel):
