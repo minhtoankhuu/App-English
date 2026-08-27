@@ -22,7 +22,7 @@ from app.services.openai_embedding import OpenAIEmbeddingClient
 from app.services.prompts import detect_pronunciation_kind as _detect_pronunciation_kind
 from app.services.pronunciation_builder import build_pronunciation_questions
 from app.services.mcq_check import check_multiple_choice
-from app.services.pronunciation_check import check_pronunciation_options
+from app.services.pronunciation_check import check_pronunciation_options, visible_text
 from app.services.rag_search import exam_examples
 from app.services.unit_vocabulary import unit_vocabulary_words
 from app.services.validation import validate_draft
@@ -230,12 +230,59 @@ def _answer_key_warnings(draft: QuestionDraft, *, is_pronunciation: bool) -> lis
     return []
 
 
+def _answer_text_warnings(draft: QuestionDraft) -> list[str]:
+    """`answer_text` phải chỉ đúng lựa chọn đánh `is_correct`.
+
+    Hai trường này model điền độc lập và trước nay không ai đối chiếu, trong khi chúng
+    hiện ra ở HAI nơi khác nhau: trang Duyệt in `answer_text`, còn bản đáp án DOCX tô
+    đậm lựa chọn `is_correct` (docx_renderer). Lệch nhau thì giáo viên duyệt một đáp án
+    mà học sinh nhận một đáp án khác — không nhìn ra được ở bất kỳ màn hình nào.
+    """
+    options = draft.options or []
+    if not options:
+        return []
+    correct = [o for o in options if o.get("is_correct")]
+    if len(correct) != 1:
+        return []  # đã có cảnh báo riêng cho "phải đúng 1 đáp án đúng"
+
+    answer = _answer_token(draft.answer_text)
+    if not answer:
+        return ["Thiếu đáp án (answer_text) cho câu có lựa chọn."]
+    labels = {(o.get("label") or "").strip().rstrip(".)").upper() for o in options}
+    if answer in labels:
+        matched = [o for o in options if (o.get("label") or "").strip().rstrip(".)").upper() == answer]
+    else:
+        matched = [o for o in options if _option_token(o) == answer]
+    if not matched:
+        return [f"Đáp án '{draft.answer_text}' không khớp lựa chọn nào."]
+    if not matched[0].get("is_correct"):
+        right = correct[0]
+        return [
+            f"Đáp án ghi '{draft.answer_text}' nhưng lựa chọn đánh dấu đúng lại là "
+            f"{right.get('label')}. {visible_text(right.get('text') or '')} — hai chỗ phải khớp nhau."
+        ]
+    return []
+
+
+def _answer_token(answer_text: str | None) -> str:
+    """'B. crazy' / 'crazy' / 'B' -> khoá so khớp. Bỏ nhãn dẫn đầu và markup gạch chân."""
+    text = visible_text((answer_text or "").strip())
+    match = re.match(r"^([A-Da-d])\s*[.)]\s*(.*)$", text)
+    if match:
+        text = match.group(2).strip() or match.group(1)
+    return text.strip().strip(".").upper() if len(text.strip()) == 1 else text.strip().lower()
+
+
+def _option_token(option: dict) -> str:
+    return visible_text(option.get("text") or "").strip().lower()
+
+
 def _machine_warnings(draft: QuestionDraft, spec: BlockSpec) -> list[str]:
     """Cảnh báo kiểm được bằng code cho các dạng mà máy tự đánh giá được chất lượng —
     dùng làm điều kiện tự sinh lại trong pipeline."""
     code = spec.exercise_type_code
     if code == "multiple_choice":
-        return check_multiple_choice(draft.prompt_text, draft.options)
+        return check_multiple_choice(draft.prompt_text, draft.options) + _answer_text_warnings(draft)
     if code == "word_form":
         return check_word_form(
             draft.prompt_text,
@@ -252,7 +299,7 @@ def _machine_warnings(draft: QuestionDraft, spec: BlockSpec) -> list[str]:
     return check_pronunciation_options(
         [opt.get("text", "") for opt in draft.options],
         is_pronunciation=is_pronunciation,
-    ) + _answer_key_warnings(draft, is_pronunciation=is_pronunciation)
+    ) + _answer_key_warnings(draft, is_pronunciation=is_pronunciation) + _answer_text_warnings(draft)
 
 
 def _auto_fix_pronunciation_drafts(

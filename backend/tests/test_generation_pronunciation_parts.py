@@ -7,10 +7,13 @@ kiểu so nguyên âm, rồi trọng âm. Mỗi phần con ghim kiểu của mì
 của nhau (rổ câu đọc được của một Unit chỉ vài câu mỗi kiểu).
 """
 
+import pytest
+
 from app.services.ai_provider import AIGenerationError, BlockSpec, GenerationContext, QuestionDraft
 from app.services.exam_pronunciation import line_kind, parse_option_line
 from app.services.generation import (
     _answer_key_warnings,
+    _answer_text_warnings,
     _duplicate_key,
     _duplicate_warning,
     _deterministic_pronunciation_drafts,
@@ -268,3 +271,53 @@ def test_other_exercise_types_still_compare_by_prompt():
     draft = _draft(["a", "b", "c", "d"])
 
     assert _duplicate_warning(draft, {_duplicate_key(draft, spec)}, spec)
+
+
+# --- answer_text phải khớp lựa chọn đánh is_correct --------------------------
+
+
+def _with_answer(words, answer_text, correct_index):
+    return QuestionDraft(
+        prompt_text="p", answer_text=answer_text, explanation="", target_knowledge="",
+        level_code="A2", source_ref="ai",
+        options=[
+            {"label": lb, "text": t, "is_correct": i == correct_index}
+            for i, (lb, t) in enumerate(zip("ABCD", words))
+        ],
+    )
+
+
+WORDS = ["car<u>s</u>", "bike<u>s</u>", "train<u>s</u>", "toy<u>s</u>"]
+
+
+def test_answer_text_pointing_at_another_option_is_caught():
+    """Trang Duyệt in answer_text, bản đáp án DOCX tô đậm lựa chọn is_correct — hai
+    trường model điền độc lập. Lệch nhau thì giáo viên duyệt một đáp án còn học sinh
+    nhận một đáp án khác, mà không màn hình nào nhìn ra."""
+    warnings = _answer_text_warnings(_with_answer(WORDS, "D. toys", 1))
+
+    assert warnings and "bikes" in warnings[0]
+
+
+def test_answer_text_matching_an_option_that_does_not_exist_is_caught():
+    assert _answer_text_warnings(_with_answer(WORDS, "elephants", 1))
+
+
+def test_answer_text_missing_on_a_multiple_choice_question_is_caught():
+    assert _answer_text_warnings(_with_answer(WORDS, "", 1))
+
+
+@pytest.mark.parametrize("answer", ["B. bikes", "bikes", "B", "b) bikes"])
+def test_the_usual_ways_of_writing_the_answer_all_pass(answer):
+    """Model ghi 'B. bikes', 'bikes' hay 'B' đều hợp lệ — không được báo nhầm."""
+    assert _answer_text_warnings(_with_answer(WORDS, answer, 1)) == []
+
+
+def test_question_without_options_is_not_checked():
+    """Word form / viết lại câu in thẳng answer_text, không có lựa chọn để đối chiếu."""
+    draft = QuestionDraft(
+        prompt_text="p", answer_text="collection", explanation="", target_knowledge="",
+        level_code="A2", source_ref="ai", options=None,
+    )
+
+    assert _answer_text_warnings(draft) == []

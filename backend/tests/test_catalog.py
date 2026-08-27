@@ -129,7 +129,10 @@ def test_seed_refreshes_default_instruction_of_existing_types(seeded_db):
 
     refreshed = seeded_db.scalar(select(ExerciseType).where(ExerciseType.code == "multiple_choice"))
     assert refreshed.id == existing.id  # cập nhật tại chỗ, không tạo bản ghi mới
-    assert refreshed.default_instruction.startswith("Choose the word / phrase / sentence")
+    # Đề thật luôn mở đầu bằng nhãn chủ đề trước dấu hai chấm (13/13 đề khảo sát) —
+    # docx_renderer in đậm phần nhãn đó.
+    assert refreshed.default_instruction.startswith("Vocabulary: ")
+    assert "Choose the word / phrase / sentence" in refreshed.default_instruction
     assert refreshed.name == "Trắc nghiệm"
 
 def test_unused_exercise_types_are_hidden_from_the_picker(client, seeded_db):

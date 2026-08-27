@@ -22,6 +22,26 @@ def word_family_members(family: str | None) -> set[str]:
     return {m.group(1).lower() for m in _FAMILY_MEMBER_WORD_RE.finditer(family or "")}
 
 
+def _in_family(answer: str, members: set[str]) -> bool:
+    """Đáp án có thuộc họ từ không, CHẤP NHẬN dạng biến cách.
+
+    Dòng ❖ liệt kê dạng gốc ('adore (v) → adorable (adj)'), còn câu hỏi bắt chia theo
+    ngữ pháp: "My little sister ______ her teddy bear" đáp án đúng là 'adores'. So khớp
+    tuyệt đối sẽ báo nhầm chính những câu đúng.
+    """
+    a = answer.lower()
+    if a in members:
+        return True
+    for m in members:
+        if a in {m + "s", m + "es", m + "d", m + "ed", m + "ing"}:
+            return True
+        if m.endswith("e") and a == m[:-1] + "ing":
+            return True
+        if m.endswith("y") and a in {m[:-1] + "ies", m[:-1] + "ied"}:
+            return True
+    return False
+
+
 def detect_word_form_kind(prompt_override: str | None) -> str | None:
     """Suy kiểu word form từ prompt_override của Phần con (preset ở ExamBuilder ghi
     'kiểu (A)'/'kiểu (B)'). None = không rõ kiểu -> chỉ kiểm các luật chung."""
@@ -64,6 +84,16 @@ def check_word_form(
         warnings.append(f"answer_text phải là 1 từ duy nhất, đang là '{answer}'.")
 
     if kind == "family":
+        # Đáp án phải là MỘT TỪ TRONG chính họ từ đã giao. Trước đây chỉ kiểm
+        # target_knowledge có đúng định dạng chuỗi họ từ hay không, còn đáp án thì
+        # không ai đối chiếu — model trả họ từ 'adore → adorable → adorably' rồi đáp án
+        # 'beautiful' vẫn lọt sạch, mà nhìn đề không thấy gì bất thường vì dòng ❖ và
+        # câu hỏi đều hợp lệ.
+        members = word_family_members(target_knowledge)
+        if answer and members and not _in_family(answer, members):
+            warnings.append(
+                f"Đáp án '{answer}' không thuộc họ từ được giao ({target_knowledge})."
+            )
         if family is None:
             warnings.append(
                 "Kiểu (A): target_knowledge phải là chuỗi họ từ dạng "
