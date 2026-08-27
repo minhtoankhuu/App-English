@@ -204,8 +204,20 @@ def test_auto_fix_regenerates_a_duplicate_question():
     )
     duplicate = QuestionDraft(**{**first.__dict__, "prompt_text":
                                  "Linh Chi: What do people do?\nTu Anh: They ______ the festival."})
-    replacement = QuestionDraft(**{**first.__dict__, "prompt_text":
-                                   "Minh Khoa: How do you relax?\nPhuc Hung: I ______ music at home."})
+    # Câu thay thế phải khác HẲN, kể cả đáp án: sao chép nguyên answer_text/options
+    # của câu gốc là dựng ra câu mà bộ kiểm loại vì lặp đáp án.
+    listen_opts = [
+        {"label": lb, "text": t, "is_correct": i == 0, "why_wrong": None if i == 0 else "sai"}
+        for i, (lb, t) in enumerate(zip("ABCD", ["listen to", "look at", "wait for", "care about"]))
+    ]
+    replacement = QuestionDraft(
+        **{
+            **first.__dict__,
+            "prompt_text": "Minh Khoa: How do you relax?\nPhuc Hung: I ______ music at home.",
+            "answer_text": "A. listen to",
+            "options": listen_opts,
+        }
+    )
     provider = FakeProvider([replacement])
     spec = BlockSpec(exercise_type_code="multiple_choice", question_count=2, level_code="A2")
 

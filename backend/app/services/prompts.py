@@ -7,7 +7,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v23"
+PROMPT_VERSION = "v24"
 
 # Hướng dẫn dạng phát âm tách theo KIỂU. Phần con nào cũng đã ghim đúng 1 kiểu qua
 # prompt_override, nên gửi cả 3 kiểu là trả tiền cho ~600-880 token/lượt mô tả những
@@ -73,11 +73,19 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "ĐỊNH DẠNG BẮT BUỘC — MỌI câu đều là HỘI THOẠI 2 LƯỢT, không có ngoại lệ, TUYỆT ĐỐI "
         "KHÔNG dùng câu đơn kiểu 'Solar energy is a ______ source of energy.'\n"
         "Lượt 1 là lời của người A, lượt 2 là lời đáp của người B. Mỗi lượt một dòng, phân cách "
-        "bằng ký tự xuống dòng, dạng 'Tên: câu nói'. Chỗ trống '______' chỉ nằm ở LƯỢT 2 và "
-        "toàn bộ câu có ĐÚNG MỘT chỗ trống (lượt 1 không được có chỗ trống). Ví dụ định dạng:\n"
+        "bằng ký tự xuống dòng, dạng 'Tên: câu nói'. Toàn bộ câu có ĐÚNG MỘT chỗ trống "
+        "'______', đặt ở lượt 1 HOẶC lượt 2 (đề thật dùng cả hai, lượt 1 hơi nhiều hơn) — "
+        "lượt còn lại không được có chỗ trống nào. Ví dụ định dạng:\n"
         "  Minh Khoa: Why does Duc Minh always join the school football club?\n"
         "  Bao Han: Because he is really crazy ______ sports and loves playing in his free time.\n"
         "  → 4 lựa chọn cho ví dụ trên: A. about  B. on  C. at  D. to\n"
+        "ĐÁP ÁN PHẢI ĐIỀN VÀO CHỖ TRỐNG THÀNH CÂU ĐÚNG NGỮ PHÁP — tự đọc lại cả câu sau khi "
+        "thay ______ bằng đáp án trước khi trả kết quả. Hai lỗi hay gặp: (a) lựa chọn nhắc lại "
+        "danh từ ĐÃ CÓ trong câu (SAI: 'I like to ______ old coins' với lựa chọn 'collect coin' "
+        "-> 'collect coin old coins'; ĐÚNG: 'collect'); (b) sai dạng động từ theo từ đứng trước "
+        "(SAI: 'I love ______ dollhouses' với đáp án 'build' -> 'I love build dollhouses'; ĐÚNG: "
+        "'building'). 4 lựa chọn phải CÙNG một dạng từ để dạng từ không tự tố cáo đáp án.\n"
+        "KHÔNG dùng lại một đáp án cho hai câu khác nhau trong cùng lần sinh.\n"
         "PHÂN VAI RÕ RÀNG — sai chỗ này là câu hỏng hẳn: prompt_text chứa CẢ HAI lượt và chứa "
         "chỗ trống; option.text chỉ là TỪ hoặc CỤM TỪ NGẮN (tối đa 6 từ) điền vào chỗ trống đó. "
         "Lựa chọn TUYỆT ĐỐI không được chứa dấu ______, không được là câu hoàn chỉnh, và 4 lựa "

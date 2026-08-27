@@ -13,6 +13,7 @@ from app.services.ai_provider import AIGenerationError, BlockSpec, GenerationCon
 from app.services.exam_pronunciation import line_kind, parse_option_line
 from app.services.generation import (
     _answer_key_warnings,
+    _repeated_answer_warning,
     _answer_text_warnings,
     _duplicate_key,
     _duplicate_warning,
@@ -321,3 +322,12 @@ def test_question_without_options_is_not_checked():
     )
 
     assert _answer_text_warnings(draft) == []
+
+
+def test_an_answer_used_by_an_earlier_question_is_flagged():
+    """Câu dẫn khác nhau nên bộ chặn trùng theo câu dẫn không thấy, nhưng học sinh làm
+    bài thì thấy ngay: đề sinh 27/08/2026 có 'gardening' là đáp án của 3/13 câu."""
+    draft = _with_answer(WORDS, "B. bikes", 1)
+
+    assert _repeated_answer_warning(draft, {"bikes"})
+    assert _repeated_answer_warning(draft, {"trains"}) == []
