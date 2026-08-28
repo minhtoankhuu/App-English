@@ -7,7 +7,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v25"
+PROMPT_VERSION = "v26"
 
 # Hướng dẫn dạng phát âm tách theo KIỂU. Phần con nào cũng đã ghim đúng 1 kiểu qua
 # prompt_override, nên gửi cả 3 kiểu là trả tiền cho ~600-880 token/lượt mô tả những
@@ -298,6 +298,42 @@ def _wrap_examples(chosen: list[str]) -> str:
     )
 
 
+# Mô tả cụ thể từng trình độ để model có gì mà bám. Trước đây prompt chỉ nêu TÊN mức
+# ("trình độ mục tiêu A2") nên A1 và B1 ra đề gần như y hệt nhau — mọi ràng buộc định
+# lượng lại khoá theo cấp học/khối lớp, không theo trình độ, nên hạ mức cho lớp yếu
+# không có tác dụng thật (chủ dự án duyệt bảng này ngày 28/08/2026).
+#
+# Độ dài câu do prompt lo, KHÔNG chặn ở Validation Engine: khoảng của cấp học và khoảng
+# của trình độ đo hai thứ khác nhau, chấm bằng cái này trong khi model được dặn theo cái
+# kia thì mọi câu đều bị cảnh báo oan (chốt 28/08/2026).
+LEVEL_GUIDANCE: dict[str, str] = {
+    "A1": (
+        "Trình độ A1: câu 6-10 từ. CHỈ dùng hiện tại đơn và hiện tại tiếp diễn. Từ vựng "
+        "trong khoảng 500 từ thông dụng nhất. KHÔNG dùng mệnh đề quan hệ."
+    ),
+    "A2": (
+        "Trình độ A2: câu 10-14 từ. Ngoài hiện tại đơn/tiếp diễn được dùng thêm quá khứ "
+        "đơn, thì tương lai và cấu trúc so sánh. Mệnh đề quan hệ chỉ ở dạng đơn giản."
+    ),
+    "B1": (
+        "Trình độ B1: câu 14-18 từ. Được dùng hiện tại hoàn thành, câu điều kiện, câu bị "
+        "động và mệnh đề phụ."
+    ),
+    "B2": (
+        "Trình độ B2: câu 16-22 từ. Được dùng mọi thì, câu điều kiện hỗn hợp, mệnh đề "
+        "rút gọn, đảo ngữ và các cấu trúc nhấn mạnh."
+    ),
+    "C1": (
+        "Trình độ C1: câu 18-26 từ. Không giới hạn cấu trúc ngữ pháp; ưu tiên diễn đạt "
+        "học thuật, thành ngữ và cách nói trang trọng."
+    ),
+}
+
+def level_guidance(level_code: str | None) -> str:
+    """Mô tả trình độ chèn vào prompt, rỗng nếu mức lạ."""
+    return LEVEL_GUIDANCE.get((level_code or "").upper(), "")
+
+
 def build_system_prompt(
     exercise_type_code: str,
     question_count: int,
@@ -317,6 +353,7 @@ def build_system_prompt(
     return (
         "Bạn là trợ lý tạo đề thi tiếng Anh THCS cho giáo viên Việt Nam. "
         f"Sinh đúng {question_count} câu hỏi dạng '{exercise_type_code}', trình độ mục tiêu {level_code}. "
+        f"{level_guidance(level_code)} "
         f"Mảng questions PHẢI có đúng {question_count} phần tử. "
         f"{instruction} "
         "CHỈ dùng kiến thức có trong tài liệu nguồn được cung cấp bên dưới — không tự bịa từ vựng/ngữ pháp "

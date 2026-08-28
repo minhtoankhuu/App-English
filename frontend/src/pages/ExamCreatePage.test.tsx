@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +23,8 @@ const grade7: GradeOut = {
   number: 7,
   school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 },
   suggested_level: { id: "level-a2", code: "A2", rank: 2 },
+  min_level: null,
+  max_level: null,
 };
 const levelA1: ProficiencyLevelOut = { id: "level-a1", code: "A1", rank: 1 };
 const levelA2: ProficiencyLevelOut = { id: "level-a2", code: "A2", rank: 2 };
@@ -142,8 +144,10 @@ describe("ExamCreatePage", () => {
     catalogApi.listProficiencyLevels.mockResolvedValue([levelA1, levelA2, levelB1, levelC1]);
     renderCreate();
 
-    await screen.findByRole("option", { name: "A2 — gợi ý" });
-    expect(screen.getByLabelText(/Trình độ/)).toHaveValue("level-a2");
+    // Mức được chọn trong effect nên nó chỉ hiện ở LẦN RENDER SAU khi danh sách mức có
+    // đủ — đọc thẳng ngay sau findBy là đọc trúng render trước đó (local may thì xanh,
+    // CI thì đỏ).
+    await waitFor(() => expect(screen.getByLabelText(/Trình độ/)).toHaveValue("level-a2"));
   });
 
   it("khối lớp chưa cấu hình khoảng thì giữ nguyên toàn bộ danh sách", async () => {

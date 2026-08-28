@@ -54,6 +54,19 @@ def test_multiple_choice_prompt_demands_exactly_two_turns():
     assert "lượt 1 HOẶC lượt 2" in text
 
 
+def test_prompt_describes_the_target_level():
+    """Trước đây prompt chỉ nêu TÊN mức ("trình độ mục tiêu A2") nên A1 và B1 ra đề gần
+    như y hệt — hạ mức cho lớp yếu không có tác dụng thật."""
+    a1 = build_system_prompt("multiple_choice", 5, "A1")
+    b1 = build_system_prompt("multiple_choice", 5, "B1")
+
+    assert "câu 6-10 từ" in a1 and "CHỈ dùng hiện tại đơn" in a1
+    assert "KHÔNG dùng mệnh đề quan hệ" in a1
+    assert "câu 14-18 từ" in b1 and "câu điều kiện" in b1
+    # Mức lạ thì không chèn gì, không vỡ prompt
+    assert build_system_prompt("multiple_choice", 5, "Z9")
+
+
 def test_stress_prompt_forbids_underlining():
     """Bộ kiểm coi gạch chân âm tiết trong câu trọng âm là lộ đáp án và loại câu đó.
     Prompt từng BẮT BUỘC gạch chân — mâu thuẫn không lộ ra khi mục trọng âm còn dựng

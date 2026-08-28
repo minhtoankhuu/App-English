@@ -85,7 +85,7 @@ describe("AdminKnowledgePage", () => {
     vi.mocked(listUnitsForGrade).mockReset();
     vi.mocked(listGrammarTopics).mockReset();
     vi.mocked(listGrades).mockResolvedValue([
-      { id: "grade-7", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-a2", code: "A2", rank: 2 } },
+      { id: "grade-7", number: 7, school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 }, suggested_level: { id: "level-a2", code: "A2", rank: 2 }, min_level: null, max_level: null },
     ]);
     vi.mocked(listUnitsForGrade).mockResolvedValue([{ id: "unit-3", order_no: 3, title: "Community Service" }]);
     vi.mocked(listGrammarTopics).mockResolvedValue([tenseTopic]);

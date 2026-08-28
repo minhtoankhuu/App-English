@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "_comment_typecheck": "tsc -b, KHONG phai tsc --noEmit: tsconfig.json goc co files:[] nen --noEmit khong kiem gi ca va luon tra ve 0",
+    "typecheck": "tsc -b --noEmit",
     "test": "vitest",
     "preview": "vite preview"
   },
