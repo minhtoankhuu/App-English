@@ -37,20 +37,28 @@ SCHOOL_STAGES = [
     ("high_school", "High school — THPT", 3),
 ]
 
-# Khối lớp -> (school_stage_code, trình độ gợi ý CEFR)
+# Khối lớp -> (school_stage_code, trình độ gợi ý, mức thấp nhất, mức cao nhất).
+#
+# PRD 7.4 viết mức của THCS 8-9 là một DẢI "A2–B1" chứ không phải một điểm, nhưng
+# trước đây chỉ lưu được đúng một mức nên seed chốt cận trên (B1) và dropdown thì cho
+# chọn tuỳ ý A1-C1: gợi ý cao hơn mặt bằng sách, mà cũng không chặn được chọn nhầm C1
+# cho lớp 6. Giờ mỗi khối lớp mang cả khoảng, giáo viên hạ mức cho lớp yếu ngay trong
+# khoảng đó (yêu cầu chủ dự án 27/08/2026).
 GRADE_SUGGEST = {
-    1: ("primary", "A1"),
-    2: ("primary", "A1"),
-    3: ("primary", "A1"),
-    4: ("primary", "A1"),
-    5: ("primary", "A2"),
-    6: ("secondary", "A2"),
-    7: ("secondary", "A2"),
-    8: ("secondary", "B1"),
-    9: ("secondary", "B1"),
-    10: ("high_school", "B2"),
-    11: ("high_school", "B2"),
-    12: ("high_school", "B2"),
+    1: ("primary", "A1", "A1", "A1"),
+    2: ("primary", "A1", "A1", "A1"),
+    3: ("primary", "A1", "A1", "A1"),
+    4: ("primary", "A1", "A1", "A1"),
+    5: ("primary", "A2", "A1", "A2"),
+    6: ("secondary", "A2", "A1", "A2"),
+    7: ("secondary", "A2", "A1", "A2"),
+    # Lớp 8 trải rộng nhất: sách Global Success 8 ở tầm A2, nhưng lớp chọn cần tới B1
+    # còn lớp yếu phải hạ được về A1.
+    8: ("secondary", "A2", "A1", "B1"),
+    9: ("secondary", "B1", "A2", "B1"),
+    10: ("high_school", "B2", "B1", "C1"),
+    11: ("high_school", "B2", "B1", "C1"),
+    12: ("high_school", "B2", "B1", "C1"),
 }
 
 GS_UNIT_TITLES: dict[int, list[str]] = {
@@ -249,7 +257,7 @@ def seed_grades(
     db: Session, stages: dict[str, SchoolStage], levels: dict[str, ProficiencyLevel]
 ) -> dict[int, Grade]:
     grades: dict[int, Grade] = {}
-    for number, (stage_code, level_code) in GRADE_SUGGEST.items():
+    for number, (stage_code, level_code, min_code, max_code) in GRADE_SUGGEST.items():
         grade, _ = _get_or_create(
             db,
             Grade,
@@ -259,6 +267,13 @@ def seed_grades(
                 "suggested_level_id": levels[level_code].id,
             },
         )
+        # GHI ĐÈ cả bản ghi cũ, không chỉ đặt lúc tạo mới: đổi bảng mức mà DB đã có sẵn
+        # khối lớp thì defaults của _get_or_create không chạy, mức cũ nằm lại vĩnh viễn
+        # (đúng lý do seed_exercise_types cũng phải ghi đè).
+        grade.school_stage_id = stages[stage_code].id
+        grade.suggested_level_id = levels[level_code].id
+        grade.min_level_id = levels[min_code].id
+        grade.max_level_id = levels[max_code].id
         grades[number] = grade
     return grades
 

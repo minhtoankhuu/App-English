@@ -23,6 +23,9 @@ export interface GradeOut {
   number: number;
   school_stage: SchoolStageOut;
   suggested_level: ProficiencyLevelOut;
+  // Khoảng trình độ chọn được cho khối lớp này; null = không giới hạn.
+  min_level: ProficiencyLevelOut | null;
+  max_level: ProficiencyLevelOut | null;
 }
 
 export interface UnitOut {
