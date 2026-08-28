@@ -19,7 +19,10 @@ from app.services.ai_provider import QuestionDraft
 from app.services.mcq_check import check_multiple_choice
 from app.services.pronunciation_check import check_pronunciation_options
 
-WORD_COUNT_EXERCISE_TYPES = {"multiple_choice", "word_form"}
+# Cảnh báo độ dài câu đã BỎ (chốt 28/08/2026). Khoảng độ dài khoá theo cấp học, còn
+# trình độ đề thì chọn riêng — hạ đề lớp 8 xuống A1 (câu 6-10 từ) mà vẫn chấm theo cấp
+# THCS (12-14 từ) thì MỌI câu đều bị gắn cảnh báo oan, và bộ kiểm cãi lại chính chỉ thị
+# prompt gửi đi. Độ dài giờ do prompt lo (xem prompts.LEVEL_GUIDANCE), không chặn ở đây.
 # Hai dạng này có lựa chọn là TỪ ĐƠN kèm markup gạch chân — kiểm tra được bằng máy
 # (xem app/services/pronunciation_check.py).
 MARKUP_CHECKED_EXERCISE_TYPES = {"pronunciation", "stress"}
@@ -47,15 +50,6 @@ def validate_draft(
     draft_embedding: list[float] | None = None,
 ) -> list[str]:
     warnings: list[str] = []
-
-    if exercise_type.code in WORD_COUNT_EXERCISE_TYPES:
-        rule = db.scalar(select(SentenceLengthRule).where(SentenceLengthRule.school_stage_id == school_stage_id))
-        if rule:
-            wc = _word_count(draft.prompt_text)
-            if not (rule.min_words <= wc <= rule.max_words):
-                warnings.append(
-                    f"Câu hỏi dài {wc} từ, ngoài khoảng {rule.min_words}-{rule.max_words} từ khuyến nghị."
-                )
 
     if exercise_type.code in MARKUP_CHECKED_EXERCISE_TYPES and draft.options:
         warnings.extend(

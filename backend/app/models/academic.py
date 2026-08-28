@@ -52,9 +52,20 @@ class Grade(Base):
     number: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     school_stage_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("school_stages.id"), nullable=False)
     suggested_level_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("proficiency_levels.id"), nullable=False)
+    # Khoảng trình độ chọn được cho khối lớp này. PRD 7.4 viết mức của THCS 8-9 là một
+    # DẢI "A2–B1", nhưng trước đây chỉ lưu được đúng một mức nên seed chốt cận trên và
+    # dropdown cho chọn tuỳ ý A1-C1 — vừa gợi ý sai vừa không chặn được chọn nhầm.
+    min_level_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("proficiency_levels.id"), nullable=True
+    )
+    max_level_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("proficiency_levels.id"), nullable=True
+    )
 
     school_stage: Mapped[SchoolStage] = relationship(back_populates="grades")
-    suggested_level: Mapped[ProficiencyLevel] = relationship()
+    suggested_level: Mapped[ProficiencyLevel] = relationship(foreign_keys=[suggested_level_id])
+    min_level: Mapped[ProficiencyLevel | None] = relationship(foreign_keys=[min_level_id])
+    max_level: Mapped[ProficiencyLevel | None] = relationship(foreign_keys=[max_level_id])
     units: Mapped[list["Unit"]] = relationship(back_populates="grade")
 
 

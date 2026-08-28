@@ -56,7 +56,9 @@ export function ExamCreatePage() {
         setGrammarTopics(topics);
         setCertificates(certs);
         if (g.length > 0) setGradeId(g[0]!.id);
-        if (l.length > 0) setLevelId(l[0]!.id);
+        // KHÔNG đặt levels[0] ở đây: mức mở đầu danh sách là mức thấp nhất (A1), còn
+        // mức đúng cho khối lớp do effect theo gradeId chọn. Đặt ở cả hai nơi thì cái
+        // này chạy sau và ghi đè mức gợi ý bằng A1.
         if (topics.length > 0) setGrammarTopicId(topics[0]!.id);
         if (certs.length > 0) setCertificateId(certs[0]!.id);
       },
@@ -75,11 +77,33 @@ export function ExamCreatePage() {
   }, [sourceType, gradeId]);
 
   const selectedGrade = grades.find((g) => g.id === gradeId);
+  // Chỉ cho chọn trong khoảng của khối lớp: PRD 7.4 ghi mức THCS 8-9 là dải "A2-B1",
+  // còn dropdown mở toang A1-C1 thì vừa gợi ý sai vừa không chặn được chọn nhầm C1 cho
+  // lớp 6. Khối lớp chưa cấu hình khoảng thì giữ nguyên toàn bộ danh sách.
+  const allowedLevels = (() => {
+    const min = selectedGrade?.min_level?.rank;
+    const max = selectedGrade?.max_level?.rank;
+    const inRange = levels.filter(
+      (l) => (min === undefined || l.rank >= min) && (max === undefined || l.rank <= max),
+    );
+    return inRange.length > 0 ? [...inRange].sort((a, b) => a.rank - b.rank) : levels;
+  })();
   const selectedUnit = units.find((u) => u.id === unitId);
   const autoTitle =
     examCategory === "unit_revision" && sourceType === "global_success" && selectedGrade && selectedUnit
       ? `UNIT ${selectedUnit.order_no} REVISION EXERCISES – GLOBAL SUCCESS ${selectedGrade.number}`
       : null;
+
+  // Đổi khối lớp thì nhảy về mức gợi ý của lớp đó; mức đang chọn nằm ngoài khoảng mới
+  // cũng phải kéo về, nếu không đề mang trình độ mà chính lớp đó không cho phép.
+  useEffect(() => {
+    if (!selectedGrade || allowedLevels.length === 0) return;
+    if (!levelId || !allowedLevels.some((l) => l.id === levelId)) {
+      const suggested = allowedLevels.find((l) => l.id === selectedGrade.suggested_level.id);
+      setLevelId((suggested ?? allowedLevels[0]!).id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gradeId, levels.length]);
 
   useEffect(() => {
     if (autoTitle) setTitle(autoTitle);
@@ -166,12 +190,19 @@ export function ExamCreatePage() {
           <label>
             Trình độ
             <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
-              {levels.map((l) => (
+              {allowedLevels.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.code}
+                  {l.id === selectedGrade?.suggested_level.id ? " — gợi ý" : ""}
                 </option>
               ))}
             </select>
+            {selectedGrade && allowedLevels.length > 1 && (
+              <small className="field-hint">
+                Lớp {selectedGrade.number} chọn được {allowedLevels[0]!.code}–
+                {allowedLevels[allowedLevels.length - 1]!.code}. Hạ một bậc cho lớp yếu.
+              </small>
+            )}
           </label>
           <label>
             Nguồn kiến thức

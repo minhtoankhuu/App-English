@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,8 +23,22 @@ const grade7: GradeOut = {
   number: 7,
   school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 },
   suggested_level: { id: "level-a2", code: "A2", rank: 2 },
+  min_level: null,
+  max_level: null,
 };
+const levelA1: ProficiencyLevelOut = { id: "level-a1", code: "A1", rank: 1 };
 const levelA2: ProficiencyLevelOut = { id: "level-a2", code: "A2", rank: 2 };
+const levelB1: ProficiencyLevelOut = { id: "level-b1", code: "B1", rank: 3 };
+const levelC1: ProficiencyLevelOut = { id: "level-c1", code: "C1", rank: 5 };
+// Lớp 8 là khối trải rộng nhất: sách ở tầm A2, lớp chọn cần B1, lớp yếu phải hạ về A1.
+const grade8: GradeOut = {
+  id: "grade-8",
+  number: 8,
+  school_stage: { id: "s1", code: "secondary", name: "THCS", order_no: 2 },
+  suggested_level: levelA2,
+  min_level: levelA1,
+  max_level: levelB1,
+};
 const unit3: UnitOut = { id: "unit-3", order_no: 3, title: "Community Service" };
 
 function renderCreate() {
@@ -110,5 +124,36 @@ describe("ExamCreatePage", () => {
 
     expect(await screen.findByText("Không tạo được đề")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Tạo đề mới" })).toBeInTheDocument();
+  });
+
+  it("chỉ cho chọn trình độ trong khoảng của khối lớp", async () => {
+    // PRD 7.4 ghi mức THCS 8-9 là dải "A2-B1"; dropdown mở toang A1-C1 cho mọi lớp thì
+    // vừa gợi ý sai vừa không chặn được chọn nhầm C1 cho lớp 6.
+    catalogApi.listGrades.mockResolvedValue([grade8]);
+    catalogApi.listProficiencyLevels.mockResolvedValue([levelA1, levelA2, levelB1, levelC1]);
+    renderCreate();
+
+    expect(await screen.findByRole("option", { name: "A1" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "A2 — gợi ý" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "B1" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "C1" })).not.toBeInTheDocument();
+  });
+
+  it("tự chọn sẵn mức gợi ý của khối lớp", async () => {
+    catalogApi.listGrades.mockResolvedValue([grade8]);
+    catalogApi.listProficiencyLevels.mockResolvedValue([levelA1, levelA2, levelB1, levelC1]);
+    renderCreate();
+
+    // Mức được chọn trong effect nên nó chỉ hiện ở LẦN RENDER SAU khi danh sách mức có
+    // đủ — đọc thẳng ngay sau findBy là đọc trúng render trước đó (local may thì xanh,
+    // CI thì đỏ).
+    await waitFor(() => expect(screen.getByLabelText(/Trình độ/)).toHaveValue("level-a2"));
+  });
+
+  it("khối lớp chưa cấu hình khoảng thì giữ nguyên toàn bộ danh sách", async () => {
+    catalogApi.listProficiencyLevels.mockResolvedValue([levelA1, levelA2, levelB1, levelC1]);
+    renderCreate();
+
+    expect(await screen.findByRole("option", { name: "C1" })).toBeInTheDocument();
   });
 });

@@ -36,6 +36,9 @@ class GradeOut(BaseModel):
     number: int
     school_stage: SchoolStageOut
     suggested_level: ProficiencyLevelOut
+    # Khoảng chọn được; None = không giới hạn (khối lớp chưa cấu hình).
+    min_level: ProficiencyLevelOut | None = None
+    max_level: ProficiencyLevelOut | None = None
 
 
 class UnitOut(BaseModel):
