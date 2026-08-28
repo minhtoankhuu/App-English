@@ -162,6 +162,11 @@ def word_family_label(text: str | None) -> str | None:
         return None
     if not all(_WORD_FAMILY_MEMBER_RE.match(m) for m in members):
         return None
+    # Phải có ít nhất 2 thành phần KHÁC NHAU. "bully (v) → bully (v)" đúng định dạng
+    # nhưng in ra dòng ❖ chỉ có một từ lặp lại (đề sinh 28/08/2026). Cùng từ mà KHÁC từ
+    # loại thì vẫn hợp lệ — "Japanese (adj) → Japanese (n)" là họ từ thật.
+    if len({m.lower() for m in members}) < 2:
+        return None
     return f" {_ARROW} ".join(members)
 
 
@@ -384,11 +389,13 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
         # thứ tự + lựa chọn (đúng format đề tham khảo giáo viên gửi). Reset khi sang
         # block/phần mới vì mỗi block/phần có thể có câu dẫn khác nhau.
         last_prompt_text: str | None = None
+        last_passage_text: str | None = None
         for question in ordered_questions:
             if not started or question.part_id != current_part_id:
                 started = True
                 current_part_id = question.part_id
                 last_prompt_text = None
+                last_passage_text = None
                 part_question_no = 0
                 part = parts_by_id.get(current_part_id) if current_part_id else None
                 # Câu dẫn/tiêu đề phần con luôn thụt vào trong; lựa chọn thụt theo khi
@@ -458,10 +465,14 @@ def build_exam_document(exam: Exam, variant: ExamVariant) -> Document:
             if family:
                 last_family = family
 
-            if question.passage_text:
+            # Đoạn văn dùng CHUNG cho cả nhóm câu (cloze test, đọc hiểu) — in một lần
+            # cho câu đầu nhóm. In theo từng câu thì đoạn văn lặp lại trước mỗi câu, ra
+            # đề nhìn như mỗi câu một bài đọc riêng (đề sinh 28/08/2026).
+            if question.passage_text and question.passage_text != last_passage_text:
                 passage_p = _new_paragraph(doc, justify=True)
                 passage_p.paragraph_format.left_indent = Cm(prompt_indent_cm)
                 _add_prompt_runs(passage_p, question.passage_text)
+            last_passage_text = question.passage_text
 
             # Block ẩn phần con (Pronunciation) đã in câu dẫn chung ở dòng nhãn A/B/C —
             # mọi câu chỉ còn số thứ tự + lựa chọn, không in lại câu dẫn theo từng câu.

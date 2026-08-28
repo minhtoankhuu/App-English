@@ -20,6 +20,7 @@ from app.services.pronunciation_sounds import (
     SOUND_IPA,
     _cmu_dict,
     _vowel_letter_runs,
+    underlined_vowel_sound,
     ed_ending_sound,
     s_ending_sound,
     stressed_syllable_index,
@@ -193,8 +194,50 @@ def _build_ending_from_pool(kind: str, pool, rng: random.Random) -> QuestionDraf
     return _finish(items, odd_index, _PROMPTS[kind], explain)
 
 
-def _build_vowel(rng: random.Random) -> QuestionDraft | None:
-    group = list(rng.choice(_VOWEL_GROUPS))
+def _unit_vowel_group(rng: random.Random, unit_words: list[str]) -> list[str] | None:
+    """Nhóm 4 từ so nguyên âm dựng TỪ VỐN TỪ CỦA UNIT: cùng một cụm chữ cái, 3 từ đọc
+    giống và 1 từ đọc khác.
+
+    Ba kiểu kia đã ưu tiên từ của bài từ trước, riêng kiểu này vẫn bốc từ danh sách viết
+    tay nên mục phát âm luôn lẫn từ ngoài bài (đo 28/08/2026: 0/5 câu dùng từ của Unit).
+    Đo trên vốn từ thật thì dư sức: G7 Unit 1 có 55 tổ hợp hợp lệ, G8 Unit 1 có 76.
+    """
+    by_cluster: dict[str, dict[str, list[tuple[str, str]]]] = {}
+    for raw in unit_words:
+        word = raw.lower()
+        seen_clusters: set[str] = set()
+        for start, end in _vowel_letter_runs(word):
+            cluster = word[start:end]
+            # Một từ chỉ góp MỘT lần cho mỗi cụm, tránh tự ghép với chính nó.
+            if cluster in seen_clusters:
+                continue
+            seen_clusters.add(cluster)
+            marked = f"{word[:start]}<u>{cluster}</u>{word[end:]}"
+            sound = underlined_vowel_sound(marked)
+            if sound is None:
+                continue
+            by_cluster.setdefault(cluster, {}).setdefault(sound, []).append((marked, word))
+
+    candidates: list[list[str]] = []
+    for sounds in by_cluster.values():
+        if len(sounds) < 2:
+            continue
+        for odd_sound, odd_items in sounds.items():
+            for major_sound, major_items in sounds.items():
+                if major_sound == odd_sound or len(major_items) < 3:
+                    continue
+                for odd_marked, odd_word in odd_items:
+                    pool = [it for it in major_items if it[1] != odd_word]
+                    if len(pool) < 3:
+                        continue
+                    candidates.append([m for m, _ in pool[:3]] + [odd_marked])
+    return rng.choice(candidates) if candidates else None
+
+
+def _build_vowel(rng: random.Random, unit_words: list[str] | None = None) -> QuestionDraft | None:
+    group = _unit_vowel_group(rng, unit_words or [])
+    if group is None:
+        group = list(rng.choice(_VOWEL_GROUPS))
     # Bộ dựng sẵn đã đúng 3-1, nhưng vẫn xác nhận bằng vowel_sounds rồi tự tìm phần tử
     # "lẻ" theo âm (không phụ thuộc thứ tự cố định trong dữ liệu curated).
     resolved = vowel_sounds(group)
@@ -292,14 +335,14 @@ def build_pronunciation_questions(
     """Dựng tối đa `count` câu dạng `kind` ('s' | 'ed' | 'vowel' | 'stress'), không trùng
     bộ lựa chọn. Mỗi câu đều đã qua checker nên luôn đúng quy tắc 3 giống - 1 khác.
 
-    `unit_words` (vốn từ của Unit) được ƯU TIÊN: thử dựng bằng từ trong bài trước, chỉ
-    khi không đủ nguyên liệu mới bù bằng bộ từ chuẩn — nhờ vậy đề bám sách hơn mà vẫn
-    đảm bảo đúng. Dạng 'vowel' dùng nhóm dựng sẵn nên chưa áp dụng."""
+    `unit_words` (vốn từ của Unit) được ƯU TIÊN cho MỌI kiểu: thử dựng bằng từ trong bài
+    trước, chỉ khi không đủ nguyên liệu mới bù bằng bộ từ chuẩn — nhờ vậy đề bám sách hơn
+    mà vẫn đảm bảo đúng."""
     rng = random.Random(seed)
     builder = {
         "s": lambda: _build_ending("s", rng, unit_words),
         "ed": lambda: _build_ending("ed", rng, unit_words),
-        "vowel": lambda: _build_vowel(rng),
+        "vowel": lambda: _build_vowel(rng, unit_words),
         "stress": lambda: _build_stress(rng, unit_words),
     }.get(kind)
     if builder is None:

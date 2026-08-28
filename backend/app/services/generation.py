@@ -122,6 +122,105 @@ def _deterministic_pronunciation_drafts(
     return drafts
 
 
+_MAX_VOCABULARY_IN_PROMPT = 90
+_INFLECTION_SUFFIXES = ("s", "es", "ed", "d", "ing", "ly", "ies", "ied")
+
+
+def _vocabulary_forms(unit_words: list[str]) -> set[str]:
+    """Vốn từ của Unit cộng các dạng chia thường gặp, để so khớp từ trong câu phát âm."""
+    forms: set[str] = set()
+    for raw in unit_words:
+        word = (raw or "").strip().lower()
+        if not word.isalpha():
+            continue
+        forms.add(word)
+        forms.update(word + suffix for suffix in _INFLECTION_SUFFIXES)
+        if word.endswith("e"):
+            forms.update({word[:-1] + "ing", word + "d"})
+        if word.endswith("y"):
+            forms.update({word[:-1] + "ies", word[:-1] + "ied"})
+    return forms
+
+
+def _words_outside_unit(draft: QuestionDraft, vocabulary: set[str]) -> list[str]:
+    """Các lựa chọn dùng từ KHÔNG có trong vốn từ của Unit.
+
+    Mục phát âm phải ra đề bằng chính từ của bài — đề sinh 28/08/2026 lấy toàn từ ngoài
+    (voices, colleges, prizes, coward, curious...) khiến học sinh phải đoán âm của từ
+    chưa từng học. Prompt có dặn nhưng model không theo, nên chặn bằng code.
+    """
+    outside = []
+    for option in draft.options or []:
+        word = visible_text(option.get("text") or "").strip().lower()
+        if word and word not in vocabulary:
+            outside.append(word)
+    return outside
+
+
+def _vocabulary_prompt_override(base: str | None, unit_words: list[str]) -> str | None:
+    """Ghim danh sách từ của bài vào chỉ thị gửi model."""
+    if not unit_words:
+        return base
+    listed = ", ".join(sorted({w.lower() for w in unit_words})[:_MAX_VOCABULARY_IN_PROMPT])
+    return (
+        f"{base or ''} CHỈ được dùng các từ trong vốn từ của bài sau đây (được phép chia "
+        f"số nhiều/quá khứ/V-ing): {listed}. TUYỆT ĐỐI không lấy từ ngoài danh sách này — "
+        "học sinh chưa học thì không đoán được âm."
+    ).strip()
+
+
+_CLOZE_LEAD_IN_RE = re.compile(
+    r"^\s*(complete the (sentence|passage|text)|choose the best (option|answer)|fill in the blank)\s*[:.\-]?\s*",
+    re.IGNORECASE,
+)
+_CLOZE_BLANK_MARKER_RE = re.compile(r"\(\s*\d+\s*\)")
+
+
+def _cloze_marker(text: str | None) -> str | None:
+    """Số chỗ trống trong một chuỗi, dạng chuẩn hoá '(5)'."""
+    match = _CLOZE_BLANK_MARKER_RE.search(text or "")
+    return f"({match.group(0).strip('()').strip()})" if match else None
+
+
+def _tidy_cloze_drafts(drafts: list[QuestionDraft]) -> None:
+    """Dọn ba lỗi cố hữu của dạng cloze, sửa bằng code thay vì tin prompt.
+
+    - Mỗi câu mang một đoạn văn KHÁC nhau: cloze phải là MỘT đoạn dùng chung, khoét
+      nhiều chỗ trống. Model hay trả mỗi câu một câu đơn lẻ rời rạc — in ra thành mấy
+      câu rời chứ không còn là bài đọc. Gom về đoạn DÀI NHẤT (đoạn đầy đủ nhất).
+    - prompt_text chép lại nguyên câu văn kèm lời dẫn "Complete the sentence: ...", nên
+      mỗi câu in ra hai lần: một lần trong đoạn, một lần ở dòng câu hỏi. Chỉ giữ số chỗ
+      trống.
+    - Số chỗ trống lộn xộn: đề sinh 28/08/2026 in "(5)" ở câu đầu và "(1)" ở câu cuối.
+      Sắp câu theo ĐÚNG thứ tự chỗ trống xuất hiện trong đoạn, rồi đánh số lại cả đoạn
+      lẫn câu thành (1), (2), (3)... để câu thứ n luôn ứng với chỗ trống (n).
+    """
+    if not drafts:
+        return
+    passages = [d.passage_text for d in drafts if d.passage_text]
+    shared = max(passages, key=len) if passages else None
+
+    original = [_cloze_marker(d.prompt_text) for d in drafts]
+    order_in_passage = [f"({m.strip('()').strip()})" for m in _CLOZE_BLANK_MARKER_RE.findall(shared or "")]
+
+    def position(index: int) -> tuple[int, int]:
+        marker = original[index]
+        # Câu không khớp chỗ trống nào thì xếp cuối, giữ nguyên thứ tự cũ giữa chúng.
+        if marker is None or marker not in order_in_passage:
+            return (1, index)
+        return (0, order_in_passage.index(marker))
+
+    reordered = [drafts[i] for i in sorted(range(len(drafts)), key=position)]
+    drafts[:] = reordered
+
+    if shared:
+        counter = iter(range(1, len(order_in_passage) + 1))
+        shared = _CLOZE_BLANK_MARKER_RE.sub(lambda _m: f"({next(counter)})", shared)
+    for index, draft in enumerate(drafts, start=1):
+        draft.passage_text = shared
+        draft.prompt_text = f"({index})"
+
+
 def _pronunciation_drafts(
     provider: AIProvider,
     spec: BlockSpec,
@@ -136,11 +235,13 @@ def _pronunciation_drafts(
     không có đáp án duy nhất — đó là câu hỏng, không phải câu "cần xem lại", nên không
     áp nguyên tắc "cảnh báo, không chặn cứng" ở đây: bỏ và bù bằng câu dựng được.
     """
+    vocabulary = _vocabulary_forms(unit_words)
+    ask = replace(spec, prompt_override=_vocabulary_prompt_override(spec.prompt_override, unit_words))
     try:
-        drafts = provider.generate(spec, context)
+        drafts = provider.generate(ask, context)
     except AIGenerationError:
         drafts = []
-    drafts = _auto_fix_pronunciation_drafts(provider, spec, context, drafts)
+    drafts = _auto_fix_pronunciation_drafts(provider, ask, context, drafts)
 
     kept: list[QuestionDraft] = []
     for draft in drafts:
@@ -148,6 +249,10 @@ def _pronunciation_drafts(
             break
         key = _option_key(draft)
         if key in used or _machine_warnings(draft, spec):
+            continue
+        # Từ ngoài bài thì bỏ hẳn: bộ dựng bù vào bằng chính từ của Unit, nên đề vẫn đủ
+        # câu mà không lẫn từ học sinh chưa học.
+        if vocabulary and _words_outside_unit(draft, vocabulary):
             continue
         used.add(key)
         kept.append(draft)
@@ -453,7 +558,6 @@ def word_form_questions_per_family(prompt_override: str | None) -> int:
         return WORD_FORM_QUESTIONS_PER_FAMILY
     value = int(match.group(1))
     return max(WORD_FORM_MIN_PER_FAMILY, min(WORD_FORM_MAX_PER_FAMILY, value))
-_MIN_AGREEING_FAMILY_LABELS = 3  # >= 3/5 câu ghi cùng chuỗi -> coi là chuỗi của cả nhóm
 
 
 def word_form_family_count(question_count: int, per_family: int = WORD_FORM_QUESTIONS_PER_FAMILY) -> int:
@@ -535,16 +639,19 @@ def _family_prompt_override(
 
 def _unify_family_label(drafts: list[QuestionDraft]) -> None:
     """Cả nhóm đã được sinh cho CÙNG một họ từ, nhưng model hay ghi chuỗi lệch nhau chút
-    (thiếu 1 thành phần, đổi thứ tự) khiến renderer tách thành nhiều dòng ❖. Nếu đa số
-    câu đồng ý một chuỗi thì gán chuỗi đó cho cả nhóm; không đủ đồng thuận thì để
-    nguyên để cảnh báo còn nhìn thấy được."""
-    labels = [word_family_label(d.target_knowledge) for d in drafts]
-    valid = [lb for lb in labels if lb]
+    (thiếu thành phần, đổi thứ tự) khiến renderer tách thành nhiều dòng ❖.
+
+    Chọn chuỗi ĐẦY ĐỦ NHẤT (nhiều từ khác nhau nhất) rồi gán cho cả nhóm — KHÔNG đòi đa
+    số đồng ý. Batch này theo thiết kế là một họ từ duy nhất, nên bất đồng chỉ là model
+    ghi lệch chứ không phải nhiều họ thật. Luật đa số cũ để lọt đúng ca xấu nhất: 5 câu
+    ghi 5 chuỗi khác nhau thì không chuỗi nào đủ phiếu, cả 5 giữ nguyên nhãn riêng và in
+    ra 5 dòng ❖ mỗi dòng một câu — rồi Phần B tưởng đó là 5 họ từ khác nhau nên dồn hết
+    câu vào một từ (đề sinh 28/08/2026: 15/15 câu Phần B đều '(bully)').
+    """
+    valid = [lb for lb in (word_family_label(d.target_knowledge) for d in drafts) if lb]
     if not valid:
         return
-    best = max(set(valid), key=valid.count)
-    if valid.count(best) < min(_MIN_AGREEING_FAMILY_LABELS, len(drafts)):
-        return
+    best = max(valid, key=lambda lb: (len(word_family_members(lb)), len(lb)))
     for draft in drafts:
         draft.target_knowledge = best
 
@@ -832,6 +939,8 @@ def generate_block_questions(db: Session, exam: Exam, block: ExamBlock) -> list[
             # 07/08/2026: xin 8 câu, trả 9) -> cắt đúng số câu để block không lệch.
             drafts = drafts[:count]
             drafts = _top_up_drafts(provider, spec, context, drafts)
+            if part_type.code == "cloze_test":
+                _tidy_cloze_drafts(drafts)
             if part_type.code == "word_form":
                 _strip_word_form_extras(drafts, kind=word_form_kind)
         draft_embeddings = _embed_drafts(embedding_client, drafts)

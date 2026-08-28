@@ -193,18 +193,17 @@ def test_unifies_family_label_when_majority_agrees():
     assert {d.target_knowledge for d in drafts} == {good}
 
 
-def test_keeps_labels_when_no_majority():
-    """Không đủ đồng thuận thì để nguyên — gán bừa sẽ giấu mất lỗi thật."""
+def test_disagreeing_labels_are_still_unified():
+    """Trước đây không đủ đa số thì để nguyên nhãn — chính chỗ sinh ra 5 dòng ❖ mỗi dòng
+    một câu. Batch là một họ từ theo thiết kế, nên luôn gom, và gom về chuỗi ĐẦY ĐỦ NHẤT."""
     drafts = [
-        _draft("s ______ .", "use (v) → usage (n)"),
-        _draft("s ______ .", "share (v) → sharing (n)"),
-        _draft("s ______ .", "collect (v) → collection (n)"),
-        _draft("s ______ .", "belong (v) → belonging (n)"),
-        _draft("s ______ .", "adore (v) → adorable (adj)"),
+        _draft("1 ______ .", "use (v) → usage (n)"),
+        _draft("2 ______ .", "use (v) → user (n) → usable (adj)"),
+        _draft("3 ______ .", "use (v) → useful (adj)"),
     ]
     _unify_family_label(drafts)
 
-    assert len({d.target_knowledge for d in drafts}) == 5
+    assert {d.target_knowledge for d in drafts} == {"use (v) → user (n) → usable (adj)"}
 
 
 # --- số câu mỗi họ từ do giáo viên đặt ---------------------------------------
@@ -587,3 +586,35 @@ def test_machine_warnings_ride_along_with_the_question():
     warnings = _machine_warnings(lac, spec)
 
     assert any("không thuộc họ từ" in w for w in warnings)
+
+
+# --- gom nhãn họ từ ----------------------------------------------------------
+
+
+def test_labels_are_unified_even_when_every_draft_disagrees():
+    """Batch này theo thiết kế là MỘT họ từ, nên bất đồng chỉ là model ghi lệch. Luật đa
+    số cũ để lọt đúng ca xấu nhất: 5 câu ghi 5 chuỗi khác nhau thì không chuỗi nào đủ
+    phiếu, in ra 5 dòng ❖ mỗi dòng một câu — rồi Phần B tưởng là 5 họ khác nhau nên dồn
+    hết câu vào một từ (đề sinh 28/08/2026: 15/15 câu Phần B đều '(bully)')."""
+    from app.services.generation import _unify_family_label
+
+    drafts = [
+        _draft("1 ______ .", "bully (v) → bullying (n)"),
+        _draft("2 ______ .", "bully (n) → bullying (n)"),
+        _draft("3 ______ .", "bully (v) → bullied (adj) → bullying (n)"),
+    ]
+    _unify_family_label(drafts)
+
+    # Chọn chuỗi ĐẦY ĐỦ NHẤT, không phải chuỗi nhiều phiếu nhất
+    assert {d.target_knowledge for d in drafts} == {"bully (v) → bullied (adj) → bullying (n)"}
+
+
+def test_a_family_of_one_repeated_word_is_not_a_family():
+    """Model hay ghi "bully (v) → bully (v)" hoặc "bully (v) → bully (n)" — đúng định
+    dạng nhưng in ra dòng ❖ chỉ có một từ lặp lại."""
+    from app.services.docx_renderer import word_family_label
+
+    assert word_family_label("bully (v) → bully (v)") is None
+    # Cùng từ mà KHÁC từ loại thì vẫn là họ từ thật
+    assert word_family_label("bully (v) → bully (n)") == "bully (v) → bully (n)"
+    assert word_family_label("Japanese (adj) → Japanese (n)") == "Japanese (adj) → Japanese (n)"
