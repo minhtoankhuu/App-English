@@ -34,6 +34,27 @@ def _clean_label(label: str | None) -> str | None:
     return stripped.upper() if len(stripped) == 1 and stripped.isalpha() else label
 
 
+_POSITION_LABELS = "ABCDEFGH"
+
+
+def _relabel_options(options: list[dict]) -> list[dict]:
+    """Nhãn lựa chọn phải là chữ cái trần A/B/C/D, khác nhau từng cái.
+
+    Cả DOCX lẫn web đều tự in ". " sau nhãn, nên nhãn model trả về mà không dùng được
+    là in ra rác: "A." thành "A.. birds" (27/08/2026), và nhãn là CHÍNH TỪ đó thành
+    "encourage. encourage" (28/08/2026). Nhãn hỏng thì đánh lại theo vị trí — thứ tự
+    lựa chọn mới là thứ mang nghĩa, còn nhãn chỉ để in ra.
+    """
+    labels = [_clean_label(opt.get("label")) for opt in options]
+    usable = all(lb and len(lb) == 1 and lb.isalpha() for lb in labels) and len(set(labels)) == len(labels)
+    if usable:
+        return [{**opt, "label": lb} for opt, lb in zip(options, labels)]
+    return [
+        {**opt, "label": _POSITION_LABELS[i] if i < len(_POSITION_LABELS) else str(i + 1)}
+        for i, opt in enumerate(options)
+    ]
+
+
 def _sanitize_options(options: list[dict] | None, exercise_type_code: str = "") -> list[dict] | None:
     """Chặn lỗi model nhân đôi ký tự đuôi phát âm ngay khi lưu (vd 'cats<u>s</u>' →
     'cat<u>s</u>') để cả DOCX lẫn preview web đều sạch, không phụ thuộc render (xem
@@ -43,9 +64,7 @@ def _sanitize_options(options: list[dict] | None, exercise_type_code: str = "") 
     cleaned = [
         {**opt, "text": dedupe_pronunciation_suffix(opt["text"])} if opt.get("text") else opt for opt in options
     ]
-    # Nhãn phải là chữ cái trần: model hay trả "A." kèm sẵn dấu chấm, mà cả DOCX lẫn web
-    # đều tự thêm ". " sau nhãn -> in ra "A.. birds" (đề sinh 27/08/2026).
-    cleaned = [{**opt, "label": _clean_label(opt.get("label"))} for opt in cleaned]
+    cleaned = _relabel_options(cleaned)
     # Markup <u>...</u> CHỈ dành cho dạng phát âm/trọng âm. Model vẫn lỡ chèn vào dạng
     # khác (đề thật 07/08/2026: lựa chọn "A method of <u>communicating</u> with thoughts"
     # bị in gạch chân đậm vô nghĩa) -> gỡ sạch thay vì tin prompt.

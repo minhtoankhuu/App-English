@@ -7,7 +7,7 @@ dẫn thì tăng `PROMPT_VERSION` (ghi vào `GenerationLog.prompt_version`) đ�
 
 import random
 
-PROMPT_VERSION = "v26"
+PROMPT_VERSION = "v27"
 
 # Hướng dẫn dạng phát âm tách theo KIỂU. Phần con nào cũng đã ghim đúng 1 kiểu qua
 # prompt_override, nên gửi cả 3 kiểu là trả tiền cho ~600-880 token/lượt mô tả những
@@ -139,8 +139,26 @@ EXERCISE_INSTRUCTIONS: dict[str, str] = {
         "từ/cụm từ cần điền, đúng dạng ngữ pháp."
     ),
     "cloze_test": (
-        "Đoạn văn có nhiều chỗ trống đánh số (1)/(2)/..., mỗi chỗ trống là 1 câu hỏi trắc "
-        "nghiệm 4 lựa chọn A/B/C/D riêng — passage_text chứa đoạn văn đầy đủ với chỗ trống."
+        "Dạng CLOZE TEST: MỘT đoạn văn liền mạch bị khoét nhiều chỗ trống đánh số, mỗi chỗ "
+        "trống là một câu hỏi trắc nghiệm 4 lựa chọn A/B/C/D.\n"
+        "BẮT BUỘC — sai chỗ này là cả phần hỏng:\n"
+        "- Sinh ĐÚNG MỘT đoạn văn dùng chung cho tất cả các câu, và chép NGUYÊN VĂN đoạn đó "
+        "vào passage_text của MỌI câu (giống hệt nhau từng chữ). Mỗi câu một đoạn khác nhau "
+        "là SAI — khi đó không còn là bài đọc mà chỉ là các câu rời.\n"
+        "- Đoạn văn phải là văn xuôi LIÊN KẾT: các câu nối tiếp nhau về nội dung, có mạch "
+        "chủ đề. Ghép mấy câu rời không liên quan là SAI.\n"
+        "- Chỗ trống đánh số theo thứ tự xuất hiện trong đoạn: (1), (2), (3)... Câu hỏi thứ "
+        "n ứng với chỗ trống (n) — KHÔNG đảo số.\n"
+        "- prompt_text của mỗi câu CHỈ ghi số chỗ trống, vd '(1)'. TUYỆT ĐỐI không chép lại "
+        "câu văn vào prompt_text và không thêm lời dẫn kiểu 'Complete the sentence:' — câu "
+        "văn đã nằm trong đoạn ở trên, chép lại là in ra đề hai lần.\n"
+        "- 4 lựa chọn phải cân nhắc được bằng NGỮ CẢNH TRƯỚC VÀ SAU chỗ trống: cùng từ loại, "
+        "phân biệt nhau bằng nghĩa, collocation hoặc logic của đoạn — để học sinh phải đọc cả "
+        "đoạn mới chọn được, không đoán ra chỉ bằng câu chứa chỗ trống.\n"
+        "Ví dụ đoạn văn đúng: 'Many teenagers today (1) ______ a lot of time on social media. "
+        "They use it to keep in touch with friends and to (2) ______ new things. However, "
+        "spending too many hours online can (3) ______ their studies.' — 3 chỗ trống, 3 câu "
+        "hỏi, mọi câu đều mang đúng đoạn văn này trong passage_text."
     ),
     "sign_reading": (
         "Đọc hiểu biển báo/thông báo ngắn — mô tả biển báo bằng văn bản trong passage_text "

@@ -203,6 +203,37 @@ def test_sanitize_options_keeps_markup_for_pronunciation_and_stress():
     assert _sanitize_options([{"label": "A", "text": "be<u>gin</u>"}], "stress")[0]["text"] == "be<u>gin</u>"
 
 
+def test_sanitize_options_relabels_when_the_label_is_the_word_itself():
+    """Model trả nhãn là CHÍNH TỪ đó, mà DOCX lẫn web đều in ". " sau nhãn -> ra
+    "encourage. encourage" (đề sinh 28/08/2026). Nhãn hỏng thì đánh lại theo vị trí —
+    thứ tự lựa chọn mới mang nghĩa, nhãn chỉ để in."""
+    from app.services.openai_provider import _sanitize_options
+
+    words = ["encourage", "coward", "culture", "curious"]
+    cleaned = _sanitize_options([{"label": w, "text": w} for w in words], "stress")
+
+    assert [o["label"] for o in cleaned] == ["A", "B", "C", "D"]
+    assert [o["text"] for o in cleaned] == words  # thứ tự và nội dung giữ nguyên
+
+
+def test_sanitize_options_relabels_duplicate_labels():
+    from app.services.openai_provider import _sanitize_options
+
+    cleaned = _sanitize_options([{"label": "A", "text": t} for t in "wxyz"], "stress")
+
+    assert [o["label"] for o in cleaned] == ["A", "B", "C", "D"]
+
+
+def test_sanitize_options_keeps_is_correct_when_relabelling():
+    """Đánh lại nhãn không được làm mất đáp án."""
+    from app.services.openai_provider import _sanitize_options
+
+    opts = [{"label": t, "text": t, "is_correct": t == "coward"} for t in ["encourage", "coward"]]
+    cleaned = _sanitize_options(opts, "stress")
+
+    assert [o["is_correct"] for o in cleaned] == [False, True]
+
+
 def test_sanitize_options_strips_the_dot_the_model_puts_in_the_label():
     """Model hay trả label 'A.' kèm sẵn dấu chấm, mà DOCX lẫn web đều tự thêm '. ' sau
     nhãn -> in ra 'A.. birds' (đề sinh 27/08/2026)."""

@@ -13,6 +13,10 @@ from app.services.ai_provider import AIGenerationError, BlockSpec, GenerationCon
 from app.services.exam_pronunciation import line_kind, parse_option_line
 from app.services.generation import (
     _answer_key_warnings,
+    _tidy_cloze_drafts,
+    _vocabulary_forms,
+    _vocabulary_prompt_override,
+    _words_outside_unit,
     _answer_word,
     _repeated_answer_warning,
     _answer_text_warnings,
@@ -363,3 +367,106 @@ def test_the_same_answer_word_under_a_different_letter_is_still_a_duplicate():
     seen = {_answer_word(first)}
 
     assert _repeated_answer_warning(second, seen)
+
+
+# --- mục phát âm chỉ dùng từ của bài ------------------------------------------
+
+UNIT_VOCAB = ["voice", "hobby", "class", "improve", "study", "collect"]
+
+
+def test_inflected_forms_of_unit_words_are_accepted():
+    """Từ của bài được phép chia — 'voices' từ 'voice', 'hobbies' từ 'hobby'."""
+    vocab = _vocabulary_forms(UNIT_VOCAB)
+    draft = _draft(["voice<u>s</u>", "hobb<u>ies</u>", "class<u>es</u>", "improv<u>ed</u>"])
+
+    assert _words_outside_unit(draft, vocab) == []
+
+
+def test_words_outside_the_lesson_are_listed():
+    """Đề sinh 28/08/2026 lấy toàn từ ngoài bài (colleges, prizes, coward...), học sinh
+    phải đoán âm của từ chưa từng học."""
+    vocab = _vocabulary_forms(UNIT_VOCAB)
+    draft = _draft(["voice<u>s</u>", "college<u>s</u>", "prize<u>s</u>", "coward"])
+
+    assert _words_outside_unit(draft, vocab) == ["colleges", "prizes", "coward"]
+
+
+def test_the_word_list_is_pinned_into_the_instruction():
+    override = _vocabulary_prompt_override("Chỉ dùng kiểu (1).", UNIT_VOCAB)
+
+    assert "Chỉ dùng kiểu (1)." in override
+    assert "hobby" in override and "improve" in override
+    assert "TUYỆT ĐỐI không lấy từ ngoài" in override
+
+
+def test_unit_without_vocabulary_keeps_the_instruction_unchanged():
+    """Unit chưa nạp tài liệu thì không có gì để ghim — giữ nguyên hành vi cũ."""
+    assert _vocabulary_prompt_override("Chỉ dùng kiểu (1).", []) == "Chỉ dùng kiểu (1)."
+
+
+def test_ai_question_using_outside_words_is_replaced():
+    outside = _draft(["college<u>s</u>", "prize<u>s</u>", "voice<u>s</u>", "coward<u>s</u>"])
+    provider = FakeProvider([outside])
+    used: set[frozenset[str]] = set()
+
+    drafts = _pronunciation_drafts(provider, _spec("s", count=1), CTX, UNIT_VOCAB, ALL_LINES, used)
+
+    assert len(drafts) == 1
+    assert drafts[0] is not outside
+
+
+# --- cloze test: một đoạn văn dùng chung ---------------------------------------
+
+
+def _cloze(prompt, passage):
+    draft = QuestionDraft(
+        prompt_text=prompt, answer_text="x", explanation="", target_knowledge="",
+        level_code="A2", source_ref="ai", options=None,
+    )
+    draft.passage_text = passage
+    return draft
+
+
+def test_cloze_questions_end_up_sharing_one_passage():
+    """Cloze phải là MỘT đoạn khoét nhiều chỗ trống. Model hay trả mỗi câu một câu đơn
+    lẻ rời rạc — in ra thành mấy câu rời chứ không còn là bài đọc (đề sinh 28/08/2026)."""
+    full = "Many teenagers (1) ______ sports. They also (2) ______ music after class."
+    drafts = [
+        _cloze("Complete the sentence: Many teenagers ______ (1) sports.", "Many teenagers (1) ______ sports."),
+        _cloze("Complete the sentence: They also ______ (2) music.", full),
+    ]
+    _tidy_cloze_drafts(drafts)
+
+    assert {d.passage_text for d in drafts} == {full}  # gom về đoạn đầy đủ nhất
+
+
+def test_cloze_prompt_keeps_only_the_blank_number():
+    """prompt_text chép lại nguyên câu văn thì mỗi câu in ra hai lần: một lần trong
+    đoạn, một lần ở dòng câu hỏi."""
+    drafts = [
+        _cloze("Complete the sentence: Many teenagers ______ (1) sports.", "P (1) ______ ."),
+        _cloze("khong co so nao", "P (1) ______ ."),
+    ]
+    _tidy_cloze_drafts(drafts)
+
+    assert [d.prompt_text for d in drafts] == ["(1)", "(2)"]
+
+
+def test_cloze_questions_follow_the_order_of_the_blanks():
+    """Đề sinh 28/08/2026 in "(5)" ở câu đầu và "(1)" ở câu cuối. Câu phải theo đúng thứ
+    tự chỗ trống trong đoạn, rồi cả đoạn lẫn câu đánh số lại từ 1."""
+    full = "Teenagers often (5) ______ time online. Many (2) ______ sports."
+    drafts = [
+        _cloze("Many teenagers ______ (2) sports.", "Many teenagers (2) ______ sports."),
+        _cloze("Teenagers often ______ (5) time online.", full),
+    ]
+    _tidy_cloze_drafts(drafts)
+
+    # Câu về chỗ trống (5) đứng TRƯỚC vì nó xuất hiện trước trong đoạn
+    assert [d.prompt_text for d in drafts] == ["(1)", "(2)"]
+    assert drafts[0].passage_text.startswith("Teenagers often (1) ______ time online.")
+    assert "(5)" not in drafts[0].passage_text
+
+
+def test_tidy_cloze_handles_an_empty_batch():
+    _tidy_cloze_drafts([])

@@ -244,6 +244,25 @@ def test_teacher_instruction_on_a_part_wins_over_the_generated_prompt():
     assert PRON_SOUND in full_text  # phần để trống vẫn giữ câu dẫn
 
 
+def test_shared_passage_is_printed_once_for_the_whole_group():
+    """Đoạn văn in theo TỪNG câu thì nó lặp lại trước mỗi câu, đề nhìn như mỗi câu một
+    bài đọc riêng (đề sinh 28/08/2026 — mục CLOZE TEST in mỗi câu hai lần)."""
+    passage = "Many teenagers (1) ______ sports and (2) ______ music together."
+    questions = []
+    for i in range(3):
+        q = _question(None, f"({i + 1})", [_opt("A", "play"), _opt("B", "plays"),
+                                           _opt("C", "played"), _opt("D", "playing")])
+        q.passage_text = passage
+        questions.append(q)
+    block = SimpleNamespace(
+        id="b1", order_no=1, points=1, title="CLOZE TEST", instruction=None,
+        exercise_type=SimpleNamespace(code="cloze_test"), parts=[], questions=questions,
+    )
+    doc = build_exam_document(*_exam(block))
+
+    assert sum(1 for p in doc.paragraphs if passage in p.text) == 1
+
+
 def test_block_instruction_hidden_when_parts_print_their_own():
     """Đề thật: "I. PRONUNCIATION" đi thẳng xuống dòng hướng dẫn của từng phần con,
     không có câu lệnh chung của khối ở giữa (câu chung không mô tả nổi phần trọng âm)."""
